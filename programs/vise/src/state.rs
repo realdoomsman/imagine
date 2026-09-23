@@ -183,8 +183,10 @@ impl Pool {
             ViseError::VaultAccountingMismatch
         );
 
-        let mut out = SyncResult::default();
-        out.released = self.release(now)?;
+        let mut out = SyncResult {
+            released: self.release(now)?,
+            ..SyncResult::default()
+        };
 
         if balance > self.last_vault_balance {
             let inflow = balance - self.last_vault_balance;

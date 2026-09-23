@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/*.test.ts"
+    "test": "node --test test/*.test.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

@@ -77,10 +77,37 @@ async function fund(keypair: Keypair, sol: number) {
   await connection.confirmTransaction({ signature, ...latest }, "confirmed");
 }
 
+/**
+ * Pre-create every writable account in a transaction that does not exist yet.
+ *
+ * A fresh local ledger has none of pump.fun's fee-collecting accounts, and pump
+ * rotates which one it credits by slot. A fee smaller than the rent-exempt
+ * minimum would leave a brand-new destination rent-paying, and the runtime
+ * rejects the whole transaction — an intermittent "insufficient funds for rent"
+ * that has nothing to do with the program under test. On devnet and mainnet
+ * those accounts already exist and are funded.
+ */
+async function fundMissingAccounts(tx: Transaction): Promise<number> {
+  const message = tx.compileMessage();
+  const missing: PublicKey[] = [];
+  for (const [index, key] of message.accountKeys.entries()) {
+    if (!message.isAccountWritable(index)) continue;
+    if (await connection.getAccountInfo(key)) continue;
+    missing.push(key);
+  }
+  for (const key of missing) {
+    const signature = await connection.requestAirdrop(key, LAMPORTS_PER_SOL);
+    const latest = await connection.getLatestBlockhash();
+    await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+  }
+  return missing.length;
+}
+
 async function send(
   instructions: TransactionInstruction[],
   signers: Keypair[],
   label: string,
+  options: { seedFeeAccounts?: boolean } = {},
 ): Promise<string> {
   const latest = await connection.getLatestBlockhash();
   const tx = new Transaction({
@@ -90,6 +117,11 @@ async function send(
   });
   tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
   tx.add(...instructions);
+  // Only for trades. Seeding indiscriminately would also fund accounts the
+  // transaction is supposed to create — including a pool's own reward vault,
+  // which would then count the airdrop as fee inflow.
+  if (options.seedFeeAccounts) await fundMissingAccounts(tx);
+
   try {
     const signature = await connection.sendTransaction(tx, signers, {
       skipPreflight: false,
@@ -217,7 +249,7 @@ async function main() {
     quoteAmount: new BN(devBuy.toString()),
     slippage: 10,
   });
-  await send(devBuyIxs, [creator], "dev buy");
+  await send(devBuyIxs, [creator], "dev buy", { seedFeeAccounts: true });
 
   const creatorAta = getAssociatedTokenAddressSync(
     mint,
@@ -329,7 +361,7 @@ async function main() {
   });
 
   const vaultBefore = await connection.getBalance(vault);
-  await send([...buyIxs, feeIx], [trader], "buy + app fee");
+  await send([...buyIxs, feeIx], [trader], "buy + app fee", { seedFeeAccounts: true });
   const vaultAfter = await connection.getBalance(vault);
   check(
     "app fee landed in the pool atomically with the trade",
