@@ -10,6 +10,7 @@ import { DAY, appFeeLamports, poolPda } from "@vise/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { env } from "../env.ts";
+import { distributable } from "../keeper.ts";
 import {
   appFeeInstruction,
   budgetInstructions,
@@ -380,17 +381,20 @@ export async function txRoutes(app: FastifyInstance) {
     return serialize([...budgetInstructions(100_000, 150_000), ix], owner);
   });
 
-  /** Permissionless crank anyone can run to pull pump creator fees into a pool. */
+  /**
+   * Permissionless crank anyone can run to pull pump creator fees into a pool.
+   * The keeper does this on a schedule; the endpoint exists so a locker who
+   * would rather not wait can pay the fee themselves.
+   */
   app.post("/tx/sweep", async (request, reply) => {
-    const body = z
-      .object({ payer: pubkey, mint: pubkey, graduated: z.boolean().default(false) })
-      .parse(request.body);
+    const body = z.object({ payer: pubkey, mint: pubkey }).parse(request.body);
     const payer = new PublicKey(body.payer);
-    const ixs = await sweepCreatorFees({
-      payer,
-      mint: new PublicKey(body.mint),
-      graduated: body.graduated,
-    });
+    const mint = new PublicKey(body.mint);
+    const { pump, amm } = await distributable(mint);
+    if (pump + amm === 0n) {
+      return reply.code(409).send({ error: "nothing waiting at pump for this coin" });
+    }
+    const ixs = await sweepCreatorFees({ payer, mint, includeAmm: amm > 0n });
     if (ixs.length === 0) {
       return reply.code(404).send({ error: "coin has no pump fee-sharing config" });
     }

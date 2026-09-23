@@ -20,6 +20,7 @@ import {
   type PositionAccount,
 } from "./accounts.ts";
 import { VISE_PROGRAM_ID } from "./constants.ts";
+import { projectSync } from "./math.ts";
 import {
   bondingCurvePda,
   configPda,
@@ -72,6 +73,27 @@ export class ViseClient {
   async fetchPool(mint: PublicKey): Promise<PoolAccount | null> {
     const info = await this.connection.getAccountInfo(poolPda(mint, this.programId));
     return info ? decodePool(info.data) : null;
+  }
+
+  /**
+   * The pool as `sync` would leave it right now.
+   *
+   * Reads the account and its vault in one round trip and replays the
+   * program's stream arithmetic against the live balance, so callers quoting
+   * "pending" get the figure a claim would pay rather than the figure at the
+   * last time someone happened to touch the pool.
+   */
+  async fetchProjectedPool(
+    mint: PublicKey,
+    now: number = Math.floor(Date.now() / 1000),
+  ): Promise<(PoolAccount & { released: bigint; inflow: bigint }) | null> {
+    const [poolInfo, vaultInfo] = await this.connection.getMultipleAccountsInfo([
+      poolPda(mint, this.programId),
+      rewardVaultPda(mint, this.programId),
+    ]);
+    if (!poolInfo) return null;
+    const pool = decodePool(poolInfo.data);
+    return projectSync(pool, BigInt(vaultInfo?.lamports ?? 0), now);
   }
 
   /** Every position a wallet holds, across all pools. */

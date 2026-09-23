@@ -85,7 +85,7 @@ export async function poolRoutes(app: FastifyInstance) {
     // Chain is authoritative for anything a user will act on; the database only
     // supplies metadata and history the chain does not carry.
     const [onChain, meta, curve, global] = await Promise.all([
-      vise.fetchPool(key),
+      vise.fetchProjectedPool(key),
       sql`SELECT * FROM pools WHERE mint = ${mint}`,
       fetchCurve(key),
       onlinePump.fetchGlobal(),
@@ -156,7 +156,7 @@ export async function poolRoutes(app: FastifyInstance) {
     }
 
     const [pool, positions] = await Promise.all([
-      vise.fetchPool(key),
+      vise.fetchProjectedPool(key),
       vise.fetchPositionsByPool(key),
     ]);
     if (!pool) return reply.code(404).send({ error: "pool not found" });

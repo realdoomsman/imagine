@@ -30,4 +30,8 @@ EXPOSE 8080
 
 # Node 24 strips the type annotations at load time, so the TypeScript sources
 # run directly — no build step and no emitted JavaScript to keep in sync.
-CMD ["sh", "-c", "node src/migrate.ts && node src/index.ts"]
+#
+# One image, two roles. ROLE=api serves HTTP and can scale out; ROLE=indexer
+# builds the read model and runs the keeper, and must stay a singleton — two
+# keepers would race to send the same distributions.
+CMD ["sh", "-c", "node src/migrate.ts && node src/${ROLE:-index}.ts"]

@@ -77,6 +77,114 @@ export function splitInflow(
   return { toTreasury, toCreator, toLockers: afterTreasury - toCreator };
 }
 
+/**
+ * Spread lamports across weight the way the program does.
+ *
+ * Returns the scaled accumulator increment, the lamports the pool commits to
+ * lockers (rounded up from the credit actually handed out, so the sum of every
+ * floored claim can never exceed it) and the remainder carried forward.
+ */
+export function distribute(
+  lamports: bigint,
+  totalWeight: bigint,
+): { increment: bigint; committed: bigint; remainder: bigint } {
+  if (totalWeight === 0n || lamports === 0n) {
+    return { increment: 0n, committed: 0n, remainder: lamports };
+  }
+  const increment = (lamports * SCALE) / totalWeight;
+  const scaledCredit = increment * totalWeight;
+  const committed = (scaledCredit + SCALE - 1n) / SCALE;
+  return { increment, committed, remainder: lamports - committed };
+}
+
+/** The subset of a pool the stream projection reads and rewrites. */
+export interface StreamState {
+  totalWeight: bigint;
+  accRewardPerWeight: bigint;
+  rewardRemainder: bigint;
+  lastVaultBalance: bigint;
+  vaultReserve: bigint;
+  undistributed: bigint;
+  streamRate: bigint;
+  streamEnd: number;
+  lastStreamAt: number;
+  creatorClaimable: bigint;
+  treasuryClaimable: bigint;
+  lifetimeInflow: bigint;
+  lifetimeRewards: bigint;
+  lifetimeCreator: bigint;
+  lifetimeTreasury: bigint;
+  terms: Pick<PoolTerms, "treasuryShareBps" | "creatorShareBps"> & {
+    rewardStreamSecs: number;
+  };
+}
+
+/**
+ * What `Pool::sync` would leave behind if it ran right now.
+ *
+ * The on-chain accumulator only moves when some instruction touches the pool.
+ * Between touches the stream keeps releasing and fees keep landing in the
+ * vault, so a balance read straight from the account under-reports what a
+ * claim would pay. This replays the program's exact arithmetic — release the
+ * elapsed share of the stream, then fold in any unsynced inflow and restart
+ * the window — against the live vault balance, without sending anything.
+ *
+ * Pure: returns a new state and leaves the input untouched.
+ */
+export function projectSync<T extends StreamState>(
+  pool: T,
+  vaultLamports: bigint,
+  now: number,
+): T & { released: bigint; inflow: bigint } {
+  const next = { ...pool, released: 0n, inflow: 0n };
+
+  // credit_lockers: with nothing locked the share goes to the treasury.
+  const credit = (lamports: bigint) => {
+    if (lamports === 0n) return;
+    if (next.totalWeight === 0n) {
+      next.treasuryClaimable += lamports;
+      next.lifetimeTreasury += lamports;
+      return;
+    }
+    const pot = lamports + next.rewardRemainder;
+    const { increment, committed, remainder } = distribute(pot, next.totalWeight);
+    next.accRewardPerWeight += increment;
+    next.rewardRemainder = remainder;
+    next.lifetimeRewards += committed;
+  };
+
+  // release(now)
+  const until = Math.min(now, next.streamEnd);
+  const elapsed = BigInt(Math.max(until - next.lastStreamAt, 0));
+  next.lastStreamAt = now;
+  if (elapsed > 0n && next.undistributed > 0n) {
+    const due = (next.streamRate * elapsed) / SCALE;
+    next.released = due < next.undistributed ? due : next.undistributed;
+    next.undistributed -= next.released;
+    credit(next.released);
+  }
+
+  // Unsynced inflow: lamports that landed since the last touch.
+  const balance = vaultLamports > pool.vaultReserve ? vaultLamports - pool.vaultReserve : 0n;
+  if (balance > pool.lastVaultBalance) {
+    next.inflow = balance - pool.lastVaultBalance;
+    next.lifetimeInflow += next.inflow;
+    const { toTreasury, toCreator, toLockers } = splitInflow(next.inflow, pool.terms);
+    next.treasuryClaimable += toTreasury;
+    next.creatorClaimable += toCreator;
+    next.lifetimeTreasury += toTreasury;
+    next.lifetimeCreator += toCreator;
+    next.undistributed += toLockers;
+    // restart_stream(now)
+    next.streamRate = (next.undistributed * SCALE) / BigInt(pool.terms.rewardStreamSecs);
+    next.streamEnd = now + pool.terms.rewardStreamSecs;
+    next.lastStreamAt = now;
+    next.lastVaultBalance = balance;
+  }
+
+  return next;
+}
+
 export function earlyExitPenalty(
   amount: bigint,
   lockStart: number,

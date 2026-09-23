@@ -131,13 +131,20 @@ export async function routeCreatorFeesToPool(params: {
 
 /**
  * Permissionless crank that pushes a coin's accrued pump.fun creator fees into
- * its lock pool. Anyone may call it; VISE runs it on a schedule so lockers do
- * not have to.
+ * its lock pool. Anyone may call it; the keeper runs it so lockers do not
+ * have to.
+ *
+ * Two sources feed the sharing-config vault: the bonding curve credits it
+ * directly, and after graduation the AMM keeps its cut in a WSOL vault that
+ * `transfer_creator_fees_to_pump_v2` moves across first. That leg is included
+ * only when the AMM vault holds something — not merely because the curve is
+ * complete, since a coin can finish its curve without an AMM pool existing
+ * yet, and the instruction fails on the missing accounts.
  */
 export async function sweepCreatorFees(params: {
   payer: PublicKey;
   mint: PublicKey;
-  graduated: boolean;
+  includeAmm: boolean;
 }): Promise<TransactionInstruction[]> {
   const sharingConfigAddress = feeSharingConfigPda(params.mint);
   const info = await connection.getAccountInfo(sharingConfigAddress);
@@ -145,7 +152,7 @@ export async function sweepCreatorFees(params: {
   const sharingConfig = PUMP_SDK.decodeSharingConfig(info);
 
   const instructions: TransactionInstruction[] = [];
-  if (params.graduated) {
+  if (params.includeAmm) {
     instructions.push(
       await PUMP_SDK.transferCreatorFeesToPumpV2({
         payer: params.payer,

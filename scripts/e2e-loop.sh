@@ -6,7 +6,8 @@ set -u
 cd /mnt/c/tech/Hold/apps/api
 N="${1:-4}"
 for i in $(seq 1 "$N"); do
-  /opt/node/bin/node scripts/e2e.ts > "/tmp/e2e-$i.log" 2>&1
+  # .env.local points the API modules the script imports at the local validator.
+  /opt/node/bin/node --env-file=.env.local scripts/e2e.ts > "/tmp/e2e-$i.log" 2>&1
   status=$(grep -oE '^(PASS|FAIL).*' "/tmp/e2e-$i.log" | head -1)
   echo "run $i: ${status:-CRASHED}"
   if [ -z "$status" ]; then

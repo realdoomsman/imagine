@@ -85,27 +85,36 @@ are unchanged and `railway up` will use them directly.
 
 ## Services
 
-| Service | Start | Health |
-|---|---|---|
-| `vise-api` | `node src/migrate.ts && node src/index.ts` | `GET /health` → `{ok, slot, cluster}` |
-| `vise-web` | `next start` | `GET /` |
-| indexer | `node src/indexer.ts` | logs `indexer running`; watch `indexer_cursor.slot` advancing |
+One API image, two roles, chosen by `ROLE`:
 
-The migration is idempotent and runs on every API boot, so a fresh database
-self-provisions.
+| Service | `ROLE` | Runs | Health |
+|---|---|---|---|
+| `api` | `index` (default) | HTTP. Safe to scale out. | `GET /health` → `{ok, slot, cluster}` |
+| `indexer` | `indexer` | Read model, reconciler, **keeper**. Must stay at one replica. | logs `indexer running`; `indexer_cursor.slot` advancing; `keeper_runs` growing when there is volume |
+| `web` | — | `next start` | `GET /` |
+
+The migration is idempotent and runs on every boot of either role, so a fresh
+database self-provisions.
+
+The indexer is not optional. Without it `pools` never populates and nothing
+cranks; the API would serve an empty catalogue over a live program.
 
 ### Environment
 
-**API**
+**API and indexer** (both roles read the same set)
 
 | Variable | Purpose |
 |---|---|
+| `ROLE` | `index` or `indexer` |
 | `DATABASE_URL` | Postgres. On Railway: `${{Postgres.DATABASE_URL}}` |
 | `RPC_URL` | Solana RPC. A paid endpoint is required in production — the public one will rate-limit the indexer within minutes |
 | `RPC_WS_URL` | Optional websocket override for log subscriptions |
 | `TREASURY_PUBKEY` | Destination for the platform share |
 | `TRADE_FEE_BPS` | App fee on routed swaps. Must match the on-chain config's advisory value |
 | `CORS_ORIGINS` | Comma-separated; set to the web origin in production, not `*` |
+| `KEEPER_KEYPAIR` | Indexer only. The CLI's JSON byte array or a base58 secret. Enables the keeper |
+| `SWEEP_MIN_LAMPORTS` | Indexer only. Sweep a coin once this much waits at pump. Default 0.005 SOL |
+| `KEEPER_INTERVAL_MS` | Indexer only. Default 60s |
 
 **Web** (build args — they are inlined into the client bundle)
 
@@ -114,17 +123,34 @@ self-provisions.
 | `NEXT_PUBLIC_API_URL` | API origin |
 | `NEXT_PUBLIC_RPC_URL` | RPC the browser uses for balances and confirmations |
 
-## Cranks
+## The keeper
 
-Two permissionless operations should run on a schedule so users never have to:
+pump.fun pays a coin's creator fees into a vault and leaves them there until
+someone calls `distribute_creator_fees_v2`. Nobody else has a reason to do that
+promptly, so the indexer process does: every `KEEPER_INTERVAL_MS` it reads each
+pool's pump vault (and, once an AMM pool exists, the AMM's WSOL vault), and for
+any coin holding at least `SWEEP_MIN_LAMPORTS` sends one transaction —
+`[transfer_creator_fees_to_pump_v2]?, distribute_creator_fees_v2, sync` —
+signed by `KEEPER_KEYPAIR`. Each send is logged to `keeper_runs`.
 
-1. **`POST /api/tx/sweep`** per pool — pulls accrued pump.fun creator fees into
-   the vault and syncs. Hourly is plenty; it is idempotent and cheap when there
-   is nothing to sweep.
-2. **`claim_treasury`** per pool — moves the platform share out. Weekly.
+What it costs: one transaction fee per sweep. The threshold is what keeps that
+proportionate — a coin doing volume is swept every minute, a dead coin never.
+The keeper refuses to send below 0.02 SOL of its own balance and logs a
+warning instead; **keep the keeper wallet topped up** or fees pile up at pump
+(safely — they are not lost, just not yet distributed).
 
-Both are ordinary transactions anyone can send. Neither can move funds anywhere
-other than the address recorded on the pool.
+Anyone can run the same crank without waiting: `POST /api/tx/sweep`. Neither
+path can move funds anywhere other than the vault recorded on pump's sharing
+config, which was made immutable at launch.
+
+"Pending" figures in the UI do not depend on the keeper. The API projects every
+pool to the current moment with the program's own stream arithmetic
+(`projectSync` in the SDK, pinned to the program by a LiteSVM test), so a
+locker sees what a claim would pay even if nothing has touched the pool for a
+day.
+
+Still manual: **`claim_treasury`** per pool moves the platform share out.
+Weekly is fine.
 
 ## Incident playbook
 

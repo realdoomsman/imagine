@@ -9,8 +9,10 @@ export async function portfolioRoutes(app: FastifyInstance) {
   /**
    * Every live position for a wallet, priced from chain state.
    *
-   * Pending rewards are computed with the same accumulator the program uses, so
-   * the number shown is the number the claim instruction will pay.
+   * Pending rewards come from the pool *projected to now* — the stream released
+   * and any unsynced vault inflow folded in, with the program's own arithmetic
+   * — so the number shown is the number the claim instruction will pay, not
+   * the number from whenever someone last touched the pool.
    */
   app.get("/portfolio/:owner", async (request, reply) => {
     const { owner } = z.object({ owner: z.string() }).parse(request.params);
@@ -39,7 +41,7 @@ export async function portfolioRoutes(app: FastifyInstance) {
     const pools = await Promise.all(
       [...new Set(positions.map((p) => byPool[p.pool.toBase58()]?.mint as string))]
         .filter(Boolean)
-        .map(async (mint) => [mint, await vise.fetchPool(new PublicKey(mint))] as const),
+        .map(async (mint) => [mint, await vise.fetchProjectedPool(new PublicKey(mint))] as const),
     );
     const poolByMint = Object.fromEntries(pools);
 

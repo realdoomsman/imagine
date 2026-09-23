@@ -120,3 +120,15 @@ CREATE TABLE IF NOT EXISTS indexer_cursor (
 );
 
 INSERT INTO indexer_cursor (id, slot) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;
+
+-- Every distribution the keeper sent. Observability, not accounting: the pool
+-- account is the ledger, this is the log of who cranked it and when.
+CREATE TABLE IF NOT EXISTS keeper_runs (
+  id        BIGSERIAL PRIMARY KEY,
+  mint      TEXT NOT NULL,
+  lamports  BIGINT NOT NULL,
+  signature TEXT NOT NULL UNIQUE,
+  at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS keeper_runs_mint_at_idx ON keeper_runs (mint, at DESC);

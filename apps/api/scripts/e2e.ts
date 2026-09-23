@@ -49,6 +49,8 @@ import {
   VISE_PROGRAM_ID,
   ViseClient,
 } from "@vise/sdk";
+import { distributable } from "../src/keeper.ts";
+import { sweepCreatorFees } from "../src/pump.ts";
 
 const RPC = process.env.RPC_URL ?? "http://127.0.0.1:8899";
 const TRADE_FEE_BPS = 200;
@@ -385,6 +387,35 @@ async function main() {
     "the lockers' share is queued, not handed out",
     pool!.undistributed > 0n && pool!.lifetimeRewards === 0n,
     `${formatSol(pool!.undistributed)} SOL queued over ${pool!.terms.rewardStreamSecs}s`,
+  );
+
+  step("6b. The keeper sweeps pump's creator fee into the pool");
+  // The buy in step 5 paid pump.fun a creator fee. That fee sits in the
+  // sharing-config vault until someone calls distribute — which is the
+  // keeper's whole job. Nothing else in this suite touches that path.
+  const waiting = (await distributable(mint)).pump;
+  check("pump credited the creator fee to the sharing-config vault", waiting > 0n, `${formatSol(waiting)} SOL waiting`);
+  const vaultBeforeSweep = BigInt(await connection.getBalance(vault));
+  const inflowBeforeSweep = (await vise.fetchPool(mint))!.lifetimeInflow;
+  const sweepIxs = await sweepCreatorFees({ payer: trader.publicKey, mint, includeAmm: false });
+  check("the sweep builds distribute + sync", sweepIxs.length === 2, `${sweepIxs.length} instructions`);
+  await send(sweepIxs, [trader], "keeper sweep", { seedFeeAccounts: true });
+  const vaultAfterSweep = BigInt(await connection.getBalance(vault));
+  const swept = vaultAfterSweep - vaultBeforeSweep;
+  check(
+    "the creator fee arrived in the pool's reward vault",
+    swept === waiting,
+    `${formatSol(swept)} SOL moved`,
+  );
+  pool = await vise.fetchPool(mint);
+  check(
+    "the same sync folded it into the pool's accounting",
+    pool!.lifetimeInflow === inflowBeforeSweep + swept,
+    `lifetime inflow ${formatSol(pool!.lifetimeInflow)} SOL`,
+  );
+  check(
+    "nothing is left waiting at pump",
+    (await distributable(mint)).pump === 0n,
   );
 
   step("7. The trader locks, and rewards split by weight");

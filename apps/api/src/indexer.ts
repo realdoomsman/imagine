@@ -16,6 +16,7 @@ import {
 import { sql } from "./db.ts";
 import { fetchCurve, onlinePump } from "./pump.ts";
 import { connection, vise } from "./solana.ts";
+import { startKeeper } from "./keeper.ts";
 
 /**
  * Builds the read model from program logs.
@@ -59,14 +60,10 @@ async function handleEvent(
       const pool = data.pool.toBase58();
       const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
       if (!row) break;
-      await sql`
-        UPDATE pools SET
-          lifetime_inflow = lifetime_inflow + ${asBigint(data.inflow).toString()}::BIGINT,
-          lifetime_rewards = lifetime_rewards + ${asBigint(data.to_lockers).toString()}::BIGINT,
-          total_weight = ${asBigint(data.total_weight).toString()}::NUMERIC,
-          updated_at = NOW()
-        WHERE pool = ${pool}
-      `;
+      // `to_lockers` is what joined the stream, not what has been paid out, so
+      // adding it to lifetime_rewards here would run ahead of the chain. Read
+      // the projected pool instead: one RPC, and every counter is exact.
+      await upsertPoolFromChain(new PublicKey(row.mint as string));
       await sql`
         INSERT INTO fee_events (signature, mint, kind, amount, to_lockers, slot, at)
         VALUES (${signature}, ${row.mint as string}, 4,
@@ -178,9 +175,15 @@ async function syncPosition(mint: PublicKey, address: string) {
   `;
 }
 
-/** Re-read a pool from chain and overwrite the row. Always safe to call. */
+/**
+ * Re-read a pool from chain and overwrite the row. Always safe to call.
+ *
+ * Reads the pool *projected to now* — stream released, unsynced vault inflow
+ * folded in — rather than the raw account, so a pool nobody has touched for
+ * hours still shows what it has actually paid out.
+ */
 export async function upsertPoolFromChain(mint: PublicKey) {
-  const pool = await vise.fetchPool(mint);
+  const pool = await vise.fetchProjectedPool(mint);
   if (!pool) return;
 
   const [curve, supply, global] = await Promise.all([
@@ -350,12 +353,66 @@ async function discover() {
   }
 }
 
+/**
+ * Replay every program transaction newer than the cursor.
+ *
+ * Pools converge on their own through `reconcile`, but history does not: a
+ * lock, claim or fee that landed while the socket was down is otherwise gone
+ * from the tables that feed the activity feed, the reward chart and APR. The
+ * cursor was always being written; this is the half that reads it.
+ *
+ * Signatures come newest-first and are replayed oldest-first, so a crash
+ * halfway leaves the cursor behind the gap rather than past it. Bounded to a
+ * few pages: after a long outage the reconciler's view is the honest one and
+ * the tail of history is not worth an hour of RPC.
+ */
+async function backfill() {
+  const [cursor] = await sql`SELECT signature FROM indexer_cursor WHERE id = 1`;
+  const until = (cursor?.signature as string | null) ?? undefined;
+  if (!until) return;
+
+  const signatures: Array<{ signature: string; slot: number }> = [];
+  let before: string | undefined;
+  for (let page = 0; page < 5; page++) {
+    const batch = await connection.getSignaturesForAddress(
+      VISE_PROGRAM_ID,
+      { until, before, limit: 1000 },
+      "confirmed",
+    );
+    for (const entry of batch) {
+      if (!entry.err) signatures.push({ signature: entry.signature, slot: entry.slot });
+    }
+    if (batch.length < 1000) break;
+    before = batch[batch.length - 1]?.signature;
+  }
+  if (signatures.length === 0) return;
+  console.log(`backfilling ${signatures.length} transactions since ${until}`);
+
+  for (const { signature, slot } of signatures.reverse()) {
+    if (seenSignatures.has(signature)) continue;
+    const tx = await connection.getTransaction(signature, {
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    });
+    const logs = tx?.meta?.logMessages;
+    if (!logs) continue;
+    seenSignatures.add(signature);
+    for (const event of decodeLogs(logs)) {
+      await handleEvent(event.name, event.data, signature, slot);
+    }
+    await sql`UPDATE indexer_cursor SET slot = ${slot}, signature = ${signature},
+              updated_at = NOW() WHERE id = 1`;
+  }
+}
+
 // `process.argv[1]` is a native path; it only matches `import.meta.url` once
 // converted to a file URL (a Windows path otherwise never compares equal).
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await discover().catch((error) => console.error("discovery failed", error));
+  await backfill().catch((error) => console.error("backfill failed", error));
   await subscribe();
   setInterval(() => void reconcile().catch(console.error), 30_000);
+  startKeeper();
   console.log("indexer running");
 }
 

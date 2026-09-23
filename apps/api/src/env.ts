@@ -26,6 +26,15 @@ export const env = {
   /** App fee on routed swaps, in bps of the SOL leg. Mirrors on-chain config. */
   tradeFeeBps: Number(process.env.TRADE_FEE_BPS ?? 200),
   pinataJwt: process.env.PINATA_JWT ?? "",
+  /**
+   * The keeper signs the permissionless cranks — pump fee distribution and
+   * pool syncs. Optional: without it the indexer runs read-only and someone
+   * else has to crank, which nobody does promptly.
+   */
+  keeperKeypair: process.env.KEEPER_KEYPAIR ?? "",
+  /** Only sweep a coin once its pump vault holds at least this much. */
+  sweepMinLamports: BigInt(process.env.SWEEP_MIN_LAMPORTS ?? 5_000_000),
+  keeperIntervalMs: Number(process.env.KEEPER_INTERVAL_MS ?? 60_000),
 } as const;
 
 if (env.tradeFeeBps < 0 || env.tradeFeeBps > 1_000) {

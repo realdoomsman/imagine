@@ -15,6 +15,7 @@ import {
 import {
   accrued,
   multiplierBps,
+  projectSync,
   splitInflow,
   weightOf,
   type PoolTerms,
@@ -29,6 +30,7 @@ import {
   fundedKeypair,
   lamports,
   mintSupply,
+  now,
   send,
   sendExpectingError,
   setup,
@@ -455,6 +457,79 @@ describe("rewards", () => {
       "every queued lamport must reach lockers once the window elapses",
     );
     assertSolvent(w.svm, w.mint, [{ owner: w.creator.publicKey, index: 0 }]);
+  });
+
+  it("projects a sync off-chain exactly as the program performs it", async () => {
+    // The API quotes "pending" from this projection between touches. If it
+    // drifts from the program by a single lamport, the UI shows a number the
+    // claim instruction will not pay.
+    const alice = Keypair.generate();
+    const w = await openPool({
+      initialLockAmount: 5_000n * TOKEN,
+      initialLockDuration: 30 * DAY,
+      extraHolders: [{ owner: alice.publicKey, amount: 50_000n * TOKEN }],
+    });
+    w.svm.airdrop(alice.publicKey, 10n * SOL);
+    send(
+      w.svm,
+      [
+        await client.lock({
+          owner: alice.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: 40_000n * TOKEN,
+          durationSecs: 90 * DAY,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [alice],
+    );
+
+    const trader = fundedKeypair(w.svm);
+    // First inflow starts a stream; a partial release then a second, unsynced
+    // inflow exercises every branch: release, fold, restart.
+    send(
+      w.svm,
+      [await client.depositReward({ payer: trader.publicKey, mint: w.mint, lamports: 3n * SOL, kind: FeeKind.Buy })],
+      [trader],
+    );
+    warp(w.svm, Math.floor(STREAM_SECS / 3));
+    // Land lamports without touching the pool, the way pump's distribution does.
+    const vault = rewardVaultPda(w.mint);
+    const untouched = 7n * SOL / 10n;
+    w.svm.airdrop(vault, untouched);
+    warp(w.svm, 17);
+
+    const before = readPool(w.svm, w.mint);
+    const vaultLamports = lamports(w.svm, vault);
+    const projected = projectSync(before, vaultLamports, now(w.svm));
+
+    send(w.svm, [await client.sync(w.mint)], [trader]);
+    const after = readPool(w.svm, w.mint);
+
+    assert.equal(projected.accRewardPerWeight, after.accRewardPerWeight, "accumulator");
+    assert.equal(projected.rewardRemainder, after.rewardRemainder, "remainder");
+    assert.equal(projected.undistributed, after.undistributed, "undistributed");
+    assert.equal(projected.streamRate, after.streamRate, "stream rate");
+    assert.equal(projected.streamEnd, after.streamEnd, "stream end");
+    assert.equal(projected.lastStreamAt, after.lastStreamAt, "last stream at");
+    assert.equal(projected.lastVaultBalance, after.lastVaultBalance, "vault floor");
+    assert.equal(projected.lifetimeInflow, after.lifetimeInflow, "lifetime inflow");
+    assert.equal(projected.lifetimeRewards, after.lifetimeRewards, "lifetime rewards");
+    assert.equal(projected.treasuryClaimable, after.treasuryClaimable, "treasury claimable");
+    assert.equal(projected.creatorClaimable, after.creatorClaimable, "creator claimable");
+    assert.equal(projected.lifetimeTreasury, after.lifetimeTreasury, "lifetime treasury");
+    assert.equal(projected.lifetimeCreator, after.lifetimeCreator, "lifetime creator");
+    assert.equal(projected.inflow, untouched, "the unsynced inflow is the airdrop");
+
+    // And the number a locker sees is the number a claim pays.
+    const position = readPosition(w.svm, w.mint, alice.publicKey, 0);
+    assert.ok(position, "alice's position exists");
+    const quoted = accrued(position.weight, projected.accRewardPerWeight, position.rewardDebt);
+    const balanceBefore = lamports(w.svm, alice.publicKey);
+    send(w.svm, [await client.claim({ owner: alice.publicKey, mint: w.mint, index: 0 })], [alice]);
+    const paid = lamports(w.svm, alice.publicKey) - balanceBefore + 5_000n; // tx fee
+    assert.equal(paid, quoted, "claim pays exactly what the projection quoted");
   });
 
   it("pays lockers in proportion to weight, not principal", async () => {
