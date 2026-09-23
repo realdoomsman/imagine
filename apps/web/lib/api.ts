@@ -27,6 +27,9 @@ export interface PoolSummary {
 
 export interface PoolDetail {
   mint: string;
+  /** Total supply in base units; size tiers are a share of it. */
+  tokenSupply: string | null;
+  tokenDecimals: number;
   metadata: {
     name: string | null;
     symbol: string | null;
@@ -50,6 +53,9 @@ export interface PoolDetail {
       earlyUnlockPenaltyBps: number;
       minLockAmount: string;
       rewardStreamSecs: number;
+      durationCurve: number;
+      sizeTierBps: [number, number, number];
+      sizeBonusBps: [number, number, number];
     };
     totalLocked: string;
     totalWeight: string;
@@ -59,6 +65,8 @@ export interface PoolDetail {
     lifetimeBurned: string;
     creatorClaimable: string;
     treasuryClaimable: string;
+    undistributed: string;
+    streamEnd: number;
     openPositions: number;
     createdAt: number;
   };

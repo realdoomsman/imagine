@@ -2,7 +2,7 @@
 
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { formatPercent, formatTokenAmount } from "@vise/sdk";
+import { formatTokenAmount } from "@vise/sdk";
 import { useCallback, useMemo, useState } from "react";
 import { post } from "@/lib/api";
 import { signAndSend, type BuiltTransaction } from "@/lib/send";
@@ -27,7 +27,6 @@ export function LaunchForm() {
   const [devBuy, setDevBuy] = useState("1");
   const [lockPercent, setLockPercent] = useState(50);
   const [lockDays, setLockDays] = useState(90);
-  const [creatorShare, setCreatorShare] = useState(10);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<string[]>([]);
   const [result, setResult] = useState<{ mint: string } | null>(null);
@@ -64,7 +63,6 @@ export function LaunchForm() {
       devBuyLamports: devBuyLamports.toString(),
       lockPercent,
       lockDurationDays: lockDays,
-      creatorShareBps: creatorShare * 100,
     };
 
     const run = async (plan: LaunchPlan, mintSigns: boolean) => {
@@ -96,7 +94,6 @@ export function LaunchForm() {
     }
   }, [
     connection,
-    creatorShare,
     devBuyLamports,
     lockDays,
     lockPercent,
@@ -124,9 +121,6 @@ export function LaunchForm() {
   }
 
   // Custom properties are legal in a style object but absent from CSSProperties.
-  const shareFill: React.CSSProperties & Record<"--fill", string> = {
-    "--fill": `${(creatorShare / 30) * 100}%`,
-  };
   const lockFill: React.CSSProperties & Record<"--fill", string> = {
     "--fill": `${((lockPercent - 10) / 90) * 100}%`,
   };
@@ -176,23 +170,12 @@ export function LaunchForm() {
               className="input num mt-2 text-[16px]"
             />
           </div>
-          <div>
-            <label htmlFor="creator-share" className="text-[13px] text-steel-400">
-              Your share of fees: {creatorShare}%
-            </label>
-            <input
-              id="creator-share"
-              type="range"
-              min={0}
-              max={30}
-              value={creatorShare}
-              onChange={(event) => setCreatorShare(Number(event.target.value))}
-              className="vise-range mt-4 w-full"
-              style={shareFill}
-            />
-            <p className="mt-1 text-[12px] text-steel-600">
-              Capped at 30%. Lockers receive{" "}
-              {formatPercent(0.8 * (1 - creatorShare / 100), 0)} of every fee.
+          <div className="rounded-machined border border-steel-780 bg-steel-950/60 px-4 py-3">
+            <p className="rule-label">Where the fees go</p>
+            <p className="num mt-2 text-[15px] text-steel-50">90% lockers · 10% treasury · 0% creator</p>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-steel-500">
+              You earn the same way everyone does: by locking. Your founding
+              lock below is your position from block one.
             </p>
           </div>
         </div>

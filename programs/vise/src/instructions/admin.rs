@@ -16,6 +16,9 @@ pub struct ConfigArgs {
     pub default_early_unlock_penalty_bps: u16,
     pub default_min_lock_amount: u64,
     pub default_reward_stream_secs: u32,
+    pub default_duration_curve: u8,
+    pub default_size_tier_bps: [u16; SIZE_TIERS],
+    pub default_size_bonus_bps: [u16; SIZE_TIERS],
     pub pool_creation_fee: u64,
     pub paused: bool,
 }
@@ -51,6 +54,9 @@ impl ConfigArgs {
             early_unlock_penalty_bps: self.default_early_unlock_penalty_bps,
             min_lock_amount: self.default_min_lock_amount,
             reward_stream_secs: self.default_reward_stream_secs,
+            duration_curve: self.default_duration_curve,
+            size_tier_bps: self.default_size_tier_bps,
+            size_bonus_bps: self.default_size_bonus_bps,
         }
         .validate()
     }
@@ -66,6 +72,9 @@ impl ConfigArgs {
         config.default_early_unlock_penalty_bps = self.default_early_unlock_penalty_bps;
         config.default_min_lock_amount = self.default_min_lock_amount;
         config.default_reward_stream_secs = self.default_reward_stream_secs;
+        config.default_duration_curve = self.default_duration_curve;
+        config.default_size_tier_bps = self.default_size_tier_bps;
+        config.default_size_bonus_bps = self.default_size_bonus_bps;
         config.pool_creation_fee = self.pool_creation_fee;
         config.paused = self.paused;
     }

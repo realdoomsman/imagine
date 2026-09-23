@@ -19,8 +19,8 @@ flowchart LR
   P -->|creator fees| S[pump sharing_config]
   S -->|distribute_creator_fees_v2<br/>permissionless| V
   V -->|sync: split by frozen terms| L[Lockers, by weight]
-  V --> C[Creator, capped 30%]
-  V --> Y[Treasury]
+  V -->|10%| Y[Treasury]
+  V -.->|0%| C[Creator]
 ```
 
 Two streams, both SOL, both landing in one vault per coin:

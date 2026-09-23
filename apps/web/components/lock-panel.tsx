@@ -10,6 +10,7 @@ import {
   formatTokenAmount,
   multiplierBps,
   projectedShare,
+  sizeBonusBps,
   type PoolTerms,
 } from "@vise/sdk";
 import { useCallback, useEffect, useState } from "react";
@@ -26,6 +27,9 @@ interface TermsDto {
   earlyUnlockPenaltyBps: number;
   minLockAmount: string;
   rewardStreamSecs: number;
+  durationCurve: number;
+  sizeTierBps: [number, number, number];
+  sizeBonusBps: [number, number, number];
 }
 
 export function LockPanel({
@@ -35,6 +39,7 @@ export function LockPanel({
   terms,
   totalWeight,
   accRewardPerWeight,
+  supply,
 }: {
   mint: string;
   symbol: string;
@@ -42,6 +47,8 @@ export function LockPanel({
   terms: TermsDto;
   totalWeight: string;
   accRewardPerWeight: string;
+  /** Total token supply, base units; sets the size tier. */
+  supply: string;
 }) {
   const { connection } = useConnection();
   const wallet = useWallet();
@@ -55,6 +62,7 @@ export function LockPanel({
     ...terms,
     minLockAmount: BigInt(terms.minLockAmount),
   };
+  const totalSupply = BigInt(supply);
   const minDays = Math.floor(terms.minLockSecs / 86_400);
   const maxDays = Math.floor(terms.maxLockSecs / 86_400);
 
@@ -91,9 +99,14 @@ export function LockPanel({
 
   const projection =
     amount > 0n
-      ? projectedShare(amount, days * 86_400, poolTerms, BigInt(totalWeight))
+      ? projectedShare(amount, days * 86_400, poolTerms, BigInt(totalWeight), totalSupply)
       : null;
-  const multiplier = multiplierBps(days * 86_400, poolTerms);
+  const multiplier = multiplierBps(days * 86_400, poolTerms, amount, totalSupply);
+  const bonus = sizeBonusBps(amount, totalSupply, poolTerms);
+  // The next tier up, so the panel can say what a larger lock would earn.
+  const nextTier = poolTerms.sizeTierBps
+    .map((tier, index) => ({ tier, bonus: poolTerms.sizeBonusBps[index] }))
+    .find((entry) => entry.tier > 0 && entry.bonus > bonus);
 
   const submit = useCallback(async () => {
     if (!wallet.publicKey) return;
@@ -174,12 +187,20 @@ export function LockPanel({
           <dd className="num mt-1 text-[20px] text-torch">
             {formatMultiplier(multiplier)}
           </dd>
+          <dd className="mt-0.5 text-[11px] text-steel-500">
+            {bonus > 0
+              ? `includes +${bonus / 100}% size tier`
+              : nextTier
+                ? `+${nextTier.bonus / 100}% at ${nextTier.tier / 100}% of supply`
+                : "duration only"}
+          </dd>
         </div>
         <div className="bg-steel-900 px-4 py-3">
           <dt className="rule-label">Share of fees</dt>
           <dd className="num mt-1 text-[20px] text-steel-50">
             {projection ? formatPercent(projection.share, 2) : "—"}
           </dd>
+          <dd className="mt-0.5 text-[11px] text-steel-500">of the lockers&apos; 90%</dd>
         </div>
       </dl>
 

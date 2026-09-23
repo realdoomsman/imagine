@@ -15,11 +15,35 @@ export interface PoolTerms {
   earlyUnlockPenaltyBps: number;
   minLockAmount: bigint;
   rewardStreamSecs: number;
+  durationCurve: number;
+  sizeTierBps: [number, number, number];
+  sizeBonusBps: [number, number, number];
 }
 
-/** Linear ramp: `minLock` → 1.0x, `maxLock` → `maxMultiplierBps`. */
-export function multiplierBps(durationSecs: number, terms: PoolTerms): number {
-  const { minLockSecs, maxLockSecs, maxMultiplierBps } = terms;
+export const CURVE_LINEAR = 0;
+export const CURVE_SQRT = 1;
+
+/** Integer square root, floor. Exact at every integer, like the program's. */
+export function isqrt(n: bigint): bigint {
+  if (n < 2n) return n;
+  let x = 1n << BigInt(Math.ceil(n.toString(2).length / 2));
+  for (;;) {
+    const y = (x + n / x) / 2n;
+    if (y >= x) return x;
+    x = y;
+  }
+}
+
+/**
+ * Duration multiplier along the pool's curve: `minLock` → 1.0x, `maxLock` →
+ * `maxMultiplierBps`. The sqrt curve is front-loaded: thirty days on a 4.0x
+ * pool is 1.76x, not the 1.19x a straight line pays.
+ */
+export function durationMultiplierBps(
+  durationSecs: number,
+  terms: Pick<PoolTerms, "minLockSecs" | "maxLockSecs" | "maxMultiplierBps" | "durationCurve">,
+): number {
+  const { minLockSecs, maxLockSecs, maxMultiplierBps, durationCurve } = terms;
   if (durationSecs < minLockSecs || durationSecs > maxLockSecs) {
     throw new RangeError(
       `duration ${durationSecs}s outside [${minLockSecs}, ${maxLockSecs}]`,
@@ -29,7 +53,45 @@ export function multiplierBps(durationSecs: number, terms: PoolTerms): number {
   const span = BigInt(maxLockSecs - minLockSecs);
   const travelled = BigInt(durationSecs - minLockSecs);
   const headroom = BigInt(maxMultiplierBps) - BPS;
-  return Number(BPS + (headroom * travelled) / span);
+  const progress = durationCurve === CURVE_SQRT ? isqrt(travelled * span) : travelled;
+  return Number(BPS + (headroom * progress) / span);
+}
+
+/**
+ * Bonus for the share of supply one position commits: the highest tier it
+ * clears applies. Measured against supply, so nobody else's lock changes it.
+ */
+export function sizeBonusBps(
+  amount: bigint,
+  supply: bigint,
+  terms: Pick<PoolTerms, "sizeTierBps" | "sizeBonusBps">,
+): number {
+  if (supply === 0n) return 0;
+  const shareBps = (amount * BPS) / supply;
+  let bonus = 0;
+  for (let i = 0; i < 3; i++) {
+    const tier = terms.sizeTierBps[i];
+    if (tier > 0 && shareBps >= BigInt(tier)) bonus = terms.sizeBonusBps[i];
+  }
+  return bonus;
+}
+
+/** Duration multiplier scaled by size tier — what a position actually earns. */
+export function combinedMultiplierBps(durationBps: number, sizeBonus: number): number {
+  return Number((BigInt(durationBps) * (BPS + BigInt(sizeBonus))) / BPS);
+}
+
+/** The multiplier a position of `amount` locked for `durationSecs` earns. */
+export function multiplierBps(
+  durationSecs: number,
+  terms: PoolTerms,
+  amount: bigint = 0n,
+  supply: bigint = 0n,
+): number {
+  return combinedMultiplierBps(
+    durationMultiplierBps(durationSecs, terms),
+    sizeBonusBps(amount, supply, terms),
+  );
 }
 
 export function weightOf(amount: bigint, multiplier: number): bigint {
@@ -229,15 +291,17 @@ export function estimateApr(params: {
 
 /**
  * Share of the fee stream a hypothetical lock would capture, for the UI's
- * "what if" slider. Returns a fraction of the locker pot.
+ * "what if" slider. Returns a fraction of the locker pot. `supply` sets the
+ * size tier; pass the mint's total supply.
  */
 export function projectedShare(
   amount: bigint,
   durationSecs: number,
   terms: PoolTerms,
   currentTotalWeight: bigint,
+  supply: bigint,
 ): { weight: bigint; multiplier: number; share: number } {
-  const multiplier = multiplierBps(durationSecs, terms);
+  const multiplier = multiplierBps(durationSecs, terms, amount, supply);
   const weight = weightOf(amount, multiplier);
   const total = currentTotalWeight + weight;
   return {

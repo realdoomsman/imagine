@@ -6,23 +6,23 @@ import { Ticker } from "./motion";
 const SPLIT = [
   {
     key: "lockers",
-    pct: 72,
+    pct: 90,
     label: "Lockers",
     note: "Paid by weight, streamed over 24 hours",
     hot: true,
   },
   {
     key: "treasury",
-    pct: 20,
+    pct: 10,
     label: "Treasury",
-    note: "Indexing, hosting, audits, incentives",
+    note: "Indexing, hosting, audits, the keeper",
     hot: false,
   },
   {
     key: "creator",
-    pct: 8,
+    pct: 0,
     label: "Creator",
-    note: "Capped at 30%, set once at launch",
+    note: "Nothing. Creators earn by locking like everyone else",
     hot: false,
   },
 ];
@@ -67,7 +67,7 @@ export function FlowDiagram() {
         viewBox="0 0 1200 150"
         className="w-full overflow-visible"
         role="img"
-        aria-label="A trade fee splitting 72 percent to lockers, 20 percent to treasury, 8 percent to the creator"
+        aria-label="A trade fee splitting 90 percent to lockers, 10 percent to treasury, nothing to the creator"
       >
         <defs>
           <linearGradient id="vise-flow-hot" x1="0" y1="0" x2="1" y2="0">
@@ -91,24 +91,30 @@ export function FlowDiagram() {
         <path
           d="M 300 75 C 392 75, 400 22, 492 22 H 1042"
           stroke="url(#vise-flow-hot)"
-          strokeWidth="15.8"
+          strokeWidth="19.8"
           fill="none"
           style={draw(0)}
         />
         <path
           d="M 300 75 H 1042"
           stroke="url(#vise-flow-cold)"
-          strokeWidth="4.4"
+          strokeWidth="2.2"
           fill="none"
           style={draw(150)}
         />
+        {/* The creator branch goes nowhere: a stub that stops short, dashed. */}
         <path
-          d="M 300 75 C 392 75, 400 128, 492 128 H 1042"
-          stroke="url(#vise-flow-cold)"
-          strokeWidth="1.8"
+          d="M 300 75 C 340 75, 350 128, 400 128 H 470"
+          stroke="#3b4454"
+          strokeWidth="1"
           fill="none"
-          style={draw(300)}
+          strokeDasharray="3 5"
+          opacity={live ? 0.9 : 0}
+          style={{ transition: "opacity 900ms 400ms" }}
         />
+        <text x="484" y="132" className="num" fill="#5a6578" fontSize="10" letterSpacing="1.6">
+          0 — NOTHING ROUTES HERE
+        </text>
 
         {/* A highlight that keeps travelling: fees are a stream, not a pie. */}
         <path
@@ -122,9 +128,8 @@ export function FlowDiagram() {
         />
 
         <g className="num" fontSize="11" letterSpacing="1.6">
-          <text x="1064" y="26" fill="#ffc79e">LOCKERS</text>
-          <text x="1064" y="79" fill="#7d8798">TREASURY</text>
-          <text x="1064" y="132" fill="#5a6578">CREATOR</text>
+          <text x="1064" y="26" fill="#ffc79e">LOCKERS 90%</text>
+          <text x="1064" y="79" fill="#7d8798">TREASURY 10%</text>
         </g>
       </svg>
 

@@ -352,6 +352,76 @@ export type Vise = {
           "name": "mint"
         },
         {
+          "name": "bondingCurve",
+          "docs": [
+            "the handler to prove the signer is the coin's real creator; owner and",
+            "PDA derivation are both verified there."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  45,
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                1,
+                86,
+                224,
+                246,
+                147,
+                102,
+                90,
+                207,
+                68,
+                219,
+                21,
+                104,
+                191,
+                23,
+                91,
+                170,
+                81,
+                137,
+                203,
+                151,
+                245,
+                210,
+                255,
+                59,
+                101,
+                93,
+                43,
+                182,
+                253,
+                109,
+                24,
+                176
+              ]
+            }
+          }
+        },
+        {
           "name": "pool",
           "writable": true,
           "pda": {
@@ -578,9 +648,16 @@ export type Vise = {
       ],
       "accounts": [
         {
-          "name": "owner",
+          "name": "payer",
           "writable": true,
-          "signer": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "principal, rewards and rent."
+          ],
+          "writable": true,
           "relations": [
             "position"
           ]
@@ -982,6 +1059,13 @@ export type Vise = {
           }
         },
         {
+          "name": "program",
+          "address": "VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb"
+        },
+        {
+          "name": "programData"
+        },
+        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
@@ -1269,9 +1353,16 @@ export type Vise = {
       ],
       "accounts": [
         {
-          "name": "owner",
+          "name": "payer",
           "writable": true,
-          "signer": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "principal, rewards and rent."
+          ],
+          "writable": true,
           "relations": [
             "position"
           ]
@@ -1695,8 +1786,28 @@ export type Vise = {
     },
     {
       "code": 6015,
-      "name": "positionIndexInUse",
-      "msg": "Pool already has a position at this index"
+      "name": "positionMatured",
+      "msg": "Position has matured; extend it or open a new one"
+    },
+    {
+      "code": 6016,
+      "name": "notPositionOwner",
+      "msg": "Only the position owner may do this"
+    },
+    {
+      "code": 6017,
+      "name": "notUpgradeAuthority",
+      "msg": "Only the program upgrade authority may initialise the config"
+    },
+    {
+      "code": 6018,
+      "name": "notCoinCreator",
+      "msg": "Signer is not the coin's creator on pump.fun"
+    },
+    {
+      "code": 6019,
+      "name": "invalidBondingCurve",
+      "msg": "Bonding curve account is not a readable pump.fun curve"
     }
   ],
   "types": [
@@ -1795,6 +1906,32 @@ export type Vise = {
             "type": "u64"
           },
           {
+            "name": "defaultRewardStreamSecs",
+            "type": "u32"
+          },
+          {
+            "name": "defaultDurationCurve",
+            "type": "u8"
+          },
+          {
+            "name": "defaultSizeTierBps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "defaultSizeBonusBps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
             "name": "poolCreationFee",
             "type": "u64"
           },
@@ -1856,6 +1993,32 @@ export type Vise = {
           {
             "name": "defaultMinLockAmount",
             "type": "u64"
+          },
+          {
+            "name": "defaultRewardStreamSecs",
+            "type": "u32"
+          },
+          {
+            "name": "defaultDurationCurve",
+            "type": "u8"
+          },
+          {
+            "name": "defaultSizeTierBps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "defaultSizeBonusBps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
           },
           {
             "name": "poolCreationFee",
@@ -2109,6 +2272,34 @@ export type Vise = {
             "type": "u64"
           },
           {
+            "name": "undistributed",
+            "docs": [
+              "Lockers' lamports that have arrived but are still streaming out."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "streamRate",
+            "docs": [
+              "Release rate in `lamports * SCALE` per second."
+            ],
+            "type": "u128"
+          },
+          {
+            "name": "streamEnd",
+            "docs": [
+              "When the current release window ends."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "lastStreamAt",
+            "docs": [
+              "Last timestamp the stream was advanced to."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "creatorClaimable",
             "type": "u64"
           },
@@ -2242,6 +2433,51 @@ export type Vise = {
           {
             "name": "minLockAmount",
             "type": "u64"
+          },
+          {
+            "name": "rewardStreamSecs",
+            "docs": [
+              "Window over which arriving fees are released to lockers.",
+              "",
+              "Fees are not handed out at the instant they land. They stream in",
+              "linearly over this window, so a reward share is earned by weight *held",
+              "over time* rather than by weight held at one chosen instant. Without it,",
+              "anyone could watch lamports pile up in the vault, lock a large bag,",
+              "trigger the accounting, claim a slice of a backlog they were not present",
+              "for, and leave."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "durationCurve",
+            "docs": [
+              "`CURVE_LINEAR` or `CURVE_SQRT`; see `math::duration_multiplier_bps`."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "sizeTierBps",
+            "docs": [
+              "Ascending thresholds in bps of total supply. Zero disables a tier."
+            ],
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "sizeBonusBps",
+            "docs": [
+              "Bonus applied on top of the duration multiplier at each tier, in bps."
+            ],
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
           }
         ]
       }
@@ -2289,7 +2525,11 @@ export type Vise = {
           {
             "name": "rewardDebt",
             "docs": [
-              "Lamports already credited to this position, in lamport units."
+              "Credit line already settled, in `SCALE`-scaled units, not lamports.",
+              "",
+              "Keeping the sub-lamport residue here is what makes the pool solvent:",
+              "rounding it to whole lamports would let positions round up",
+              "independently until the pool owed more than it holds."
             ],
             "type": "u128"
           },

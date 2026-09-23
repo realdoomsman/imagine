@@ -1,19 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { DAY, ECONOMICS, durationMultiplierBps, combinedMultiplierBps } from "@vise/sdk";
 import { useEffect, useState } from "react";
 import { ViseShader } from "./vise-shader";
 import { Magnetic, Ticker } from "./motion";
 
-const MIN_DAYS = 7;
-const MAX_DAYS = 365;
-const MAX_MULTIPLIER_BPS = 40_000;
-
-/** Same linear ramp the program uses, expressed in days for the UI. */
-function multiplierForDays(days: number): number {
-  const travelled = (days - MIN_DAYS) / (MAX_DAYS - MIN_DAYS);
-  return 10_000 + (MAX_MULTIPLIER_BPS - 10_000) * travelled;
-}
+const MIN_DAYS = ECONOMICS.minLockSecs / DAY;
+const MAX_DAYS = ECONOMICS.maxLockSecs / DAY;
 
 const PRESETS = [
   { days: 7, label: "1W" },
@@ -23,11 +17,21 @@ const PRESETS = [
   { days: 365, label: "1Y" },
 ];
 
+/** Size tiers, as the pool defaults stamp them: share of supply → bonus. */
+const TIERS = ECONOMICS.sizeTierBps.map((tier, index) => ({
+  shareBps: tier,
+  bonusBps: ECONOMICS.sizeBonusBps[index],
+}));
+
 export function Hero() {
   const [days, setDays] = useState(90);
+  const [tier, setTier] = useState(0);
   const [entered, setEntered] = useState(false);
   const grip = (days - MIN_DAYS) / (MAX_DAYS - MIN_DAYS);
-  const multiplier = multiplierForDays(days) / 10_000;
+  // The same arithmetic the program runs, from the SDK mirror it is pinned to.
+  const durationBps = durationMultiplierBps(days * DAY, ECONOMICS);
+  const bonusBps = tier === 0 ? 0 : TIERS[tier - 1].bonusBps;
+  const multiplier = combinedMultiplierBps(durationBps, bonusBps) / 10_000;
 
   // Custom properties are legal in a style object but absent from CSSProperties.
   const fillStyle: React.CSSProperties & Record<"--fill", string> = {
@@ -160,6 +164,30 @@ export function Hero() {
                     }`}
                   >
                     {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Size tier: a bigger share of supply earns more per token. */}
+              <div className="mt-5 flex items-baseline justify-between">
+                <span className="rule-label">Position size</span>
+                <span className="num text-[12px] text-steel-500">share of supply</span>
+              </div>
+              <div className="mt-2 flex gap-1.5">
+                {[{ shareBps: 0, bonusBps: 0 }, ...TIERS].map((option, index) => (
+                  <button
+                    key={option.shareBps}
+                    type="button"
+                    onClick={() => setTier(index)}
+                    aria-pressed={tier === index}
+                    className={`num h-7 flex-1 rounded-[2px] border text-[11px] transition-colors duration-200 ${
+                      tier === index
+                        ? "border-torch/60 bg-torch/12 text-torch-pale"
+                        : "border-steel-700 text-steel-500 hover:border-steel-600/50 hover:text-steel-300"
+                    }`}
+                  >
+                    {index === 0 ? "any" : `≥${option.shareBps / 100}%`}
+                    {index === 0 ? "" : ` +${option.bonusBps / 100}%`}
                   </button>
                 ))}
               </div>

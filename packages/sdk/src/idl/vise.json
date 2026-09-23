@@ -1904,6 +1904,28 @@
             "type": "u32"
           },
           {
+            "name": "default_duration_curve",
+            "type": "u8"
+          },
+          {
+            "name": "default_size_tier_bps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "default_size_bonus_bps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
             "name": "pool_creation_fee",
             "type": "u64"
           },
@@ -1969,6 +1991,28 @@
           {
             "name": "default_reward_stream_secs",
             "type": "u32"
+          },
+          {
+            "name": "default_duration_curve",
+            "type": "u8"
+          },
+          {
+            "name": "default_size_tier_bps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "default_size_bonus_bps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
           },
           {
             "name": "pool_creation_fee",
@@ -2397,6 +2441,37 @@
               "for, and leave."
             ],
             "type": "u32"
+          },
+          {
+            "name": "duration_curve",
+            "docs": [
+              "`CURVE_LINEAR` or `CURVE_SQRT`; see `math::duration_multiplier_bps`."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "size_tier_bps",
+            "docs": [
+              "Ascending thresholds in bps of total supply. Zero disables a tier."
+            ],
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "size_bonus_bps",
+            "docs": [
+              "Bonus applied on top of the duration multiplier at each tier, in bps."
+            ],
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
           }
         ]
       }

@@ -61,6 +61,12 @@ function num(value: unknown): number {
   return Number(big(value));
 }
 
+/** A fixed `[u16; 3]` array, as Anchor decodes it. */
+function triple(value: unknown): [number, number, number] {
+  const list = value as unknown[];
+  return [num(list[0]), num(list[1]), num(list[2])];
+}
+
 export interface PoolTermsAccount {
   treasuryShareBps: number;
   creatorShareBps: number;
@@ -71,6 +77,12 @@ export interface PoolTermsAccount {
   minLockAmount: bigint;
   /** Window over which arriving fees stream out to lockers. */
   rewardStreamSecs: number;
+  /** `CURVE_LINEAR` or `CURVE_SQRT`. */
+  durationCurve: number;
+  /** Ascending thresholds in bps of total supply; zero disables a tier. */
+  sizeTierBps: [number, number, number];
+  /** Bonus on the duration multiplier at each tier, in bps. */
+  sizeBonusBps: [number, number, number];
 }
 
 export interface PoolAccount {
@@ -132,6 +144,9 @@ export interface ConfigAccount {
   defaultEarlyUnlockPenaltyBps: number;
   defaultMinLockAmount: bigint;
   defaultRewardStreamSecs: number;
+  defaultDurationCurve: number;
+  defaultSizeTierBps: [number, number, number];
+  defaultSizeBonusBps: [number, number, number];
   poolCreationFee: bigint;
   paused: boolean;
   poolCount: bigint;
@@ -157,6 +172,9 @@ export function decodePool(data: Buffer | Uint8Array): PoolAccount {
       earlyUnlockPenaltyBps: num(terms.early_unlock_penalty_bps),
       minLockAmount: big(terms.min_lock_amount),
       rewardStreamSecs: num(terms.reward_stream_secs),
+      durationCurve: num(terms.duration_curve),
+      sizeTierBps: triple(terms.size_tier_bps),
+      sizeBonusBps: triple(terms.size_bonus_bps),
     },
     totalLocked: big(raw.total_locked),
     totalWeight: big(raw.total_weight),
@@ -221,6 +239,9 @@ export function decodeConfig(data: Buffer | Uint8Array): ConfigAccount {
     defaultEarlyUnlockPenaltyBps: num(raw.default_early_unlock_penalty_bps),
     defaultMinLockAmount: big(raw.default_min_lock_amount),
     defaultRewardStreamSecs: num(raw.default_reward_stream_secs),
+    defaultDurationCurve: num(raw.default_duration_curve),
+    defaultSizeTierBps: triple(raw.default_size_tier_bps),
+    defaultSizeBonusBps: triple(raw.default_size_bonus_bps),
     poolCreationFee: big(raw.pool_creation_fee),
     paused: Boolean(raw.paused),
     poolCount: big(raw.pool_count),

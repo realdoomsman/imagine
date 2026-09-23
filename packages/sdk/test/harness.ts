@@ -285,6 +285,41 @@ export function createMint(
     );
   }
 
+  /*
+   * Mint the rest of a pump.fun supply to the payer. Size tiers are a share of
+   * total supply, and a mint holding only what the test's holders need would
+   * put a ten-thousand-token lock in the top tier — the opposite of reality,
+   * where it is a rounding error against a billion.
+   */
+  const PUMP_SUPPLY = 1_000_000_000n * 10n ** BigInt(decimals);
+  const distributed = holders.reduce((sum, holder) => sum + holder.amount, 0n);
+  if (distributed < PUMP_SUPPLY) {
+    const ata = getAssociatedTokenAddressSync(mintKp.publicKey, payer.publicKey, true, tokenProgram);
+    const ixs: TransactionInstruction[] = [];
+    if (!holders.some((holder) => holder.owner.equals(payer.publicKey))) {
+      ixs.push(
+        createAssociatedTokenAccountInstruction(
+          payer.publicKey,
+          ata,
+          payer.publicKey,
+          mintKp.publicKey,
+          tokenProgram,
+        ),
+      );
+    }
+    ixs.push(
+      createMintToInstruction(
+        mintKp.publicKey,
+        ata,
+        payer.publicKey,
+        PUMP_SUPPLY - distributed,
+        [],
+        tokenProgram,
+      ),
+    );
+    send(svm, ixs, [payer]);
+  }
+
   return { mint: mintKp.publicKey, tokenProgram, decimals };
 }
 

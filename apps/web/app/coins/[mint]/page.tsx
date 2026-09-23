@@ -36,7 +36,11 @@ export default async function CoinPage({
 
   const { pool, metadata, curve } = detail;
   const supplyLocked = BigInt(pool.totalLocked);
-  const decimals = 6;
+  const decimals = detail.tokenDecimals;
+  const tokenSupply = detail.tokenSupply ?? "0";
+  const tiers = pool.terms.sizeTierBps
+    .map((tier, index) => ({ tier, bonus: pool.terms.sizeBonusBps[index] }))
+    .filter((entry) => entry.tier > 0);
 
   return (
     <div className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8">
@@ -102,8 +106,8 @@ export default async function CoinPage({
                 )}
               />
               <Term
-                label="To creator"
-                value={formatPercent(pool.terms.creatorShareBps / 10_000, 0)}
+                label="To treasury"
+                value={formatPercent(pool.terms.treasuryShareBps / 10_000, 0)}
               />
               <Term
                 label="Max multiplier"
@@ -118,9 +122,23 @@ export default async function CoinPage({
                 value={formatPercent(pool.terms.earlyUnlockPenaltyBps / 10_000, 0)}
               />
             </dl>
-            <p className="mt-4 text-[12px] text-steel-600">
+            <p className="mt-4 text-[12px] leading-relaxed text-steel-600">
               Lock window {pool.terms.minLockSecs / 86_400}–
-              {pool.terms.maxLockSecs / 86_400} days. Creator{" "}
+              {pool.terms.maxLockSecs / 86_400} days on a{" "}
+              {pool.terms.durationCurve === 1 ? "square-root" : "linear"} curve.
+              {tiers.length > 0 ? (
+                <>
+                  {" "}Size tiers:{" "}
+                  {tiers.map((entry, index) => (
+                    <span key={entry.tier} className="num">
+                      {index > 0 ? ", " : ""}
+                      ≥{entry.tier / 100}% of supply +{entry.bonus / 100}%
+                    </span>
+                  ))}
+                  .
+                </>
+              ) : null}{" "}
+              Creator{" "}
               <span className="num">{shortAddress(pool.creator)}</span>. Vault{" "}
               <span className="num">{shortAddress(pool.rewardVault)}</span>.
             </p>
@@ -147,6 +165,7 @@ export default async function CoinPage({
             terms={pool.terms}
             totalWeight={pool.totalWeight}
             accRewardPerWeight={pool.accRewardPerWeight}
+            supply={tokenSupply}
           />
         </aside>
       </div>

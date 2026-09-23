@@ -56,8 +56,9 @@ export function StatMarquee() {
     { label: "Open locks", value: count(stats?.open_positions) },
     { label: "Trades 24h", value: count(stats?.trades_24h) },
     { label: "App fee", value: "2.00%" },
-    { label: "Max weight", value: "4.00×" },
-    { label: "Locker share", value: "72%" },
+    { label: "Max weight", value: "6.00×" },
+    { label: "Locker share", value: "90%" },
+    { label: "Creator cut", value: "0%" },
     { label: "Reward stream", value: "24h" },
   ];
 

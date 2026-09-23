@@ -27,12 +27,12 @@ const STEPS = [
   {
     n: "02",
     title: "Holders clamp their bags",
-    body: "Pick an amount and a term from 7 to 365 days. Weight is amount × term: 1.0× at a week, 4.0× at a year. The tokens sit in a vault only you can open.",
+    body: "Pick an amount and a term from 7 to 365 days. Weight is amount × term on a front-loaded curve: 1.0× at a week, 1.76× at a month, 4.0× at a year — and up to +50% more for a serious share of supply. The tokens sit in a vault only you can open.",
   },
   {
     n: "03",
     title: "Every trade feeds the vault",
-    body: "A 2% app fee on trades routed through VISE, plus the coin's pump.fun creator fees, land in that vault as SOL. No emissions, no printed tokens, no new supply.",
+    body: "A 2% app fee on trades routed through VISE, plus the coin's entire pump.fun creator-fee stream, land in that vault as SOL. 90% of it is for lockers. No emissions, no printed tokens, no new supply.",
   },
   {
     n: "04",
@@ -125,7 +125,7 @@ function Split() {
             <h2 className="t-section mt-5">
               Every trade splits
               <br />
-              <span className="text-torch">three ways.</span>
+              <span className="text-torch">ninety–ten.</span>
             </h2>
           </div>
         </Reveal>
@@ -136,10 +136,10 @@ function Split() {
 
         <Reveal delay={200}>
           <p className="mt-14 max-w-[62ch] text-[15.5px] leading-[1.7] text-steel-400">
-            Splits are fixed when the pool is created and can never be changed —
-            not by us, not by the coin's creator. The locker share is paid out by
-            weight, streamed over 24 hours so nobody can front-run a distribution
-            by locking one block before it lands.
+            The split is fixed when the pool is created and can never be changed —
+            not by us, not by the coin's creator, who takes nothing from it. The
+            lockers' 90% is paid out by weight, streamed over 24 hours so nobody
+            can front-run a distribution by locking one block before it lands.
           </p>
         </Reveal>
       </div>
@@ -158,7 +158,7 @@ const GUARANTEES = [
   },
   {
     title: "Terms are frozen at creation",
-    body: "Multiplier curve, fee splits, penalty, stream length: written once when the pool is made, then immutable. Changing them would require a new pool.",
+    body: "Multiplier curve, size tiers, the 90/10 split, penalty, stream length: written once when the pool is made, then immutable. Changing them would require a new pool.",
   },
   {
     title: "Rewards stream, never dump",

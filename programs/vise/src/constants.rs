@@ -37,6 +37,18 @@ pub const MAX_MULTIPLIER_BPS: u32 = 100_000; // 10.0x
 pub const MIN_LOCK_SECS_FLOOR: u32 = SECONDS_PER_DAY; // 1 day
 pub const MAX_LOCK_SECS_CEILING: u32 = 4 * 365 * SECONDS_PER_DAY; // 4 years
 pub const MAX_POOL_CREATION_FEE: u64 = 5_000_000_000; // 5 SOL
+
+/// Shape of the duration curve. Frozen per pool like every other term.
+pub const CURVE_LINEAR: u8 = 0;
+/// `1 + headroom * sqrt(t / T)`: front-loaded, so a month is worth a great
+/// deal more than a linear ramp would pay, while a year still takes the top.
+pub const CURVE_SQRT: u8 = 1;
+
+/// Size tiers reward committing a real share of supply: three ascending
+/// thresholds in bps of total supply, the highest cleared applies.
+pub const SIZE_TIERS: usize = 3;
+/// Ceiling on any single tier bonus: +100%.
+pub const MAX_SIZE_BONUS_BPS: u16 = 10_000;
 /// Keeps `acc_reward_per_weight` growth bounded (see `SCALE`) and stops a pool
 /// from being held open by dust.
 pub const MIN_LOCK_AMOUNT_FLOOR: u64 = 1_000_000;

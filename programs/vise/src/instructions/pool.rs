@@ -143,6 +143,9 @@ pub fn create_pool(ctx: Context<CreatePool>, args: CreatePoolArgs) -> Result<()>
         early_unlock_penalty_bps: config.default_early_unlock_penalty_bps,
         min_lock_amount: config.default_min_lock_amount,
         reward_stream_secs: config.default_reward_stream_secs,
+        duration_curve: config.default_duration_curve,
+        size_tier_bps: config.default_size_tier_bps,
+        size_bonus_bps: config.default_size_bonus_bps,
     };
     terms.validate()?;
 
@@ -221,6 +224,7 @@ pub fn create_pool(ctx: Context<CreatePool>, args: CreatePoolArgs) -> Result<()>
         ctx.bumps.position,
         args.initial_lock_amount,
         args.initial_lock_duration,
+        ctx.accounts.mint.supply,
         now,
     )?;
 

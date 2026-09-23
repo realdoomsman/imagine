@@ -1,6 +1,8 @@
 use crate::constants::*;
 use crate::errors::ViseError;
-use crate::math::{apply_bps, distribute};
+use crate::math::{
+    apply_bps, combined_multiplier_bps, distribute, duration_multiplier_bps, size_bonus_bps,
+};
 use anchor_lang::prelude::*;
 
 /// Platform-wide settings. Only ever read when a *new* pool is created: live
@@ -25,6 +27,9 @@ pub struct Config {
     pub default_early_unlock_penalty_bps: u16,
     pub default_min_lock_amount: u64,
     pub default_reward_stream_secs: u32,
+    pub default_duration_curve: u8,
+    pub default_size_tier_bps: [u16; SIZE_TIERS],
+    pub default_size_bonus_bps: [u16; SIZE_TIERS],
     pub pool_creation_fee: u64,
     /// Blocks new pool creation only. Never blocks lock, claim, or unlock.
     pub paused: bool,
@@ -51,6 +56,12 @@ pub struct PoolTerms {
     /// trigger the accounting, claim a slice of a backlog they were not present
     /// for, and leave.
     pub reward_stream_secs: u32,
+    /// `CURVE_LINEAR` or `CURVE_SQRT`; see `math::duration_multiplier_bps`.
+    pub duration_curve: u8,
+    /// Ascending thresholds in bps of total supply. Zero disables a tier.
+    pub size_tier_bps: [u16; SIZE_TIERS],
+    /// Bonus applied on top of the duration multiplier at each tier, in bps.
+    pub size_bonus_bps: [u16; SIZE_TIERS],
 }
 
 impl PoolTerms {
@@ -87,7 +98,47 @@ impl PoolTerms {
             ViseError::InvalidParameter
         );
         require!(self.min_lock_amount > 0, ViseError::InvalidParameter);
+        require!(
+            self.duration_curve == CURVE_LINEAR || self.duration_curve == CURVE_SQRT,
+            ViseError::InvalidParameter
+        );
+
+        // Tiers ascend, bonuses do not decrease, and the largest combined
+        // multiplier still sits under the global ceiling the accumulator's
+        // overflow analysis assumes.
+        let mut last_tier = 0u16;
+        let mut last_bonus = 0u16;
+        for (tier, bonus) in self.size_tier_bps.iter().zip(&self.size_bonus_bps) {
+            if *tier == 0 {
+                require!(*bonus == 0, ViseError::InvalidParameter);
+                continue;
+            }
+            require!(*tier > last_tier, ViseError::InvalidParameter);
+            require!(
+                *bonus >= last_bonus && *bonus <= MAX_SIZE_BONUS_BPS,
+                ViseError::InvalidParameter
+            );
+            last_tier = *tier;
+            last_bonus = *bonus;
+        }
+        let top = combined_multiplier_bps(self.max_multiplier_bps, last_bonus)?;
+        require!(top <= MAX_MULTIPLIER_BPS, ViseError::InvalidParameter);
         Ok(())
+    }
+
+    /// The one place a position is priced. Every instruction that sets a
+    /// multiplier goes through here, so duration curve and size tier can never
+    /// disagree between lock, increase and extend.
+    pub fn multiplier_for(&self, duration_secs: u32, amount: u64, supply: u64) -> Result<u32> {
+        let duration = duration_multiplier_bps(
+            duration_secs,
+            self.min_lock_secs,
+            self.max_lock_secs,
+            self.max_multiplier_bps,
+            self.duration_curve,
+        )?;
+        let bonus = size_bonus_bps(amount, supply, &self.size_tier_bps, &self.size_bonus_bps);
+        combined_multiplier_bps(duration, bonus)
     }
 }
 

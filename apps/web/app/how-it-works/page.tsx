@@ -45,14 +45,29 @@ export default function HowItWorksPage() {
 
       <Section title="How your share is computed">
         <p>
-          Your weight is your locked amount multiplied by a term multiplier that
-          runs linearly from 1.0× at seven days to 4.0× at a year:
+          Your weight is your locked amount multiplied by two factors: a term
+          multiplier and a size tier. Both are frozen on the pool at creation.
         </p>
         <pre className="num">
-{`weight      = amount × multiplier
-multiplier  = 1.0 + 3.0 × (days − 7) / 358
+{`weight      = amount × duration × (1 + size bonus)
+duration    = 1.0 + 3.0 × √((days − 7) / 358)       7d → 1.00×
+                                                    30d → 1.76×
+                                                    90d → 2.44×
+                                                   180d → 3.09×
+                                                   365d → 4.00×
+size bonus  = +10% at ≥ 0.1% of supply
+              +25% at ≥ 0.5%
+              +50% at ≥ 1.0%
 your share  = weight / total weight in the pool`}
         </pre>
+        <p>
+          The curve is a square root, not a line, on purpose. A straight line
+          pays a thirty-day lock 1.19×; this pays it 1.76×. Short commitments
+          are worth making, and a year still takes the top. The size tiers pay a
+          serious position like one: a lock of one percent of supply for a year
+          earns 6.0× per token. Tiers are measured against total supply, never
+          against the pool, so nothing anyone else does can move yours.
+        </p>
         <p>
           Rewards accrue continuously against a per-pool accumulator, the same
           pattern used by every serious staking contract since MasterChef. There

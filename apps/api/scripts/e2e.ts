@@ -42,10 +42,12 @@ import {
   accrued,
   appFeeLamports,
   DAY,
+  ECONOMICS,
   FeeKind,
   formatSol,
   poolPda,
   rewardVaultPda,
+  splitInflow,
   VISE_PROGRAM_ID,
   ViseClient,
 } from "@vise/sdk";
@@ -169,20 +171,13 @@ async function main() {
 
   step("1. Initialise platform config");
   const configIx = await vise.program.methods
-    .initializeConfig({
-      treasury: admin.publicKey,
-      tradeFeeBps: TRADE_FEE_BPS,
-      defaultTreasuryShareBps: 2000,
-      maxCreatorShareBps: 3000,
-      defaultMinLockSecs: 7 * DAY,
-      defaultMaxLockSecs: 365 * DAY,
-      defaultMaxMultiplierBps: 40_000,
-      defaultEarlyUnlockPenaltyBps: 2500,
-      defaultMinLockAmount: new BN(1_000_000),
-      defaultRewardStreamSecs: 3_600,
-      poolCreationFee: new BN(0.05 * LAMPORTS_PER_SOL),
-      paused: false,
-    })
+    .initializeConfig(
+      ViseClient.configArgs({
+        treasury: admin.publicKey,
+        // The suite's stream is short so a window can elapse inside one run.
+        overrides: { tradeFeeBps: TRADE_FEE_BPS, rewardStreamSecs: 3_600 },
+      }),
+    )
     .accountsPartial({
       admin: admin.publicKey,
       program: VISE_PROGRAM_ID,
@@ -273,7 +268,7 @@ async function main() {
     mint,
     treasury,
     tokenProgram: TOKEN_2022_PROGRAM_ID,
-    creatorShareBps: 1000,
+    creatorShareBps: 0,
     initialLockAmount: lockAmount,
     initialLockDuration: 90 * DAY,
   });
@@ -372,13 +367,16 @@ async function main() {
   );
 
   pool = await vise.fetchPool(mint);
-  const expectedTreasury = (fee * 2000n) / 10_000n;
-  const expectedCreator = ((fee - expectedTreasury) * 1000n) / 10_000n;
+  const expected = splitInflow(fee, {
+    treasuryShareBps: ECONOMICS.treasuryShareBps,
+    creatorShareBps: 0,
+  });
   check(
-    "split matches the pool's frozen terms",
-    pool?.treasuryClaimable === expectedTreasury &&
-      pool?.creatorClaimable === expectedCreator,
-    `treasury ${formatSol(pool?.treasuryClaimable ?? 0n)} / creator ${formatSol(pool?.creatorClaimable ?? 0n)}`,
+    "split matches the pool's frozen terms: 90 / 10 / 0",
+    pool?.treasuryClaimable === expected.toTreasury &&
+      pool?.creatorClaimable === 0n &&
+      pool?.undistributed === expected.toLockers,
+    `lockers ${formatSol(expected.toLockers)} / treasury ${formatSol(pool?.treasuryClaimable ?? 0n)} / creator 0`,
   );
 
   step("6. Fees stream out rather than landing all at once");
@@ -507,12 +505,20 @@ async function main() {
   check("the vault can pay everyone it owes", owed <= held,
     `owes ${formatSol(owed)} holds ${formatSol(held)}`);
 
-  step("10. Creator and treasury payouts");
-  await send(
-    [await vise.claimCreator({ creator: creator.publicKey, mint })],
-    [creator],
-    "claim_creator",
-  );
+  step("10. Treasury payout; the creator has no cut to claim");
+  // 90 / 10 / 0: the creator's share is zero by the pool's frozen terms, so
+  // claim_creator has nothing to pay and the program says so.
+  let creatorRefused = false;
+  try {
+    await send(
+      [await vise.claimCreator({ creator: creator.publicKey, mint })],
+      [creator],
+      "claim_creator (expected to refuse)",
+    );
+  } catch (error) {
+    creatorRefused = /0x177a|NothingToClaim/.test(String(error) + String((error as { transactionMessage?: string }).transactionMessage ?? ""));
+  }
+  check("claim_creator refuses: nothing allocated to the creator", creatorRefused);
   await send(
     [
       await vise.claimTreasury({ payer: trader.publicKey, mint, treasury }),
@@ -522,8 +528,9 @@ async function main() {
   );
   pool = await vise.fetchPool(mint);
   check(
-    "creator and treasury balances drained",
-    pool?.creatorClaimable === 0n && pool?.treasuryClaimable === 0n,
+    "treasury drained, creator never owed anything",
+    pool?.creatorClaimable === 0n && pool?.treasuryClaimable === 0n && pool?.lifetimeCreator === 0n,
+    `lifetime treasury ${formatSol(pool?.lifetimeTreasury ?? 0n)} SOL`,
   );
 
   console.log(

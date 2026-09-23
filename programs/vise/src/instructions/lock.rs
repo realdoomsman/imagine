@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::errors::ViseError;
 use crate::events::{Locked, PositionExtended, PositionIncreased, RewardsSynced};
-use crate::math::{accrued, multiplier_bps, reward_debt_for, weight_of};
+use crate::math::{accrued, reward_debt_for, weight_of};
 use crate::state::{Pool, Position};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{
@@ -9,7 +9,8 @@ use anchor_spl::token_interface::{
 };
 
 /// Shared position opener. The caller must have synced the pool and moved the
-/// tokens into the vault already.
+/// tokens into the vault already. `supply` is the mint's total supply, read
+/// from the mint account by the caller, and sets the size tier.
 #[allow(clippy::too_many_arguments)]
 pub fn open_position(
     pool: &mut Pool,
@@ -20,18 +21,14 @@ pub fn open_position(
     bump: u8,
     amount: u64,
     duration_secs: u32,
+    supply: u64,
     now: i64,
 ) -> Result<()> {
     require!(
         amount >= pool.terms.min_lock_amount,
         ViseError::AmountTooSmall
     );
-    let multiplier = multiplier_bps(
-        duration_secs,
-        pool.terms.min_lock_secs,
-        pool.terms.max_lock_secs,
-        pool.terms.max_multiplier_bps,
-    )?;
+    let multiplier = pool.terms.multiplier_for(duration_secs, amount, supply)?;
     let weight = weight_of(amount, multiplier)?;
 
     position.owner = owner;
@@ -173,6 +170,7 @@ pub fn lock(ctx: Context<Lock>, index: u32, amount: u64, duration_secs: u32) -> 
         ctx.bumps.position,
         amount,
         duration_secs,
+        ctx.accounts.mint.supply,
         now,
     )?;
 
@@ -307,9 +305,10 @@ pub fn increase(ctx: Context<ModifyPosition>, amount: u64) -> Result<()> {
         .amount
         .checked_add(amount)
         .ok_or(ViseError::MathOverflow)?;
-    // Reprice the whole position against the term still to run. Keeping the
-    // original multiplier would sell a year's weight for whatever days are
-    // left, the same mispricing the maturity guard above rejects.
+    // Reprice the whole position against the term still to run and the new
+    // size. Keeping the original multiplier would sell a year's weight for
+    // whatever days are left, the same mispricing the maturity guard above
+    // rejects; and a larger bag may have crossed into a higher tier.
     let remaining = u32::try_from(
         position
             .lock_end
@@ -321,12 +320,9 @@ pub fn increase(ctx: Context<ModifyPosition>, amount: u64) -> Result<()> {
         remaining >= pool.terms.min_lock_secs,
         ViseError::InvalidDuration
     );
-    position.multiplier_bps = multiplier_bps(
-        remaining,
-        pool.terms.min_lock_secs,
-        pool.terms.max_lock_secs,
-        pool.terms.max_multiplier_bps,
-    )?;
+    position.multiplier_bps =
+        pool.terms
+            .multiplier_for(remaining, position.amount, ctx.accounts.mint.supply)?;
     position.weight = weight_of(position.amount, position.multiplier_bps)?;
     position.reward_debt = reward_debt_for(position.weight, pool.acc_reward_per_weight)?;
 
@@ -400,12 +396,9 @@ pub fn extend(ctx: Context<ModifyPosition>, duration_secs: u32) -> Result<()> {
 
     let pool = &mut ctx.accounts.pool;
     let position = &mut ctx.accounts.position;
-    let multiplier = multiplier_bps(
-        duration_secs,
-        pool.terms.min_lock_secs,
-        pool.terms.max_lock_secs,
-        pool.terms.max_multiplier_bps,
-    )?;
+    let multiplier =
+        pool.terms
+            .multiplier_for(duration_secs, position.amount, ctx.accounts.mint.supply)?;
     let old_weight = position.weight;
     position.multiplier_bps = multiplier;
     position.lock_start = now;

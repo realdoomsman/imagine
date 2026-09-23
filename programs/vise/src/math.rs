@@ -1,4 +1,4 @@
-use crate::constants::{BPS_DENOMINATOR, SCALE};
+use crate::constants::{BPS_DENOMINATOR, CURVE_LINEAR, CURVE_SQRT, SCALE, SIZE_TIERS};
 use crate::errors::ViseError;
 use anchor_lang::prelude::*;
 
@@ -11,15 +11,39 @@ pub fn apply_bps(amount: u64, bps: u16) -> Result<u64> {
     u64::try_from(v).map_err(|_| ViseError::MathOverflow.into())
 }
 
-/// Linear weight multiplier: `min_lock -> 1.0x`, `max_lock -> max_multiplier`.
+/// Integer square root, floor. Newton's method converges in ~64 steps for
+/// u128 and is exact at every integer, which the curve below depends on.
+pub fn isqrt(n: u128) -> u128 {
+    if n < 2 {
+        return n;
+    }
+    let mut x = 1u128 << ((128 - n.leading_zeros()).div_ceil(2));
+    loop {
+        let y = (x + n / x) / 2;
+        if y >= x {
+            return x;
+        }
+        x = y;
+    }
+}
+
+/// Duration multiplier along the pool's curve: `min_lock -> 1.0x`,
+/// `max_lock -> max_multiplier`.
+///
+/// `CURVE_LINEAR` interpolates. `CURVE_SQRT` pays `sqrt(t / T)` of the headroom,
+/// which is front-loaded: with a 4.0x ceiling over 7..365 days, thirty days is
+/// worth 1.76x rather than the 1.19x a straight line gives, and ninety is 2.44x.
+/// A year still takes the top. Computed as `sqrt(t * T) / T` so the whole thing
+/// stays in integers.
 ///
 /// Returns basis points (10_000 == 1.0x). A pool where `min == max` pins every
 /// position to the ceiling.
-pub fn multiplier_bps(
+pub fn duration_multiplier_bps(
     duration_secs: u32,
     min_lock_secs: u32,
     max_lock_secs: u32,
     max_multiplier_bps: u32,
+    curve: u8,
 ) -> Result<u32> {
     require!(
         duration_secs >= min_lock_secs && duration_secs <= max_lock_secs,
@@ -33,14 +57,53 @@ pub fn multiplier_bps(
     let headroom = (max_multiplier_bps as u128)
         .checked_sub(BPS_DENOMINATOR as u128)
         .ok_or(ViseError::InvalidParameter)?;
+    let progress = match curve {
+        CURVE_LINEAR => travelled,
+        CURVE_SQRT => isqrt(travelled.checked_mul(span).ok_or(ViseError::MathOverflow)?),
+        _ => return Err(ViseError::InvalidParameter.into()),
+    };
     let extra = headroom
-        .checked_mul(travelled)
+        .checked_mul(progress)
         .ok_or(ViseError::MathOverflow)?
         / span;
     let bps = (BPS_DENOMINATOR as u128)
         .checked_add(extra)
         .ok_or(ViseError::MathOverflow)?;
     u32::try_from(bps).map_err(|_| ViseError::MathOverflow.into())
+}
+
+/// Bonus for the share of supply a single position commits.
+///
+/// Tiers are ascending thresholds in bps of total supply; the highest one the
+/// position clears applies, and a zero threshold disables the tier. Measured
+/// against supply rather than against the pool, so a position's tier never
+/// changes because of what other people do.
+pub fn size_bonus_bps(
+    amount: u64,
+    supply: u64,
+    tiers: &[u16; SIZE_TIERS],
+    bonuses: &[u16; SIZE_TIERS],
+) -> u16 {
+    if supply == 0 {
+        return 0;
+    }
+    let share_bps = (amount as u128) * (BPS_DENOMINATOR as u128) / (supply as u128);
+    let mut bonus = 0u16;
+    for (tier, reward) in tiers.iter().zip(bonuses) {
+        if *tier > 0 && share_bps >= *tier as u128 {
+            bonus = *reward;
+        }
+    }
+    bonus
+}
+
+/// The multiplier a position earns: duration curve scaled by size tier.
+pub fn combined_multiplier_bps(duration_bps: u32, size_bonus: u16) -> Result<u32> {
+    let scaled = (duration_bps as u128)
+        .checked_mul((BPS_DENOMINATOR as u128) + size_bonus as u128)
+        .ok_or(ViseError::MathOverflow)?
+        / (BPS_DENOMINATOR as u128);
+    u32::try_from(scaled).map_err(|_| ViseError::MathOverflow.into())
 }
 
 /// `amount * multiplier`, in weight units.
@@ -148,26 +211,77 @@ mod tests {
     const DAY: u32 = 86_400;
 
     #[test]
-    fn multiplier_spans_one_to_ceiling() {
+    fn linear_curve_spans_one_to_ceiling() {
         let (min, max, ceiling) = (7 * DAY, 365 * DAY, 40_000);
-        assert_eq!(multiplier_bps(7 * DAY, min, max, ceiling).unwrap(), 10_000);
-        assert_eq!(multiplier_bps(365 * DAY, min, max, ceiling).unwrap(), 40_000);
-        // 180 days lands near Printr's 2.5x reference point.
-        let at_180 = multiplier_bps(180 * DAY, min, max, ceiling).unwrap();
+        let m = |d| duration_multiplier_bps(d, min, max, ceiling, CURVE_LINEAR).unwrap();
+        assert_eq!(m(7 * DAY), 10_000);
+        assert_eq!(m(365 * DAY), 40_000);
+        let at_180 = m(180 * DAY);
         assert!((24_000..=25_000).contains(&at_180), "got {at_180}");
-        // Monotonic in duration.
+    }
+
+    #[test]
+    fn sqrt_curve_is_front_loaded_and_monotonic() {
+        let (min, max, ceiling) = (7 * DAY, 365 * DAY, 40_000);
+        let m = |d| duration_multiplier_bps(d, min, max, ceiling, CURVE_SQRT).unwrap();
+        let lin = |d| duration_multiplier_bps(d, min, max, ceiling, CURVE_LINEAR).unwrap();
+        // Same endpoints as the line...
+        assert_eq!(m(7 * DAY), 10_000);
+        assert_eq!(m(365 * DAY), 40_000);
+        // ...and strictly above it everywhere between: a month is ~1.76x, not 1.19x.
+        let at_30 = m(30 * DAY);
+        assert!((17_400..=17_800).contains(&at_30), "got {at_30}");
+        assert!((24_200..=24_600).contains(&m(90 * DAY)));
+        for d in (8..365).step_by(3) {
+            assert!(m(d * DAY) > lin(d * DAY), "sqrt must exceed linear at {d}d");
+        }
         let mut last = 0;
-        for d in (7..=365).step_by(7) {
-            let m = multiplier_bps(d * DAY, min, max, ceiling).unwrap();
-            assert!(m >= last);
-            last = m;
+        for d in (7..=365).step_by(1) {
+            let v = m(d * DAY);
+            assert!(v >= last, "non-monotonic at {d}d");
+            last = v;
         }
     }
 
     #[test]
+    fn isqrt_is_exact_floor() {
+        for n in [0u128, 1, 2, 3, 4, 15, 16, 17, 1 << 40, (1 << 63) - 1, u64::MAX as u128] {
+            let r = isqrt(n);
+            assert!(r * r <= n && (r + 1) * (r + 1) > n, "isqrt({n}) = {r}");
+        }
+        let big = (u64::MAX as u128) * (u64::MAX as u128);
+        assert_eq!(isqrt(big), u64::MAX as u128);
+    }
+
+    #[test]
     fn multiplier_rejects_out_of_range() {
-        assert!(multiplier_bps(DAY, 7 * DAY, 365 * DAY, 40_000).is_err());
-        assert!(multiplier_bps(400 * DAY, 7 * DAY, 365 * DAY, 40_000).is_err());
+        assert!(duration_multiplier_bps(DAY, 7 * DAY, 365 * DAY, 40_000, CURVE_SQRT).is_err());
+        assert!(duration_multiplier_bps(400 * DAY, 7 * DAY, 365 * DAY, 40_000, CURVE_SQRT).is_err());
+        assert!(duration_multiplier_bps(30 * DAY, 7 * DAY, 365 * DAY, 40_000, 7).is_err());
+    }
+
+    #[test]
+    fn size_tiers_pick_the_highest_cleared() {
+        let supply = 1_000_000_000_000_000u64; // 1B tokens at 6 decimals
+        let tiers = [10u16, 50, 100]; // 0.10%, 0.50%, 1.00% of supply
+        let bonuses = [1_000u16, 2_500, 5_000];
+        let bonus = |amount| size_bonus_bps(amount, supply, &tiers, &bonuses);
+        assert_eq!(bonus(999_999_000_000), 0); // just under 0.10%
+        assert_eq!(bonus(1_000_000_000_000), 1_000);
+        assert_eq!(bonus(4_999_999_000_000), 1_000);
+        assert_eq!(bonus(5_000_000_000_000), 2_500);
+        assert_eq!(bonus(10_000_000_000_000), 5_000);
+        assert_eq!(bonus(supply), 5_000);
+        // Disabled tiers never fire, and a zero supply pays no bonus.
+        assert_eq!(size_bonus_bps(supply, supply, &[0, 0, 0], &[0, 0, 0]), 0);
+        assert_eq!(size_bonus_bps(supply, 0, &tiers, &bonuses), 0);
+    }
+
+    #[test]
+    fn combined_multiplier_scales_duration_by_tier() {
+        assert_eq!(combined_multiplier_bps(10_000, 0).unwrap(), 10_000);
+        assert_eq!(combined_multiplier_bps(40_000, 5_000).unwrap(), 60_000);
+        assert_eq!(combined_multiplier_bps(17_600, 1_000).unwrap(), 19_360);
     }
 
     #[test]

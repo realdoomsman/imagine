@@ -38,7 +38,7 @@ export default function LaunchPage() {
             step="What you give up"
             items={[
               "Your dev buy is partly locked for the term you choose. You cannot take it out early without burning some of it.",
-              "You take at most 30% of the fee stream; the rest belongs to whoever locks.",
+              "You take no cut of the fee stream. 90% belongs to whoever locks — including you, through your founding lock.",
               "You cannot change the terms afterwards. Nobody can.",
             ]}
           />

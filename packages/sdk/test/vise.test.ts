@@ -44,33 +44,29 @@ const client = new ViseClient(new Connection("http://127.0.0.1:8899"));
 const SOL = BigInt(LAMPORTS_PER_SOL);
 const TOKEN = 1_000_000n; // one whole token at 6 decimals
 
-const DEFAULT_CONFIG = {
-  tradeFeeBps: 200,
-  defaultTreasuryShareBps: 2000,
-  maxCreatorShareBps: 3000,
-  defaultMinLockSecs: 7 * DAY,
-  defaultMaxLockSecs: 365 * DAY,
-  defaultMaxMultiplierBps: 40_000,
-  defaultEarlyUnlockPenaltyBps: 2500,
-  defaultMinLockAmount: new BN(1_000_000),
-  defaultRewardStreamSecs: 3_600,
-  poolCreationFee: new BN(0.05 * LAMPORTS_PER_SOL),
-  paused: false,
-};
+/*
+ * The suite runs on the production economics with two deliberate overrides:
+ * the stream is an hour so a full window fits inside a test, and creators may
+ * take a share so that mechanism stays under test even though the shipped
+ * default disables it. Everything else — curve, tiers, penalty, treasury cut —
+ * is exactly what init-config writes on chain.
+ */
+const TEST_OVERRIDES = {
+  rewardStreamSecs: 3_600,
+  maxCreatorShareBps: 3_000,
+} as const;
 
 const POOL_TERMS: PoolTerms = {
-  treasuryShareBps: DEFAULT_CONFIG.defaultTreasuryShareBps,
+  ...ViseClient.defaultTerms(),
+  ...TEST_OVERRIDES,
   creatorShareBps: 1000,
-  minLockSecs: DEFAULT_CONFIG.defaultMinLockSecs,
-  maxLockSecs: DEFAULT_CONFIG.defaultMaxLockSecs,
-  maxMultiplierBps: DEFAULT_CONFIG.defaultMaxMultiplierBps,
-  earlyUnlockPenaltyBps: DEFAULT_CONFIG.defaultEarlyUnlockPenaltyBps,
-  minLockAmount: 1_000_000n,
-  rewardStreamSecs: 3_600,
 };
 
 function configArgs(treasury: PublicKey, overrides: Record<string, unknown> = {}) {
-  return { ...DEFAULT_CONFIG, treasury, ...overrides };
+  return {
+    ...ViseClient.configArgs({ treasury, overrides: TEST_OVERRIDES }),
+    ...overrides,
+  };
 }
 
 async function initConfig(ctx: Ctx, overrides: Record<string, unknown> = {}) {
@@ -257,7 +253,7 @@ describe("pool creation", () => {
     assert.equal(pool.openPositions, 1n);
 
     const position = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
-    const expected = multiplierBps(30 * DAY, POOL_TERMS);
+    const expected = multiplierBps(30 * DAY, POOL_TERMS, position.amount, mintSupply(w.svm, w.mint));
     assert.equal(position.multiplierBps, expected);
     assert.ok(lamports(w.svm, rewardVaultPda(w.mint)) > 0n);
   });
@@ -437,10 +433,7 @@ describe("rewards", () => {
     );
 
     const pool = readPool(w.svm, w.mint);
-    const expected = splitInflow(deposit, {
-      treasuryShareBps: 2000,
-      creatorShareBps: 1000,
-    });
+    const expected = splitInflow(deposit, POOL_TERMS);
     assert.equal(pool.treasuryClaimable, expected.toTreasury);
     assert.equal(pool.creatorClaimable, expected.toCreator);
     // The lockers' share is queued, not handed out: it streams over the window.
@@ -711,7 +704,7 @@ describe("rewards", () => {
     assert.equal(after.lifetimeRewards, 0n);
     // The creator's cut is still the creator's; only the lockers' share is
     // reassigned, because there are no lockers to receive it.
-    const split = splitInflow(SOL, { treasuryShareBps: 2000, creatorShareBps: 1000 });
+    const split = splitInflow(SOL, POOL_TERMS);
     assert.equal(
       after.treasuryClaimable - treasuryBefore,
       split.toTreasury + split.toLockers,
@@ -1568,9 +1561,123 @@ describe("token vault accounting", () => {
 
     const weightCheck = weightOf(
       25_000n * TOKEN,
-      multiplierBps(90 * DAY, POOL_TERMS),
+      multiplierBps(90 * DAY, POOL_TERMS, 25_000n * TOKEN, mintSupply(w.svm, w.mint)),
     );
     const position = readPosition(w.svm, w.mint, other.publicKey, 0)!;
     assert.equal(position.weight, weightCheck);
+  });
+});
+
+describe("economics", () => {
+  it("prices duration on the sqrt curve, front-loaded", async () => {
+    const w = await openPool({ initialLockDuration: 30 * DAY });
+    const founding = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    // A month is worth ~1.76x on the sqrt curve; a straight line would pay 1.19x.
+    assert.ok(
+      founding.multiplierBps >= 17_400 && founding.multiplierBps <= 17_800,
+      `30d priced at ${founding.multiplierBps}`,
+    );
+    assert.equal(
+      founding.multiplierBps,
+      multiplierBps(30 * DAY, POOL_TERMS, founding.amount, mintSupply(w.svm, w.mint)),
+      "the SDK mirror agrees with the program",
+    );
+  });
+
+  it("pays a size bonus by share of supply, and re-tiers on increase", async () => {
+    const whale = Keypair.generate();
+    const supply = 1_000_000_000n * TOKEN;
+    const w = await openPool({
+      initialLockAmount: 1_000n * TOKEN,
+      initialLockDuration: 365 * DAY,
+      extraHolders: [{ owner: whale.publicKey, amount: 20_000_000n * TOKEN }],
+    });
+    assert.equal(mintSupply(w.svm, w.mint), supply, "pump supply is one billion");
+    w.svm.airdrop(whale.publicKey, 10n * SOL);
+
+    // 0.5% of supply for a year: the 4.0x ceiling scaled by the +25% tier.
+    const half = 5_000_000n * TOKEN;
+    send(
+      w.svm,
+      [
+        await client.lock({
+          owner: whale.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: half,
+          durationSecs: 365 * DAY,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [whale],
+    );
+    const tiered = readPosition(w.svm, w.mint, whale.publicKey, 0)!;
+    assert.equal(tiered.multiplierBps, 50_000, "4.0x × 1.25 = 5.0x");
+    assert.equal(tiered.multiplierBps, multiplierBps(365 * DAY, POOL_TERMS, half, supply));
+
+    // The founding lock, at 0.0001% of supply, gets no bonus: 4.0x flat.
+    const founding = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    assert.equal(founding.multiplierBps, 40_000);
+
+    // Topping up to 1% crosses into the +50% tier and reprices the position.
+    send(
+      w.svm,
+      [
+        await client.increase({
+          owner: whale.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: half,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [whale],
+    );
+    const retiered = readPosition(w.svm, w.mint, whale.publicKey, 0)!;
+    assert.equal(retiered.amount, 2n * half);
+    // Repriced on the term still to run (a few seconds under a year), so just
+    // under 6.0x — and never above the 10x global ceiling.
+    assert.ok(retiered.multiplierBps > 59_000 && retiered.multiplierBps <= 60_000, `${retiered.multiplierBps}`);
+    assert.equal(retiered.weight, weightOf(retiered.amount, retiered.multiplierBps));
+    assertSolvent(w.svm, w.mint, [
+      { owner: w.creator.publicKey, index: 0 },
+      { owner: whale.publicKey, index: 0 },
+    ]);
+  });
+
+  it("ships with 90 / 10 / 0 and refuses a creator cut", async () => {
+    // The production config, exactly as init-config writes it.
+    const ctx = setup();
+    send(
+      ctx.svm,
+      [
+        await client.program.methods
+          .initializeConfig(ViseClient.configArgs({ treasury: ctx.treasury.publicKey }))
+          .accountsPartial({
+            admin: ctx.admin.publicKey,
+            config: configPda(),
+            program: PROGRAM_ID,
+            programData: (setUpgradeAuthority(ctx.svm, ctx.admin.publicKey), programDataAddress()),
+          })
+          .instruction(),
+      ],
+      [ctx.admin],
+    );
+    const config = decodeConfig(Buffer.from(ctx.svm.getAccount(configPda())!.data));
+    assert.equal(config.defaultTreasuryShareBps, 1_000);
+    assert.equal(config.maxCreatorShareBps, 0);
+    assert.equal(config.defaultDurationCurve, 1);
+    assert.deepEqual(config.defaultSizeTierBps, [10, 50, 100]);
+    assert.deepEqual(config.defaultSizeBonusBps, [1_000, 2_500, 5_000]);
+    assert.equal(config.defaultRewardStreamSecs, 24 * 3_600);
+    assert.equal(config.defaultMinLockAmount, 1_000_000n);
+
+    const split = splitInflow(10n * SOL, {
+      treasuryShareBps: config.defaultTreasuryShareBps,
+      creatorShareBps: 0,
+    });
+    assert.equal(split.toTreasury, 1n * SOL);
+    assert.equal(split.toCreator, 0n);
+    assert.equal(split.toLockers, 9n * SOL);
   });
 });

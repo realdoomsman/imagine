@@ -49,21 +49,21 @@ export default function FeesPage() {
         </p>
       </DocSection>
 
-      <DocSection title="The split">
+      <DocSection title="The split: 90 / 10 / 0">
         <p>Every lamport entering a pool is divided the same way, in this order:</p>
         <ul>
           <li>
-            <strong>20% to the platform.</strong> Taken off the top. This is how
-            VISE pays for itself.
+            <strong>10% to the treasury.</strong> Taken off the top. This pays
+            for indexing, hosting, audits, and the keeper that moves pump.fun
+            creator fees into pools every minute.
           </li>
           <li>
-            <strong>Up to 30% to the creator</strong>, out of what is left. The
-            creator picks their own number when they launch, from 0% to 30%, and
-            lives with it forever.
+            <strong>0% to the creator.</strong> The program supports a creator
+            share; the platform sets its ceiling to zero. A creator who wants to
+            earn from their coin does what everyone else does: locks it.
           </li>
           <li>
-            <strong>Everything remaining to lockers</strong>, split by weight.
-            With a 10% creator share that is 72% of the fee.
+            <strong>90% to lockers</strong>, split by weight.
           </li>
         </ul>
         <p>

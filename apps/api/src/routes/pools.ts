@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";
 import { fetchCurve, onlinePump } from "../pump.ts";
-import { vise } from "../solana.ts";
+import { connection, vise } from "../solana.ts";
 
 const SORTS = {
   new: sql`created_at DESC`,
@@ -84,17 +84,21 @@ export async function poolRoutes(app: FastifyInstance) {
 
     // Chain is authoritative for anything a user will act on; the database only
     // supplies metadata and history the chain does not carry.
-    const [onChain, meta, curve, global] = await Promise.all([
+    const [onChain, meta, curve, global, supply] = await Promise.all([
       vise.fetchProjectedPool(key),
       sql`SELECT * FROM pools WHERE mint = ${mint}`,
       fetchCurve(key),
       onlinePump.fetchGlobal(),
+      connection.getTokenSupply(key).catch(() => null),
     ]);
     if (!onChain) return reply.code(404).send({ error: "pool not found" });
 
     const row = meta[0];
     return {
       mint,
+      // Size tiers are a share of total supply, so the panel needs it exactly.
+      tokenSupply: supply?.value.amount ?? (row?.token_supply as string | null) ?? null,
+      tokenDecimals: supply?.value.decimals ?? (row?.token_decimals as number | undefined) ?? 6,
       metadata: row
         ? {
             name: row.name,
@@ -123,6 +127,10 @@ export async function poolRoutes(app: FastifyInstance) {
         lifetimeBurned: onChain.lifetimeBurned.toString(),
         creatorClaimable: onChain.creatorClaimable.toString(),
         treasuryClaimable: onChain.treasuryClaimable.toString(),
+        // What is queued for lockers and when the current window closes, so
+        // the page can show a stream in progress rather than a static total.
+        undistributed: onChain.undistributed.toString(),
+        streamEnd: onChain.streamEnd,
         openPositions: Number(onChain.openPositions),
         createdAt: onChain.createdAt,
       },

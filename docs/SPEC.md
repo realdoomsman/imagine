@@ -41,12 +41,25 @@ stream, work with no code change.
 ### Weight
 
 ```
-multiplier(d) = 1.0 + (max_multiplier - 1.0) × (d - min_lock) / (max_lock - min_lock)
+progress(d)   = (d - min_lock) / (max_lock - min_lock)
+duration(d)   = 1.0 + (max_multiplier - 1.0) × √progress(d)      # CURVE_SQRT
+              = 1.0 + (max_multiplier - 1.0) × progress(d)       # CURVE_LINEAR
+size_bonus    = highest tier cleared by amount / total_supply, else 0
+multiplier    = duration(d) × (1 + size_bonus)
 weight        = amount × multiplier
 ```
 
-Linear in duration: 7 days is 1.0×, 365 days is 4.0× by default. At 180 days it
-lands on 2.45×, within a rounding error of Printr's published 2.5×.
+Both factors are frozen on the pool. The shipped defaults use the square-root
+curve: 7 days is 1.0×, 30 days 1.76×, 90 days 2.44×, 180 days 3.09×, 365 days
+4.0×. Front-loaded on purpose — a month is worth making, a year still takes
+the top. Size tiers are measured against total supply (never the pool, so no
+other locker can move yours): +10% at 0.1% of supply, +25% at 0.5%, +50% at
+1%. The combined ceiling is validated against the 10.0× bound the accumulator's
+overflow analysis assumes. `increase` re-tiers on the new amount and reprices
+on the term still to run; `extend` reprices duration and keeps the tier.
+
+The square root is computed in integers as `isqrt(t × T) / T`; the SDK carries
+the same `isqrt`, and a LiteSVM test asserts the two agree on real positions.
 
 ### Release
 
@@ -153,10 +166,12 @@ APR is trailing realised fees over locked value. Nothing is projected.
 | Parameter | Value | Bound |
 |---|---|---|
 | App fee | 2% | ≤ 10% |
-| Treasury share | 20% of inflow | ≤ 30% |
-| Creator share | creator picks, default 10% | ≤ 30% of post-treasury |
+| Treasury share | 10% of inflow | ≤ 30% |
+| Creator share | 0% — platform ceiling is zero | ≤ 30% of post-treasury |
 | Lock window | 7–365 days | 1 day – 4 years |
-| Max multiplier | 4.0× | 1.0×–10.0× |
+| Duration curve | square root (`CURVE_SQRT`) | linear or sqrt |
+| Max duration multiplier | 4.0× | 1.0×–10.0× |
+| Size tiers | +10% at 0.1% of supply, +25% at 0.5%, +50% at 1% | ≤ +100% each; combined ceiling ≤ 10.0× |
 | Early exit penalty | 25% | 5%–50% |
 | Reward stream | 24 hours | 1 hour – 7 days |
 | Min lock | 1 token | ≥ 1 whole token |

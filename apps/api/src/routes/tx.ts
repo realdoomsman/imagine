@@ -89,7 +89,6 @@ export async function txRoutes(app: FastifyInstance) {
         /** Share of the dev buy the creator locks, 10–100%. */
         lockPercent: z.number().int().min(10).max(100).default(50),
         lockDurationDays: z.number().int().min(7).max(365),
-        creatorShareBps: z.number().int().min(0).max(3000),
         priorityFeeMicroLamports: z.number().int().min(0).max(10_000_000).default(200_000),
       })
       .parse(request.body);
@@ -164,7 +163,8 @@ export async function txRoutes(app: FastifyInstance) {
       mint,
       treasury: env.treasury,
       tokenProgram: TOKEN_2022_PROGRAM_ID,
-      creatorShareBps: body.creatorShareBps,
+      // Creators take no cut of their lockers; the split is 90 / 10 / 0.
+      creatorShareBps: 0,
       initialLockAmount: lockAmount,
       initialLockDuration: body.lockDurationDays * DAY,
     });

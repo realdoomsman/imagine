@@ -19,8 +19,8 @@ import {
   type PoolAccount,
   type PositionAccount,
 } from "./accounts.ts";
-import { VISE_PROGRAM_ID } from "./constants.ts";
-import { projectSync } from "./math.ts";
+import { ECONOMICS, VISE_PROGRAM_ID, type Economics } from "./constants.ts";
+import { projectSync, type PoolTerms } from "./math.ts";
 import {
   bondingCurvePda,
   configPda,
@@ -124,6 +124,53 @@ export class ViseClient {
       address: pubkey,
       ...decodePosition(account.data),
     }));
+  }
+
+  /**
+   * The platform config, as the `initialize_config` / `update_config`
+   * instructions take it, built from `ECONOMICS`. Every writer of the config
+   * goes through here so the numbers on chain are the numbers in the SDK.
+   */
+  static configArgs(params: {
+    treasury: PublicKey;
+    paused?: boolean;
+    overrides?: Partial<Economics>;
+  }) {
+    const e = { ...ECONOMICS, ...params.overrides };
+    return {
+      treasury: params.treasury,
+      tradeFeeBps: e.tradeFeeBps,
+      defaultTreasuryShareBps: e.treasuryShareBps,
+      maxCreatorShareBps: e.maxCreatorShareBps,
+      defaultMinLockSecs: e.minLockSecs,
+      defaultMaxLockSecs: e.maxLockSecs,
+      defaultMaxMultiplierBps: e.maxMultiplierBps,
+      defaultEarlyUnlockPenaltyBps: e.earlyUnlockPenaltyBps,
+      defaultMinLockAmount: new BN(e.minLockAmount.toString()),
+      defaultRewardStreamSecs: e.rewardStreamSecs,
+      defaultDurationCurve: e.durationCurve,
+      defaultSizeTierBps: [...e.sizeTierBps],
+      defaultSizeBonusBps: [...e.sizeBonusBps],
+      poolCreationFee: new BN(e.poolCreationFeeLamports.toString()),
+      paused: params.paused ?? false,
+    };
+  }
+
+  /** Pool terms as the on-chain defaults will stamp them, for previews. */
+  static defaultTerms(): PoolTerms {
+    return {
+      treasuryShareBps: ECONOMICS.treasuryShareBps,
+      creatorShareBps: 0,
+      minLockSecs: ECONOMICS.minLockSecs,
+      maxLockSecs: ECONOMICS.maxLockSecs,
+      maxMultiplierBps: ECONOMICS.maxMultiplierBps,
+      earlyUnlockPenaltyBps: ECONOMICS.earlyUnlockPenaltyBps,
+      minLockAmount: ECONOMICS.minLockAmount,
+      rewardStreamSecs: ECONOMICS.rewardStreamSecs,
+      durationCurve: ECONOMICS.durationCurve,
+      sizeTierBps: [...ECONOMICS.sizeTierBps],
+      sizeBonusBps: [...ECONOMICS.sizeBonusBps],
+    };
   }
 
   async createPool(params: {

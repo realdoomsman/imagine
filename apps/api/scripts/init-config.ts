@@ -51,20 +51,15 @@ if (existing) {
   process.exit(0);
 }
 
+// Every number comes from ECONOMICS in the SDK; the only per-deployment
+// inputs are the treasury and the advisory trade fee.
 const instruction = await vise.program.methods
-  .initializeConfig({
-    treasury: new PublicKey(env.treasury),
-    tradeFeeBps: env.tradeFeeBps,
-    defaultTreasuryShareBps: 2_000, // platform takes 20% off the top
-    maxCreatorShareBps: 3_000, // creators may keep at most 30% of the rest
-    defaultMinLockSecs: 7 * DAY,
-    defaultMaxLockSecs: 365 * DAY,
-    defaultMaxMultiplierBps: 40_000, // 4.0x at a full year
-    defaultEarlyUnlockPenaltyBps: 2_500, // 25% of principal at full remaining term
-    defaultMinLockAmount: new BN(1_000),
-    poolCreationFee: new BN(0.05 * LAMPORTS_PER_SOL),
-    paused: false,
-  })
+  .initializeConfig(
+    ViseClient.configArgs({
+      treasury: new PublicKey(env.treasury),
+      overrides: { tradeFeeBps: env.tradeFeeBps },
+    }),
+  )
   .accountsPartial({ admin: admin.publicKey })
   .instruction();
 
