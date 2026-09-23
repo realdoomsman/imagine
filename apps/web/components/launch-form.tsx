@@ -3,7 +3,7 @@
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { formatTokenAmount } from "@vise/sdk";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, post } from "@/lib/api";
 import { signAndSend, type BuiltTransaction } from "@/lib/send";
 import { useAccount } from "./account-provider";
@@ -26,7 +26,11 @@ export function LaunchForm() {
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
-  const [uri, setUri] = useState("");
+  const [description, setDescription] = useState("");
+  const [twitter, setTwitter] = useState("");
+  const [telegram, setTelegram] = useState("");
+  const [website, setWebsite] = useState("");
+  const [image, setImage] = useState<File | null>(null);
   const [devBuy, setDevBuy] = useState("1");
   const [lockPercent, setLockPercent] = useState(50);
   const [lockDays, setLockDays] = useState(90);
@@ -48,31 +52,46 @@ export function LaunchForm() {
   const valid =
     name.trim().length > 0 &&
     symbol.trim().length > 0 &&
-    uri.trim().length > 0 &&
+    image !== null &&
     devBuyLamports > 0n;
 
   const launch = useCallback(async () => {
+    if (!image) return;
     setPhase("signing");
     setError(null);
-    setProgress([]);
+    setProgress(["Pinning the image and metadata…"]);
 
     const request = {
       name: name.trim(),
       symbol: symbol.trim().toUpperCase(),
-      uri: uri.trim(),
+      uri: "",
       devBuyLamports: devBuyLamports.toString(),
       lockPercent,
       lockDurationDays: lockDays,
     };
 
     try {
+      // The image goes from disk to IPFS via the API; what the chain stores
+      // is the URI of the JSON document that points at it.
+      const form = new FormData();
+      form.append("image", image);
+      form.append("name", request.name);
+      form.append("symbol", request.symbol);
+      form.append("description", description.trim());
+      form.append("twitter", twitter.trim());
+      form.append("telegram", telegram.trim());
+      form.append("website", website.trim());
+      const pinned = await api.pinMetadata(form);
+      request.uri = pinned.uri;
+      setProgress([`Pinned — ${pinned.uri.replace("https://ipfs.io/ipfs/", "ipfs://").slice(0, 28)}…`]);
+
       if (account) {
         // A VISE account launches server-side: the API generates the mint,
         // signs all four transactions with the account's wallet, and reports
         // each one back.
-        setProgress(["Launching from your VISE wallet…"]);
+        setProgress((prev) => [...prev, "Launching from your VISE wallet…"]);
         const done = await api.launchFromAccount(request);
-        setProgress(done.signatures.map((s) => `${s.label} — ${s.signature.slice(0, 12)}…`));
+        setProgress((prev) => [prev[0], ...done.signatures.map((s) => `${s.label} — ${s.signature.slice(0, 12)}…`)]);
         setResult({ mint: done.mint });
         setPhase("done");
         return;
@@ -102,7 +121,7 @@ export function LaunchForm() {
       setError(cause instanceof Error ? cause.message : "launch failed");
       setPhase("error");
     }
-  }, [account, connection, devBuyLamports, lockDays, lockPercent, mintKeypair, name, symbol, uri, wallet]);
+  }, [account, connection, description, devBuyLamports, image, lockDays, lockPercent, mintKeypair, name, symbol, telegram, twitter, wallet, website]);
 
   if (phase === "done" && result) {
     return (
@@ -134,24 +153,38 @@ export function LaunchForm() {
           <Field
             label="Ticker"
             value={symbol}
-            onChange={(v) => setSymbol(v.toUpperCase())}
+            onChange={(v) => setSymbol(v.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
             placeholder="CUBE"
-            maxLength={13}
+            maxLength={10}
           />
         </div>
-        <div className="mt-4">
-          <Field
-            label="Metadata URI"
-            value={uri}
-            onChange={setUri}
-            placeholder="https://ipfs.io/ipfs/…"
-            maxLength={200}
-          />
-          <p className="mt-1.5 text-[12px] text-steel-600">
-            The JSON document pump.fun reads for the name, image and socials.
-            Upload it anywhere public — IPFS, Arweave, your own host.
-          </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+          <ImagePicker file={image} onChange={setImage} />
+          <div>
+            <label htmlFor="description" className="text-[13px] text-steel-400">
+              Description
+            </label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              maxLength={1000}
+              rows={5}
+              placeholder="What it is. One or two sentences is plenty."
+              className="input mt-2 min-h-[132px] resize-y text-[14px] leading-relaxed"
+            />
+          </div>
         </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <Field label="X (optional)" value={twitter} onChange={setTwitter} placeholder="https://x.com/…" maxLength={200} />
+          <Field label="Telegram (optional)" value={telegram} onChange={setTelegram} placeholder="https://t.me/…" maxLength={200} />
+          <Field label="Website (optional)" value={website} onChange={setWebsite} placeholder="https://…" maxLength={200} />
+        </div>
+        <p className="mt-3 text-[12px] leading-relaxed text-steel-600">
+          The image and these details are pinned to IPFS and written onto the
+          coin at creation, exactly as pump.fun does it. They cannot be changed
+          afterwards.
+        </p>
       </section>
 
       <section className="panel p-6">
@@ -267,6 +300,101 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         className="input mt-2 text-[15px]"
       />
+    </div>
+  );
+}
+
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/**
+ * The coin's image, straight from disk. Click or drop; a square preview
+ * shows exactly what pump.fun will display. Rejections are explained inline
+ * rather than after a round trip to the API.
+ */
+function ImagePicker({ file, onChange }: { file: File | null; onChange: (file: File | null) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+
+  useEffect(() => {
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const take = (candidate: File | undefined) => {
+    if (!candidate) return;
+    if (!IMAGE_TYPES.includes(candidate.type)) {
+      setProblem("PNG, JPEG, GIF or WebP only.");
+      return;
+    }
+    if (candidate.size > MAX_IMAGE_BYTES) {
+      setProblem("Keep it under 4 MB.");
+      return;
+    }
+    setProblem(null);
+    onChange(candidate);
+  };
+
+  return (
+    <div>
+      <span className="text-[13px] text-steel-400">Image</span>
+      <button
+        type="button"
+        onClick={() => input.current?.click()}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setOver(false);
+          take(event.dataTransfer.files[0]);
+        }}
+        className={`relative mt-2 flex aspect-square w-full items-center justify-center overflow-hidden rounded-machined border transition-colors ${
+          over ? "border-torch bg-torch/10" : "border-dashed border-steel-700 bg-steel-950/60 hover:border-steel-500"
+        }`}
+        aria-label={file ? `Image: ${file.name}. Click to replace.` : "Choose an image"}
+      >
+        {preview ? (
+          // eslint-disable-next-line @next/next/no-img-element -- local object URL
+          <img src={preview} alt="" className="size-full object-cover" />
+        ) : (
+          <span className="px-4 text-center text-[12.5px] leading-relaxed text-steel-500">
+            Drop an image here or click to choose.
+            <br />
+            <span className="text-steel-600">Square looks best.</span>
+          </span>
+        )}
+        {preview ? (
+          <span className="absolute inset-x-0 bottom-0 bg-steel-990/80 px-2 py-1 text-[11px] text-steel-300">
+            Replace
+          </span>
+        ) : null}
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept={IMAGE_TYPES.join(",")}
+        className="sr-only"
+        onChange={(event) => {
+          take(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+      {problem ? <p className="mt-1.5 text-[12px] text-rust">{problem}</p> : null}
+      {file && !problem ? (
+        <p className="num mt-1.5 truncate text-[11.5px] text-steel-500">
+          {file.name} · {(file.size / 1024).toFixed(0)} KB
+        </p>
+      ) : null}
     </div>
   );
 }

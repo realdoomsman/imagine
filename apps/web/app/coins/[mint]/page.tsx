@@ -64,6 +64,16 @@ export default async function CoinPage({
             {metadata?.name ?? "unnamed coin"}
           </p>
           <p className="num mt-2 text-[11px] text-steel-600">{mint}</p>
+          {metadata?.description ? (
+            <p className="mt-3 max-w-[64ch] text-[13.5px] leading-relaxed text-steel-400">{metadata.description}</p>
+          ) : null}
+          {metadata?.twitter || metadata?.telegram || metadata?.website ? (
+            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px]">
+              {metadata.website ? <Social href={metadata.website} label="Website" /> : null}
+              {metadata.twitter ? <Social href={metadata.twitter} label="X" /> : null}
+              {metadata.telegram ? <Social href={metadata.telegram} label="Telegram" /> : null}
+            </p>
+          ) : null}
         </div>
 
         <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
@@ -170,6 +180,20 @@ export default async function CoinPage({
         </aside>
       </div>
     </div>
+  );
+}
+
+function Social({ href, label }: { href: string; label: string }) {
+  let host: string;
+  try {
+    host = new URL(href).host.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  return (
+    <a href={href} target="_blank" rel="noreferrer nofollow" className="text-steel-500 hover:text-torch">
+      {label} <span className="num text-steel-600">{host}</span>
+    </a>
   );
 }
 

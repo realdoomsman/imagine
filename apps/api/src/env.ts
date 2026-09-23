@@ -36,7 +36,6 @@ export const env = {
   wsUrl: process.env.RPC_WS_URL ?? "",
   cluster: (process.env.CLUSTER ?? "devnet") as "devnet" | "mainnet-beta",
   corsOrigins: (process.env.CORS_ORIGINS ?? "*").split(",").map((s) => s.trim()),
-  pinataJwt: process.env.PINATA_JWT ?? "",
   /**
    * The keeper signs the permissionless cranks — pump fee distribution and
    * pool syncs. Optional: without it the indexer runs read-only and someone

@@ -1,11 +1,13 @@
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
+import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { sql } from "./db.ts";
 import { env } from "./env.ts";
 import { accountRoutes } from "./routes/account.ts";
+import { metadataRoutes } from "./routes/metadata.ts";
 import { poolRoutes } from "./routes/pools.ts";
 import { portfolioRoutes } from "./routes/portfolio.ts";
 import { txRoutes } from "./routes/tx.ts";
@@ -24,6 +26,8 @@ await app.register(cors, {
   credentials: true,
 });
 await app.register(cookie);
+// Only /api/metadata reads multipart; the 4 MB ceiling is per file there.
+await app.register(multipart);
 
 // Transaction building hits RPC, so it is the expensive surface. The limit is
 // generous enough for a human trading quickly and tight enough that a scraper
@@ -68,6 +72,7 @@ app.get("/config", async () => {
 });
 
 await app.register(poolRoutes, { prefix: "/api" });
+await app.register(metadataRoutes, { prefix: "/api" });
 await app.register(portfolioRoutes, { prefix: "/api" });
 await app.register(txRoutes, { prefix: "/api" });
 await app.register(accountRoutes, { prefix: "/api" });

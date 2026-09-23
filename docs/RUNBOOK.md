@@ -56,8 +56,9 @@ not have.
 
 | Piece | Where | State |
 |---|---|---|
-| API | https://api-production-885d.up.railway.app | live, `/health` green |
-| Web | https://web-production-3100c.up.railway.app | live |
+| API | https://api.vise.fun (also api-production-885d.up.railway.app) | live, `/health` green |
+| Web | https://vise.fun (also web-production-3100c.up.railway.app) | live |
+| DNS | Porkbun, account `doomsyy` | `vise.fun` ALIAS, `www`/`api` CNAME → Railway edge |
 | Postgres | Railway private network | live, migrated |
 | Program | `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb` | verified on a local validator carrying the real pump.fun programs; **not yet on devnet** |
 
@@ -113,13 +114,51 @@ cranks; the API would serve an empty catalogue over a live program.
 | `KEEPER_KEYPAIR` | Indexer only. The CLI's JSON byte array or a base58 secret. Enables the keeper |
 | `SWEEP_MIN_LAMPORTS` | Indexer only. Sweep a coin once this much waits at pump. Default 0.005 SOL |
 | `KEEPER_INTERVAL_MS` | Indexer only. Default 60s |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | The "VISE web" OAuth client in Google Cloud project `vise-509508` |
+| `GOOGLE_REDIRECT_URI` | Must equal an authorised redirect URI on that client, byte for byte. Production: `https://api.vise.fun/api/auth/google/callback` |
+| `SITE_ORIGIN` | Where the browser is sent after sign-in. Production: `https://vise.fun` |
+| `SESSION_SECRET` | 32 random bytes, hex. Signs session cookies and OAuth state. Rotating it signs everyone out |
+| `WALLET_MASTER_KEY` | 32 random bytes, hex. Encrypts account wallet keys at rest. **Losing it loses every account wallet.** Back it up outside Railway; never rotate without re-encrypting |
+| `COOKIE_SECURE` | `1` in production (cookies `Secure; SameSite=None`), `0` on plain-http localhost |
+
+The treasury address and trade fee are **not** environment: the program pins
+them in `Config` and the API reads them from chain (`chainConfig()`), so they
+cannot drift from what the program will accept.
 
 **Web** (build args — they are inlined into the client bundle)
 
 | Variable | Purpose |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | API origin |
+| `NEXT_PUBLIC_API_URL` | API origin. Must be same-site with the web origin (`api.vise.fun` under `vise.fun`) or browsers treat the session cookie as third-party and drop it |
 | `NEXT_PUBLIC_RPC_URL` | RPC the browser uses for balances and confirmations |
+| `NEXT_PUBLIC_CLUSTER` | `devnet` or `mainnet-beta`; explorer links |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Same client ID as the API |
+
+## Accounts (Google sign-in)
+
+A Google sign-in creates a row in `accounts` with a freshly generated Solana
+keypair, encrypted with `WALLET_MASTER_KEY` (AES-256-GCM, nonce per row).
+The flow is the plain authorization-code redirect: `/api/auth/google/start`
+→ Google → `/api/auth/google/callback` (state is a signed JWT, its nonce
+echoed in a short-lived cookie) → session cookie `vise_session` (HS256, 7d)
+→ back to the site. Google's ID token is verified against Google's JWKS with
+the client ID as audience before an account is touched.
+
+Every account action (`/api/me/action`, `/me/launch`, `/me/withdraw`) uses
+the same builders as the wallet-adapter path and signs with the account's key
+server-side; each is written to `account_actions` with its signature or the
+error. `/me/export-key` returns the base58 secret and logs the export.
+
+**Operational rules**
+
+- Back up `WALLET_MASTER_KEY` the moment it is set. The database alone cannot
+  recover a wallet.
+- Nothing in the API can refuse a withdrawal or an export: the wallet is the
+  user's. Do not add such a path.
+- Deleting an account: have the user withdraw or export first, then
+  `DELETE FROM account_actions WHERE account_id = $1; DELETE FROM accounts WHERE id = $1`.
+- Google console: `https://console.cloud.google.com/auth/clients?project=vise-509508`.
+  Authorised origins and redirect URIs must include every deployed host.
 
 ## The keeper
 

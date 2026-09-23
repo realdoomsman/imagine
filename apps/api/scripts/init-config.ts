@@ -59,9 +59,15 @@ if (existing) {
 // input is the treasury.
 const treasury = new PublicKey(process.env.TREASURY_PUBKEY ?? admin.publicKey);
 console.log(`treasury ${treasury.toBase58()}`);
+// Only the upgrade authority may create the config; the program proves it by
+// reading its own ProgramData account.
+const programData = PublicKey.findProgramAddressSync(
+  [vise.programId.toBuffer()],
+  new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"),
+)[0];
 const instruction = await vise.program.methods
   .initializeConfig(ViseClient.configArgs({ treasury }))
-  .accountsPartial({ admin: admin.publicKey })
+  .accountsPartial({ admin: admin.publicKey, program: vise.programId, programData })
   .instruction();
 
 const latest = await connection.getLatestBlockhash();

@@ -138,11 +138,12 @@ export class ApiError extends Error {
 }
 
 export async function post<T>(path: string, body: unknown): Promise<T> {
+  // FormData sets its own multipart boundary; anything else is JSON.
   const response = await fetch(`${BASE}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: body instanceof FormData ? {} : { "content-type": "application/json" },
     credentials: "include",
-    body: JSON.stringify(body),
+    body: body instanceof FormData ? body : JSON.stringify(body),
   });
   if (!response.ok) {
     const detail = await response.json().catch(() => ({ error: response.statusText }));
@@ -257,6 +258,8 @@ export const api = {
   withdraw: (body: { to: string; amount: string; mint?: string }) =>
     post<{ signature: string }>("/api/me/withdraw", body),
   exportKey: () => post<{ wallet: string; secretKey: string }>("/api/me/export-key", {}),
+  /** Pin the coin's image and metadata JSON; returns the URI pump.fun reads. */
+  pinMetadata: (form: FormData) => post<{ uri: string; image: string }>("/api/metadata", form),
   launchFromAccount: (body: Record<string, unknown>) =>
     post<{ mint: string; pool: string; lockAmount: string; signatures: Array<{ label: string; signature: string }> }>(
       "/api/me/launch",

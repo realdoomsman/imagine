@@ -36,21 +36,26 @@ Two streams flow into that vault, both in SOL:
 — 2% of the SOL on every trade routed through vise.fun
 — the coin's pump.fun creator fees, in full
 
+90% of it is paid to lockers. 10% runs VISE. The creator's cut is zero: they
+earn the way everyone else does, by locking.
+
 No emissions. No printed tokens. No treasury subsidy. Just the fees that were
 always being paid, going somewhere else.
 
 **4/**
 To earn from it, you lock.
 
-Your weight is your amount times your term:
+Your weight is your amount times your term, on a square-root curve so short
+locks are still worth making:
 
 7d → 1.00×
-30d → 1.19×
-90d → 1.70×
-180d → 2.45×
+30d → 1.76×
+90d → 2.44×
+180d → 3.06×
 365d → 4.00×
 
-Same bag. Four times the claim on the same stream.
+Lock 0.1% of supply or more and a size tier adds up to 50% on top. Same bag,
+up to six times the claim on the same stream.
 
 *[attach: multiplier ladder screenshot]*
 
@@ -122,9 +127,15 @@ Hold under pressure.
 
 **The mechanism, in one post**
 > Trade a VISE coin: 2% of the SOL goes into that coin's vault.
-> Lock the coin: you own a slice of the vault, sized by how long you committed.
+> Lock the coin: you own a slice of the vault, sized by how long and how much
+> you committed.
 > Claim whenever. The lock never blocks it.
 > That is the entire product.
+
+**No wallet needed**
+> Sign in with Google. You get a Solana wallet held for you: send SOL or a
+> coin to it, lock from it, withdraw whenever, export the key any time.
+> No extension. No seed phrase to lose on day one.
 
 **On trust**
 > "Trust us" is not a security model.
@@ -144,10 +155,10 @@ Hold under pressure.
 > If a coin stops trading, its number goes to zero, and it should.
 
 **Creator-facing**
-> You keep up to 30% of your coin's fee stream, forever, permissionlessly
-> claimable.
-> The other 70% pays the people who didn't sell yours.
-> That is a better deal than 100% of a chart nobody holds.
+> Launch through VISE and your fee stream pays the people who did not sell
+> your coin. 90% to lockers, 10% to VISE, 0% to you by default.
+> You earn by locking your own bag, same as everyone. Your founding lock is
+> public from block one. That is the pitch to your holders, and it is true.
 
 **The comparison**
 > pump.fun pays holders a share of creator fees.

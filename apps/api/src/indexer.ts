@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { getTokenMetadata, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { z } from "zod";
@@ -53,6 +54,7 @@ async function handleEvent(
     case "PoolCreated": {
       const mint = data.mint.toBase58();
       await upsertPoolFromChain(new PublicKey(mint));
+      await backfillMetadata(mint);
       break;
     }
 
@@ -258,21 +260,67 @@ const TokenMetadata = z
   })
   .catchall(z.unknown());
 
-/** Pull coin name/symbol/image from the metadata URI recorded on pump. */
-export async function backfillMetadata(mint: string, uri: string) {
+/**
+ * pump.fun pins to Pinata and writes `ipfs.io` URLs into the document. That
+ * public gateway is slow and often unreachable; pump's own gateway serves the
+ * same CIDs reliably, so it is tried first and `ipfs.io` only as a fallback.
+ * Image URLs are rewritten the same way so browsers load them from the
+ * gateway that actually answers.
+ */
+const IPFS_IO = "https://ipfs.io/ipfs/";
+const PUMP_GATEWAY = "https://pump.mypinata.cloud/ipfs/";
+
+export function gatewayUrl(url: string): string {
+  return url.startsWith(IPFS_IO) ? PUMP_GATEWAY + url.slice(IPFS_IO.length) : url;
+}
+
+async function fetchJson(url: string): Promise<unknown> {
+  const candidates = url.startsWith(IPFS_IO) ? [gatewayUrl(url), url] : [url];
+  let lastError: unknown = new Error("no gateway answered");
+  for (const candidate of candidates) {
+    try {
+      const response = await fetch(candidate, { signal: AbortSignal.timeout(8_000) });
+      if (response.ok) return await response.json();
+      lastError = new Error(`${candidate} → ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Pull the coin's name, symbol and image into the read model.
+ *
+ * pump.fun's `create_v2` writes name/symbol/uri into the Token-2022 metadata
+ * extension on the mint itself (no Metaplex account), so the on-chain part is
+ * one account read; the image, description and socials are in the document
+ * the URI points at.
+ */
+export async function backfillMetadata(mint: string) {
+  let onChain;
   try {
-    const response = await fetch(uri, { signal: AbortSignal.timeout(8_000) });
-    if (!response.ok) return;
-    const meta = TokenMetadata.parse(await response.json());
+    onChain = await getTokenMetadata(connection, new PublicKey(mint), "confirmed", TOKEN_2022_PROGRAM_ID);
+  } catch {
+    return;
+  }
+  if (!onChain) return;
+  await sql`
+    UPDATE pools SET name = ${onChain.name}, symbol = ${onChain.symbol}, metadata_uri = ${onChain.uri},
+      updated_at = NOW()
+    WHERE mint = ${mint}
+  `;
+  try {
+    const meta = TokenMetadata.parse(await fetchJson(onChain.uri));
     await sql`
-      UPDATE pools SET name = ${meta.name ?? null}, symbol = ${meta.symbol ?? null},
-        image_url = ${meta.image ?? null}, description = ${meta.description ?? null},
+      UPDATE pools SET
+        image_url = ${meta.image ? gatewayUrl(meta.image) : null}, description = ${meta.description ?? null},
         twitter = ${meta.twitter ?? null}, telegram = ${meta.telegram ?? null},
-        website = ${meta.website ?? null}, metadata_uri = ${uri}, updated_at = NOW()
+        website = ${meta.website ?? null}, updated_at = NOW()
       WHERE mint = ${mint}
     `;
   } catch {
-    // Metadata is cosmetic; a dead IPFS gateway must not stall indexing.
+    // The document is cosmetic; a dead IPFS gateway must not stall indexing.
   }
 }
 
@@ -350,6 +398,12 @@ async function discover() {
   for (const { account } of accounts) {
     const pool = decodePool(account.data);
     await upsertPoolFromChain(pool.mint);
+  }
+  // Names and images are missing for anything created while the socket was
+  // down, or before this read model existed. One mint read each, once.
+  const unnamed = await sql`SELECT mint FROM pools WHERE name IS NULL`;
+  for (const row of unnamed) {
+    await backfillMetadata(row.mint as string);
   }
 }
 
