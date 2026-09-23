@@ -1,6 +1,6 @@
 "use client";
 
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import {
@@ -14,9 +14,10 @@ import {
   type PoolTerms,
 } from "@vise/sdk";
 import { useCallback, useEffect, useState } from "react";
-import { buildAndSend } from "@/lib/send";
+import { useActor } from "@/lib/signer";
 import { LockDial } from "./lock-dial";
 import { ViseMark } from "./vise-mark";
+import { SignInPrompt } from "./sign-in-prompt";
 
 interface TermsDto {
   treasuryShareBps: number;
@@ -51,7 +52,7 @@ export function LockPanel({
   supply: string;
 }) {
   const { connection } = useConnection();
-  const wallet = useWallet();
+  const actor = useActor();
   const [balance, setBalance] = useState<bigint | null>(null);
   const [amountInput, setAmountInput] = useState("");
   const [days, setDays] = useState(30);
@@ -67,13 +68,13 @@ export function LockPanel({
   const maxDays = Math.floor(terms.maxLockSecs / 86_400);
 
   useEffect(() => {
-    if (!wallet.publicKey) {
+    if (!actor.publicKey) {
       setBalance(null);
       return;
     }
     const ata = getAssociatedTokenAddressSync(
       new PublicKey(mint),
-      wallet.publicKey,
+      actor.publicKey,
       true,
       TOKEN_2022_PROGRAM_ID,
     );
@@ -89,7 +90,7 @@ export function LockPanel({
     return () => {
       cancelled = true;
     };
-  }, [connection, mint, wallet.publicKey]);
+  }, [connection, mint, actor.publicKey]);
 
   const amount = (() => {
     const parsed = Number(amountInput);
@@ -109,15 +110,15 @@ export function LockPanel({
     .find((entry) => entry.tier > 0 && entry.bonus > bonus);
 
   const submit = useCallback(async () => {
-    if (!wallet.publicKey) return;
+    if (!actor.publicKey) return;
     setBusy(true);
     setStatus(null);
     try {
       // A wallet can hold many positions in one pool, so pick the next free
       // slot rather than assuming index 0 is available.
       const index = Math.floor(Date.now() / 1000) % 1_000_000;
-      const signature = await buildAndSend(connection, wallet, "/api/tx/lock", {
-        owner: wallet.publicKey.toBase58(),
+      const signature = await actor.act({
+        kind: "lock",
         mint,
         index,
         amount: amount.toString(),
@@ -130,7 +131,7 @@ export function LockPanel({
     } finally {
       setBusy(false);
     }
-  }, [amount, connection, days, mint, wallet]);
+  }, [actor, amount, days, mint]);
 
   const insufficient = balance !== null && amount > balance;
   const belowMinimum = amount > 0n && amount < poolTerms.minLockAmount;
@@ -218,7 +219,7 @@ export function LockPanel({
         and forfeits unclaimed rewards to whoever stayed.
       </p>
 
-      {wallet.publicKey ? (
+      {actor.publicKey ? (
         <button
           type="button"
           onClick={() => void submit()}
@@ -234,9 +235,9 @@ export function LockPanel({
                 : `Clamp for ${days} days`}
         </button>
       ) : (
-        <p className="mt-5 rounded-machined border border-steel-700 px-4 py-3 text-center text-[13px] text-steel-500">
-          Connect a wallet to clamp
-        </p>
+        <div className="mt-5">
+          <SignInPrompt what="clamp" />
+        </div>
       )}
 
       {status ? (

@@ -9,7 +9,7 @@ import { ConnectButton } from "./connect-button";
 const NAV = [
   { href: "/coins", label: "Coins" },
   { href: "/launch", label: "Launch" },
-  { href: "/portfolio", label: "Portfolio" },
+  { href: "/account", label: "Wallet" },
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 

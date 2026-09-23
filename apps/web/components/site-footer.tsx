@@ -27,7 +27,7 @@ export function SiteFooter() {
           links={[
             { href: "/coins", label: "Coins" },
             { href: "/launch", label: "Launch" },
-            { href: "/portfolio", label: "Portfolio" },
+            { href: "/account", label: "Wallet" },
             { href: "/leaderboard", label: "Leaderboard" },
           ]}
         />
@@ -37,6 +37,8 @@ export function SiteFooter() {
             { href: "/how-it-works", label: "How it works" },
             { href: "/docs/fees", label: "Fees" },
             { href: "/docs/security", label: "Security" },
+            { href: "/privacy", label: "Privacy" },
+            { href: "/terms", label: "Terms" },
           ]}
         />
         <FooterColumn

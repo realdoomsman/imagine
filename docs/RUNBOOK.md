@@ -109,8 +109,6 @@ cranks; the API would serve an empty catalogue over a live program.
 | `DATABASE_URL` | Postgres. On Railway: `${{Postgres.DATABASE_URL}}` |
 | `RPC_URL` | Solana RPC. A paid endpoint is required in production — the public one will rate-limit the indexer within minutes |
 | `RPC_WS_URL` | Optional websocket override for log subscriptions |
-| `TREASURY_PUBKEY` | Destination for the platform share |
-| `TRADE_FEE_BPS` | App fee on routed swaps. Must match the on-chain config's advisory value |
 | `CORS_ORIGINS` | Comma-separated; set to the web origin in production, not `*` |
 | `KEEPER_KEYPAIR` | Indexer only. The CLI's JSON byte array or a base58 secret. Enables the keeper |
 | `SWEEP_MIN_LAMPORTS` | Indexer only. Sweep a coin once this much waits at pump. Default 0.005 SOL |

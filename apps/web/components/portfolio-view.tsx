@@ -1,6 +1,5 @@
 "use client";
 
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   formatDuration,
   formatMultiplier,
@@ -11,13 +10,13 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, type PortfolioPosition } from "@/lib/api";
-import { buildAndSend } from "@/lib/send";
+import { useActor } from "@/lib/signer";
+import { SignInPrompt } from "./sign-in-prompt";
 import { ViseMark } from "./vise-mark";
 import { Shimmer } from "./skeleton";
 
 export function PortfolioView() {
-  const { connection } = useConnection();
-  const wallet = useWallet();
+  const actor = useActor();
   const [positions, setPositions] = useState<PortfolioPosition[]>([]);
   const [totals, setTotals] = useState({ pending: "0", claimed: "0", positions: 0 });
   const [loading, setLoading] = useState(false);
@@ -25,10 +24,10 @@ export function PortfolioView() {
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!wallet.publicKey) return;
+    if (!actor.publicKey) return;
     setLoading(true);
     try {
-      const result = await api.portfolio(wallet.publicKey.toBase58());
+      const result = await api.portfolio(actor.publicKey.toBase58());
       setPositions(result.positions);
       setTotals(result.totals);
       setError(null);
@@ -37,18 +36,18 @@ export function PortfolioView() {
     } finally {
       setLoading(false);
     }
-  }, [wallet.publicKey]);
+  }, [actor.publicKey]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
   const act = useCallback(
-    async (path: string, body: unknown, key: string) => {
+    async (action: Record<string, unknown>, key: string) => {
       setBusy(key);
       setError(null);
       try {
-        await buildAndSend(connection, wallet, path, body);
+        await actor.act(action);
         await refresh();
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "action failed");
@@ -56,20 +55,23 @@ export function PortfolioView() {
         setBusy(null);
       }
     },
-    [connection, refresh, wallet],
+    [actor, refresh],
   );
 
-  if (!wallet.publicKey) {
+  if (!actor.publicKey) {
     return (
       <div className="panel mt-10 flex flex-col items-center gap-5 px-8 py-20 text-center">
         <span className="text-steel-700">
           <ViseMark size={44} grip={0} />
         </span>
-        <h2 className="t-sub">Connect a wallet to see your locks.</h2>
+        <h2 className="t-sub">Sign in to see your locks.</h2>
         <p className="max-w-[46ch] text-[14.5px] leading-relaxed text-steel-500">
-          Nothing is stored here. Positions and unclaimed rewards are read
-          straight from the chain for whichever wallet you connect.
+          Positions and unclaimed rewards are read straight from the chain for
+          whichever wallet you use — a VISE account or your own.
         </p>
+        <div className="w-full max-w-md text-left">
+          <SignInPrompt what="see your locks" />
+        </div>
       </div>
     );
   }
@@ -191,15 +193,7 @@ export function PortfolioView() {
                     type="button"
                     disabled={busy === key || BigInt(position.pending) === 0n}
                     onClick={() =>
-                      void act(
-                        "/api/tx/claim",
-                        {
-                          owner: wallet.publicKey!.toBase58(),
-                          mint: position.mint,
-                          index: position.index,
-                        },
-                        key,
-                      )
+                      void act({ kind: "claim", mint: position.mint, index: position.index }, key)
                     }
                     className="btn btn-primary h-9 text-[13px]"
                   >
@@ -211,13 +205,7 @@ export function PortfolioView() {
                     disabled={busy === key}
                     onClick={() =>
                       void act(
-                        "/api/tx/unlock",
-                        {
-                          owner: wallet.publicKey!.toBase58(),
-                          mint: position.mint,
-                          index: position.index,
-                          early: !matured,
-                        },
+                        { kind: "unlock", mint: position.mint, index: position.index, early: !matured },
                         key,
                       )
                     }

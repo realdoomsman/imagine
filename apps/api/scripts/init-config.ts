@@ -5,6 +5,10 @@
  * failing, so it is safe to run as part of a deploy pipeline.
  *
  * Usage: node --env-file=.env.devnet scripts/init-config.ts [path/to/admin.json]
+ *
+ * The treasury is `TREASURY_PUBKEY` (defaults to the admin: rotate it later
+ * with `set_treasury`). This is the one place a treasury is chosen; the API
+ * itself reads it back from the chain.
  */
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -52,14 +56,11 @@ if (existing) {
 }
 
 // Every number comes from ECONOMICS in the SDK; the only per-deployment
-// inputs are the treasury and the advisory trade fee.
+// input is the treasury.
+const treasury = new PublicKey(process.env.TREASURY_PUBKEY ?? admin.publicKey);
+console.log(`treasury ${treasury.toBase58()}`);
 const instruction = await vise.program.methods
-  .initializeConfig(
-    ViseClient.configArgs({
-      treasury: new PublicKey(env.treasury),
-      overrides: { tradeFeeBps: env.tradeFeeBps },
-    }),
-  )
+  .initializeConfig(ViseClient.configArgs({ treasury }))
   .accountsPartial({ admin: admin.publicKey })
   .instruction();
 

@@ -113,10 +113,15 @@ export interface PortfolioPosition {
  * Thin fetch wrapper.
  *
  * `no-store` on every call: this is live financial state, and a stale reward
- * number is worse than a slow one.
+ * number is worse than a slow one. `credentials: include` so the account
+ * session cookie rides along to the API's origin.
  */
 async function get<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, { cache: "no-store", ...init });
+  const response = await fetch(`${BASE}${path}`, {
+    cache: "no-store",
+    credentials: "include",
+    ...init,
+  });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(`api ${path} failed: ${response.status} ${detail.slice(0, 200)}`);
@@ -124,21 +129,73 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
 export async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(body),
   });
   if (!response.ok) {
     const detail = await response.json().catch(() => ({ error: response.statusText }));
-    throw new Error(
+    throw new ApiError(
+      response.status,
       typeof detail === "object" && detail && "error" in detail
         ? String((detail as { error: unknown }).error)
         : `request failed (${response.status})`,
     );
   }
   return (await response.json()) as T;
+}
+
+export interface AccountInfo {
+  email: string;
+  name: string | null;
+  picture: string | null;
+  wallet: string;
+  createdAt: string;
+}
+
+export interface Holding {
+  mint: string;
+  amount: string;
+  decimals: number;
+  tokenProgram: string;
+  symbol: string | null;
+  name: string | null;
+  imageUrl: string | null;
+  priceLamports: number | null;
+  hasPool: boolean;
+}
+
+export interface WalletPosition extends PortfolioPosition {
+  secondsLeft: number;
+  matured: boolean;
+  earlyExitBurn: string;
+}
+
+export interface WalletView {
+  account: AccountInfo;
+  wallet: string;
+  sol: string;
+  holdings: Holding[];
+  positions: WalletPosition[];
+  totals: { pending: string; claimed: string; positions: number };
+  actions: Array<{
+    kind: string;
+    detail: Record<string, unknown>;
+    signature: string | null;
+    failed: boolean;
+    at: string;
+  }>;
 }
 
 export const api = {
@@ -184,4 +241,25 @@ export const api = {
       lockers_24h: string;
       trades_24h: number;
     }>("/api/stats"),
+  config: () =>
+    get<{ cluster: string; rpcUrl: string; treasury: string; tradeFeeBps: number; googleClientId: string }>(
+      "/config",
+    ),
+
+  /** VISE accounts: Google sign-in and the wallet the API holds for it. */
+  me: () => get<{ account: AccountInfo }>("/api/me"),
+  wallet: () => get<WalletView>("/api/me/wallet"),
+  loginWithGoogle: (credential: string) =>
+    post<{ account: AccountInfo }>("/api/auth/google", { credential }),
+  logout: () => post<{ ok: true }>("/api/auth/logout", {}),
+  act: (action: Record<string, unknown>) =>
+    post<{ signature: string } & Record<string, string | number>>("/api/me/action", action),
+  withdraw: (body: { to: string; amount: string; mint?: string }) =>
+    post<{ signature: string }>("/api/me/withdraw", body),
+  exportKey: () => post<{ wallet: string; secretKey: string }>("/api/me/export-key", {}),
+  launchFromAccount: (body: Record<string, unknown>) =>
+    post<{ mint: string; pool: string; lockAmount: string; signatures: Array<{ label: string; signature: string }> }>(
+      "/api/me/launch",
+      body,
+    ),
 };

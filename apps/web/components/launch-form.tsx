@@ -4,9 +4,11 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { formatTokenAmount } from "@vise/sdk";
 import { useCallback, useMemo, useState } from "react";
-import { post } from "@/lib/api";
+import { api, post } from "@/lib/api";
 import { signAndSend, type BuiltTransaction } from "@/lib/send";
+import { useAccount } from "./account-provider";
 import { LockDial } from "./lock-dial";
+import { SignInPrompt } from "./sign-in-prompt";
 
 interface LaunchPlan {
   mint: string;
@@ -20,6 +22,7 @@ type Phase = "idle" | "signing" | "done" | "error";
 export function LaunchForm() {
   const { connection } = useConnection();
   const wallet = useWallet();
+  const { account } = useAccount();
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -49,14 +52,11 @@ export function LaunchForm() {
     devBuyLamports > 0n;
 
   const launch = useCallback(async () => {
-    if (!wallet.publicKey || !wallet.signTransaction) return;
     setPhase("signing");
     setError(null);
     setProgress([]);
 
     const request = {
-      creator: wallet.publicKey.toBase58(),
-      mint: mintKeypair.publicKey.toBase58(),
       name: name.trim(),
       symbol: symbol.trim().toUpperCase(),
       uri: uri.trim(),
@@ -65,44 +65,44 @@ export function LaunchForm() {
       lockDurationDays: lockDays,
     };
 
-    const run = async (plan: LaunchPlan, mintSigns: boolean) => {
-      for (const built of plan.transactions) {
-        const label = built.label ?? "Transaction";
-        setProgress((prev) => [...prev, `${label}…`]);
-        const signature = await signAndSend(
-          connection,
-          wallet,
-          built,
-          mintSigns ? [mintKeypair] : [],
-        );
-        setProgress((prev) => [...prev.slice(0, -1), `${label} — ${signature.slice(0, 12)}…`]);
-      }
-    };
-
     try {
+      if (account) {
+        // A VISE account launches server-side: the API generates the mint,
+        // signs all four transactions with the account's wallet, and reports
+        // each one back.
+        setProgress(["Launching from your VISE wallet…"]);
+        const done = await api.launchFromAccount(request);
+        setProgress(done.signatures.map((s) => `${s.label} — ${s.signature.slice(0, 12)}…`));
+        setResult({ mint: done.mint });
+        setPhase("done");
+        return;
+      }
+
+      if (!wallet.publicKey || !wallet.signTransaction) {
+        throw new Error("connect a wallet or sign in first");
+      }
+      const creator = wallet.publicKey.toBase58();
+      const mint = mintKeypair.publicKey.toBase58();
+      const run = async (plan: LaunchPlan, mintSigns: boolean) => {
+        for (const built of plan.transactions) {
+          const label = built.label ?? "Transaction";
+          setProgress((prev) => [...prev, `${label}…`]);
+          const signature = await signAndSend(connection, wallet, built, mintSigns ? [mintKeypair] : []);
+          setProgress((prev) => [...prev.slice(0, -1), `${label} — ${signature.slice(0, 12)}…`]);
+        }
+      };
       // Stage one creates the mint, so the mint keypair signs it. Stage two is
       // priced against the curve that stage one just created, which is why it
       // is fetched only after the first signature confirms.
-      await run(await post<LaunchPlan>("/api/tx/launch", { ...request, stage: "create" }), true);
-      await run(await post<LaunchPlan>("/api/tx/launch", { ...request, stage: "finish" }), false);
-
-      setResult({ mint: mintKeypair.publicKey.toBase58() });
+      await run(await post<LaunchPlan>("/api/tx/launch", { ...request, creator, mint, stage: "create" }), true);
+      await run(await post<LaunchPlan>("/api/tx/launch", { ...request, creator, mint, stage: "finish" }), false);
+      setResult({ mint });
       setPhase("done");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "launch failed");
       setPhase("error");
     }
-  }, [
-    connection,
-    devBuyLamports,
-    lockDays,
-    lockPercent,
-    mintKeypair,
-    name,
-    symbol,
-    uri,
-    wallet,
-  ]);
+  }, [account, connection, devBuyLamports, lockDays, lockPercent, mintKeypair, name, symbol, uri, wallet]);
 
   if (phase === "done" && result) {
     return (
@@ -212,7 +212,7 @@ export function LaunchForm() {
         </div>
       </section>
 
-      {wallet.publicKey ? (
+      {account || wallet.publicKey ? (
         <button
           type="button"
           onClick={() => void launch()}
@@ -222,9 +222,7 @@ export function LaunchForm() {
           {phase === "signing" ? "Signing…" : "Launch the coin"}
         </button>
       ) : (
-        <p className="panel px-5 py-4 text-center text-[13px] text-steel-500">
-          Connect a wallet to launch
-        </p>
+        <SignInPrompt what="launch" />
       )}
 
       {progress.length > 0 ? (

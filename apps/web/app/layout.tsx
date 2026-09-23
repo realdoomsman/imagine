@@ -4,6 +4,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { WalletProvider } from "@/components/wallet-provider";
+import { AccountProvider } from "@/components/account-provider";
 import { SmoothScroll, Grain } from "@/components/motion";
 
 const bricolage = Bricolage_Grotesque({
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <WalletProvider>
+          <AccountProvider>
           <SmoothScroll />
           <Grain />
           <SiteHeader />
@@ -71,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </main>
           <SiteFooter />
+          </AccountProvider>
         </WalletProvider>
       </body>
     </html>

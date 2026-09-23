@@ -556,6 +556,15 @@
   fill: currentColor !important;
 }
 
+/* Google's sign-in iframe: fill the slot it is given, no stray margins. */
+.gsi-host,
+.gsi-host > div,
+.gsi-host iframe {
+  width: 100% !important;
+  min-height: 46px;
+  display: block;
+}
+
 /*
  * Global film grain. Flat digital gradients are the loudest "this was
  * generated" tell; a little moving emulsion costs one composited layer.

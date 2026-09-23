@@ -1,19 +1,12 @@
 "use client";
 
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { formatSol } from "@vise/sdk";
+import { ECONOMICS, appFeeLamports, formatSol } from "@vise/sdk";
 import { useCallback, useState } from "react";
-import { post } from "@/lib/api";
-import { signAndSend, type BuiltTransaction } from "@/lib/send";
+import { useActor } from "@/lib/signer";
+import { SignInPrompt } from "./sign-in-prompt";
 
 const PRESETS = [0.1, 0.5, 1, 5];
-
-interface SwapQuote extends BuiltTransaction {
-  appFeeLamports: string;
-  appFeeBps: number;
-  solLegLamports: string;
-}
 
 /**
  * Buy and sell through pump's bonding curve with the VISE fee attached.
@@ -32,8 +25,7 @@ export function SwapPanel({
   priceLamports: number;
   graduated: boolean;
 }) {
-  const { connection } = useConnection();
-  const wallet = useWallet();
+  const actor = useActor();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -48,19 +40,16 @@ export function SwapPanel({
   })();
 
   const submit = useCallback(async () => {
-    if (!wallet.publicKey) return;
+    if (!actor.publicKey) return;
     setBusy(true);
     setStatus(null);
     try {
-      const quote = await post<SwapQuote>("/api/tx/swap", {
-        user: wallet.publicKey.toBase58(),
-        mint,
-        side,
-        amount: amount.toString(),
-      });
-      const signature = await signAndSend(connection, wallet, quote);
+      const signature = await actor.act({ kind: "swap", mint, side, amount: amount.toString() });
+      const fee = side === "buy" ? appFeeLamports(amount, ECONOMICS.tradeFeeBps) : null;
       setStatus(
-        `Done. ${formatSol(BigInt(quote.appFeeLamports))} SOL went to this coin's lockers. ${signature.slice(0, 12)}…`,
+        fee !== null
+          ? `Done. ${formatSol(fee)} SOL went to this coin's lockers. ${signature.slice(0, 12)}…`
+          : `Done. 2% of the SOL went to this coin's lockers. ${signature.slice(0, 12)}…`,
       );
       setInput("");
     } catch (error) {
@@ -68,7 +57,7 @@ export function SwapPanel({
     } finally {
       setBusy(false);
     }
-  }, [amount, connection, mint, side, wallet]);
+  }, [actor, amount, mint, side]);
 
   if (graduated) {
     return (
@@ -155,7 +144,7 @@ export function SwapPanel({
         If the trade fails, the fee is never taken.
       </p>
 
-      {wallet.publicKey ? (
+      {actor.publicKey ? (
         <button
           type="button"
           onClick={() => void submit()}
@@ -165,9 +154,9 @@ export function SwapPanel({
           {busy ? "Submitting…" : side === "buy" ? `Buy ${symbol}` : `Sell ${symbol}`}
         </button>
       ) : (
-        <p className="mt-4 rounded-machined border border-steel-700 px-4 py-3 text-center text-[13px] text-steel-500">
-          Connect a wallet to trade
-        </p>
+        <div className="mt-4">
+          <SignInPrompt what="trade" />
+        </div>
       )}
 
       {status ? (

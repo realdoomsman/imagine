@@ -132,3 +132,31 @@ CREATE TABLE IF NOT EXISTS keeper_runs (
 );
 
 CREATE INDEX IF NOT EXISTS keeper_runs_mint_at_idx ON keeper_runs (mint, at DESC);
+
+-- VISE accounts: a Google identity and the wallet the API holds for it.
+-- wallet_secret is AES-256-GCM under WALLET_MASTER_KEY; the database alone
+-- cannot recover a key. Rows are never deleted — an account that exported its
+-- key and left still has history worth keeping.
+CREATE TABLE IF NOT EXISTS accounts (
+  id            BIGSERIAL PRIMARY KEY,
+  google_sub    TEXT NOT NULL UNIQUE,
+  email         TEXT NOT NULL,
+  name          TEXT,
+  picture       TEXT,
+  wallet_pubkey TEXT NOT NULL UNIQUE,
+  wallet_secret BYTEA NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- What each account asked the API to sign, and the signature that resulted.
+CREATE TABLE IF NOT EXISTS account_actions (
+  id         BIGSERIAL PRIMARY KEY,
+  account_id BIGINT NOT NULL REFERENCES accounts (id),
+  kind       TEXT NOT NULL,
+  detail     JSONB NOT NULL DEFAULT '{}'::jsonb,
+  signature  TEXT,
+  at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS account_actions_account_at_idx ON account_actions (account_id, at DESC);

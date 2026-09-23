@@ -1,0 +1,77 @@
+import Link from "next/link";
+import { DocPage, DocSection } from "@/components/doc-page";
+
+export const metadata = {
+  title: "Privacy",
+  description: "What VISE stores about you, why, and how to take it away.",
+};
+
+export default function PrivacyPage() {
+  return (
+    <DocPage
+      eyebrow="Privacy"
+      title="What we keep, and why"
+      lede="Almost everything VISE does happens on a public blockchain. The little we hold off-chain is listed here in full."
+    >
+      <DocSection title="If you sign in with Google">
+        <p>
+          We receive your Google account&apos;s stable identifier, email address,
+          display name and profile picture. We store them so you can sign back
+          into the same wallet. We do not see your Google password, contacts,
+          mail, or anything else; the only permission requested is basic
+          profile and email.
+        </p>
+        <p>
+          A Solana keypair is generated for your account. Its secret key is
+          encrypted at rest and only ever used to sign the transactions you ask
+          for from the site. You can reveal and copy the key at any time from
+          your <Link href="/account">wallet page</Link>, and withdraw everything
+          in it to any address; there is no step where VISE has to approve.
+        </p>
+      </DocSection>
+
+      <DocSection title="If you connect your own wallet">
+        <p>
+          We store nothing about you. Your public key is used to build the
+          transactions you sign and to read your positions from the chain.
+        </p>
+      </DocSection>
+
+      <DocSection title="What is public anyway">
+        <p>
+          Locks, claims, launches, trades and their amounts are Solana
+          transactions. They are visible to anyone, forever, on any block
+          explorer, tied to the wallet address that signed them. VISE cannot
+          hide or delete them and neither can you.
+        </p>
+      </DocSection>
+
+      <DocSection title="Off-chain records">
+        <p>
+          For accounts we keep a log of the actions you took through the site
+          (kind, coin, amount, transaction signature) so your wallet page can
+          show history without re-scanning the chain. We keep server logs with
+          request paths and IP addresses for a short window to run the service.
+          We do not sell, share or use any of this for advertising.
+        </p>
+      </DocSection>
+
+      <DocSection title="Cookies">
+        <p>
+          One session cookie keeps you signed in for a week. One short-lived
+          cookie carries the sign-in handshake. There are no tracking or
+          advertising cookies.
+        </p>
+      </DocSection>
+
+      <DocSection title="Deleting your data">
+        <p>
+          Withdraw or export your key first: deleting the account deletes the
+          encrypted key with it and nothing can bring it back. Then write to{" "}
+          <a href="mailto:hello@vise.fun">hello@vise.fun</a> from your Google
+          email and we erase the account record and its action log.
+        </p>
+      </DocSection>
+    </DocPage>
+  );
+}

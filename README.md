@@ -127,7 +127,7 @@ Both apps ship as Dockerfiles with the repository root as build context.
 
 | Service | Image | Needs |
 |---|---|---|
-| `vise-api` | `apps/api/Dockerfile` | `DATABASE_URL`, `RPC_URL`, `TREASURY_PUBKEY`, `TRADE_FEE_BPS` |
+| `vise-api` | `apps/api/Dockerfile` | `DATABASE_URL`, `RPC_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `WALLET_MASTER_KEY`, `SESSION_SECRET` |
 | `vise-web` | `apps/web/Dockerfile` | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_RPC_URL` (build args) |
 
 See `docs/RUNBOOK.md` for the program deployment and the mainnet checklist.

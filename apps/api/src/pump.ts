@@ -20,7 +20,7 @@ import {
   type BondingCurveState,
 } from "@vise/sdk";
 import { env } from "./env.ts";
-import { connection, vise } from "./solana.ts";
+import { chainConfig, connection, vise } from "./solana.ts";
 
 export const onlinePump = new OnlinePumpSdk(connection);
 
@@ -63,7 +63,8 @@ export async function appFeeInstruction(params: {
   solLegLamports: bigint;
   side: "buy" | "sell";
 }): Promise<{ instruction: TransactionInstruction; lamports: bigint } | null> {
-  const lamports = appFeeLamports(params.solLegLamports, env.tradeFeeBps);
+  const { tradeFeeBps } = await chainConfig();
+  const lamports = appFeeLamports(params.solLegLamports, tradeFeeBps);
   if (lamports <= 0n) return null;
   const vault = await connection.getAccountInfo(rewardVaultPda(params.mint));
   if (!vault) return null;

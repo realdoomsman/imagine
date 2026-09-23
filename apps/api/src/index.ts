@@ -1,13 +1,15 @@
+import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { sql } from "./db.ts";
 import { env } from "./env.ts";
+import { accountRoutes } from "./routes/account.ts";
 import { poolRoutes } from "./routes/pools.ts";
 import { portfolioRoutes } from "./routes/portfolio.ts";
 import { txRoutes } from "./routes/tx.ts";
-import { connection } from "./solana.ts";
+import { chainConfig, connection } from "./solana.ts";
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL ?? "info" },
@@ -18,7 +20,10 @@ const app = Fastify({
 await app.register(cors, {
   origin: env.corsOrigins.includes("*") ? true : env.corsOrigins,
   methods: ["GET", "POST"],
+  // Session cookies ride on cross-origin requests from the site.
+  credentials: true,
 });
+await app.register(cookie);
 
 // Transaction building hits RPC, so it is the expensive surface. The limit is
 // generous enough for a human trading quickly and tight enough that a scraper
@@ -51,16 +56,21 @@ app.get("/health", async () => {
   return { ok: ok === 1, slot, cluster: env.cluster };
 });
 
-app.get("/config", async () => ({
-  cluster: env.cluster,
-  rpcUrl: env.rpcUrl,
-  treasury: env.treasury.toBase58(),
-  tradeFeeBps: env.tradeFeeBps,
-}));
+app.get("/config", async () => {
+  const config = await chainConfig();
+  return {
+    cluster: env.cluster,
+    rpcUrl: env.rpcUrl,
+    treasury: config.treasury.toBase58(),
+    tradeFeeBps: config.tradeFeeBps,
+    googleClientId: env.googleClientId,
+  };
+});
 
 await app.register(poolRoutes, { prefix: "/api" });
 await app.register(portfolioRoutes, { prefix: "/api" });
 await app.register(txRoutes, { prefix: "/api" });
+await app.register(accountRoutes, { prefix: "/api" });
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "shutting down");

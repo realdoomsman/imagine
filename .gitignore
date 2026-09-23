@@ -14,3 +14,7 @@ video/node_modules
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# local secrets
+*.tmp
+.env
