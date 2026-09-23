@@ -23,13 +23,13 @@ export default function RouteError({
   }, [error]);
 
   return (
-    <div className="mx-auto flex max-w-[760px] flex-col items-start px-5 py-28 sm:px-8">
+    <div className="mx-auto flex min-h-[70vh] max-w-[760px] flex-col items-center justify-center px-5 py-28 text-center sm:px-8">
       <span className="text-rust">
         <ViseMark size={40} grip={0.2} />
       </span>
       <p className="rule-label mt-8">Something slipped</p>
       <h1 className="t-section mt-4">This page could not load.</h1>
-      <p className="t-lede mt-6">
+      <p className="t-lede mx-auto mt-6 text-center">
         Your locks and rewards are on-chain and untouched by this. Claiming and
         unlocking never depend on this site being up.
       </p>
@@ -38,7 +38,7 @@ export default function RouteError({
           Reference {error.digest}
         </p>
       ) : null}
-      <div className="mt-9 flex flex-wrap gap-3">
+      <div className="mt-10 flex flex-wrap justify-center gap-3">
         <button type="button" onClick={reset} className="btn btn-primary">
           Try again
         </button>
