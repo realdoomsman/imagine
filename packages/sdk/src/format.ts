@@ -52,3 +52,14 @@ export function formatDuration(seconds: number): string {
 export function shortAddress(address: string, chars = 4): string {
   return `${address.slice(0, chars)}…${address.slice(-chars)}`;
 }
+
+/**
+ * A base-unit amount as an exact decimal string, no rounding or grouping —
+ * what goes back into an input when the user presses "max". `formatTokenAmount`
+ * rounds for display and would overstate the balance by a few base units.
+ */
+export function exactAmount(amount: bigint, decimals: number): string {
+  const whole = amount / 10n ** BigInt(decimals);
+  const fraction = (amount % 10n ** BigInt(decimals)).toString().padStart(decimals, "0").replace(/0+$/, "");
+  return fraction.length > 0 ? `${whole}.${fraction}` : whole.toString();
+}

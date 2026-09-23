@@ -29,7 +29,9 @@ interface PumpPinResponse {
 }
 
 export async function metadataRoutes(app: FastifyInstance) {
-  app.post("/metadata", async (request, reply) => {
+  // Pinning proxies a 4 MB upload to a third party: a handful a minute is a
+  // launch, hundreds is someone using us as free storage.
+  app.post("/metadata", { config: { rateLimit: { max: 12, timeWindow: "1 minute" } } }, async (request, reply) => {
     const fields: Record<string, string> = {};
     let image: { buffer: Buffer; type: string; filename: string } | null = null;
 

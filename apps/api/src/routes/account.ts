@@ -12,11 +12,11 @@ import {
   Transaction,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { accrued, earlyExitPenalty } from "@vise/sdk";
+import { accrued, earlyExitPenalty, formatSol } from "@vise/sdk";
 import bs58 from "bs58";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { ActionError, ActionSchema, buildAction, lamports, pubkey } from "../actions.ts";
+import { ActionError, ActionSchema, buildAction, friendlyChainError, lamports, pubkey } from "../actions.ts";
 import {
   beginGoogleLogin,
   clearSession,
@@ -51,15 +51,31 @@ async function signAndSend(
   const tx = new Transaction({ feePayer: keypair.publicKey, blockhash, lastValidBlockHeight });
   tx.add(...instructions);
   tx.sign(keypair, ...extraSigners);
-  const signature = await connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+  let signature: string;
+  try {
+    signature = await connection.sendRawTransaction(tx.serialize(), { maxRetries: 3 });
+  } catch (error) {
+    // Simulation failures carry the program's error code; say what it means.
+    throw new ActionError(409, friendlyChainError(error instanceof Error ? error.message : String(error)));
+  }
   const result = await connection.confirmTransaction(
     { signature, blockhash, lastValidBlockHeight },
     "confirmed",
   );
   if (result.value.err) {
-    throw new ActionError(409, `transaction failed on chain: ${JSON.stringify(result.value.err)}`);
+    throw new ActionError(409, friendlyChainError(`transaction failed on chain: ${JSON.stringify(result.value.err)}`));
   }
   return signature;
+}
+
+/**
+ * SOL a wallet must keep: rent for the system account plus one transaction
+ * fee with headroom, so a "send everything" never strands the account or
+ * fails at the fee.
+ */
+async function solReserve(): Promise<bigint> {
+  const rent = BigInt(await connection.getMinimumBalanceForRentExemption(0));
+  return rent + 20_000n;
 }
 
 async function requireAccount(request: FastifyRequest, reply: FastifyReply): Promise<Account | null> {
@@ -153,8 +169,9 @@ export async function accountRoutes(app: FastifyInstance) {
     if (!account) return;
     const owner = new PublicKey(account.walletPubkey);
 
-    const [sol, tokens2022, tokensLegacy, positions, actions] = await Promise.all([
+    const [sol, reserve, tokens2022, tokensLegacy, positions, actions] = await Promise.all([
       connection.getBalance(owner, "confirmed"),
+      solReserve(),
       connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_2022_PROGRAM_ID }),
       connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_PROGRAM_ID }),
       vise.fetchPositionsByOwner(owner),
@@ -238,6 +255,8 @@ export async function accountRoutes(app: FastifyInstance) {
       account: publicAccount(account),
       wallet: account.walletPubkey,
       sol: String(sol),
+      /** What a SOL withdrawal can actually take: balance less rent and a fee. */
+      solAvailable: String(BigInt(sol) > reserve ? BigInt(sol) - reserve : 0n),
       holdings: holdings.map((holding) => ({
         ...holding,
         symbol: (byMint[holding.mint]?.symbol as string | null) ?? null,
@@ -293,33 +312,39 @@ export async function accountRoutes(app: FastifyInstance) {
   app.post("/me/launch", async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
-    const body = LaunchSchema.omit({ mint: true, stage: true }).parse(request.body);
+    // `resume` names a mint this account already created whose launch stopped
+    // partway; the finish stage skips whatever the chain shows done.
+    const body = LaunchSchema.omit({ mint: true, stage: true })
+      .extend({ resume: pubkey.optional() })
+      .parse(request.body);
     const keypair = await loadKeypair(account);
-    const mintKeypair = Keypair.generate();
+    const mintKeypair = body.resume ? null : Keypair.generate();
+    const mint = body.resume ?? (mintKeypair as Keypair).publicKey.toBase58();
     const signatures: Array<{ label: string; signature: string }> = [];
     try {
-      const create = await buildLaunch(keypair.publicKey, {
-        ...body,
-        mint: mintKeypair.publicKey.toBase58(),
-        stage: "create",
-      });
-      for (const step of create.steps) {
-        signatures.push({ label: step.label, signature: await signAndSend(keypair, step.instructions, [mintKeypair]) });
+      if (mintKeypair) {
+        const create = await buildLaunch(keypair.publicKey, { ...body, mint, stage: "create" });
+        for (const step of create.steps) {
+          signatures.push({ label: step.label, signature: await signAndSend(keypair, step.instructions, [mintKeypair]) });
+        }
       }
-      const finish = await buildLaunch(keypair.publicKey, {
-        ...body,
-        mint: mintKeypair.publicKey.toBase58(),
-        stage: "finish",
-      });
+      const finish = await buildLaunch(keypair.publicKey, { ...body, mint, stage: "finish" });
       for (const step of finish.steps) {
         signatures.push({ label: step.label, signature: await signAndSend(keypair, step.instructions) });
       }
-      await recordAction(account, "launch", { mint: create.mint, pool: create.pool, ...body }, signatures.at(-1)?.signature ?? null);
-      return { mint: create.mint, pool: create.pool, lockAmount: finish.lockAmount, signatures };
+      await recordAction(account, "launch", { mint, pool: finish.pool, ...body }, signatures.at(-1)?.signature ?? null);
+      return { mint, pool: finish.pool, lockAmount: finish.lockAmount, signatures };
     } catch (error) {
-      await recordAction(account, "launch", { ...body, completed: signatures, error: String(error) }, null);
-      if (error instanceof ActionError) return reply.code(error.status).send({ error: error.message, completed: signatures });
-      throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      await recordAction(account, "launch", { ...body, mint, completed: signatures, error: message }, null);
+      // The coin exists once the first signature landed; tell the client so it
+      // can offer to resume rather than launch a second coin.
+      const created = body.resume !== undefined || signatures.length > 0;
+      if (error instanceof ActionError) {
+        return reply.code(error.status).send({ error: error.message, completed: signatures, resume: created ? mint : null });
+      }
+      request.log.error({ err: error }, "launch failed");
+      return reply.code(502).send({ error: friendlyChainError(message), completed: signatures, resume: created ? mint : null });
     }
   });
 
@@ -346,11 +371,11 @@ export async function accountRoutes(app: FastifyInstance) {
     let instructions: TransactionInstruction[];
     if (!body.mint) {
       const balance = BigInt(await connection.getBalance(keypair.publicKey, "confirmed"));
-      const rentFloor = BigInt(await connection.getMinimumBalanceForRentExemption(0));
-      const fee = 10_000n;
-      if (amount + rentFloor + fee > balance) {
+      const reserve = await solReserve();
+      if (amount + reserve > balance) {
+        const available = balance > reserve ? balance - reserve : 0n;
         return reply.code(400).send({
-          error: `not enough SOL: ${balance} lamports held, ${rentFloor + fee} must stay for rent and fees`,
+          error: `you can send up to ${formatSol(available)} SOL; the rest stays for rent and the network fee`,
         });
       }
       instructions = [

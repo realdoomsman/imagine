@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  exactAmount,
   formatDuration,
   formatMultiplier,
   formatPercent,
@@ -236,7 +237,7 @@ export function AccountView() {
         )}
       </section>
 
-      <WithdrawPanel holdings={view.holdings} sol={sol} busy={busy} run={run} />
+      <WithdrawPanel holdings={view.holdings} sol={BigInt(view.solAvailable)} busy={busy} run={run} />
 
       <KeyPanel wallet={view.wallet} busy={busy} run={run} />
 
@@ -309,6 +310,7 @@ function PositionCard({
   const key = `${position.mint}-${position.index}`;
   const pending = BigInt(position.pending);
   const burn = BigInt(position.earlyExitBurn);
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <article className="panel p-5">
@@ -361,18 +363,47 @@ function PositionCard({
         >
           {busy === `claim-${key}` ? "Claiming…" : "Claim"}
         </button>
-        <button
-          type="button"
-          disabled={busy !== null}
-          onClick={onUnlock}
-          className="btn btn-ghost h-9 text-[13px]"
-          title={position.matured ? "Return your coins" : "Leaving early burns part of your principal and forfeits unclaimed rewards"}
-        >
-          {busy === `unlock-${key}` ? "Working…" : position.matured ? "Unlock" : "Break the lock"}
-        </button>
-        {!position.matured && burn > 0n ? (
+        {position.matured ? (
+          <button type="button" disabled={busy !== null} onClick={onUnlock} className="btn btn-ghost h-9 text-[13px]">
+            {busy === `unlock-${key}` ? "Working…" : "Unlock"}
+          </button>
+        ) : confirming ? (
+          // Breaking a lock is irreversible and costs principal: the second
+          // click is a different button that says exactly what it does.
+          <>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => {
+                setConfirming(false);
+                onUnlock();
+              }}
+              className="btn h-9 border-rust/60 bg-rust/15 text-[13px] text-rust hover:bg-rust/25"
+            >
+              {busy === `unlock-${key}`
+                ? "Breaking…"
+                : `Burn ${formatTokenAmount(burn, position.decimals)} and leave`}
+            </button>
+            <button type="button" onClick={() => setConfirming(false)} className="btn btn-ghost h-9 text-[13px]">
+              Keep it locked
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => setConfirming(true)}
+            className="btn btn-ghost h-9 text-[13px]"
+          >
+            Break the lock
+          </button>
+        )}
+        {!position.matured ? (
           <span className="text-[11.5px] text-steel-500">
-            Breaking it now burns {formatTokenAmount(burn, position.decimals)} and forfeits {formatSol(pending)} SOL
+            {confirming ? "This cannot be undone. " : "Breaking it now "}
+            burns {formatTokenAmount(burn, position.decimals)} of your{" "}
+            {formatTokenAmount(BigInt(position.amount), position.decimals)} and forfeits {formatSol(pending)} SOL to
+            the lockers who stayed.
           </span>
         ) : null}
       </div>
@@ -465,7 +496,7 @@ function WithdrawPanel({
           />
           <button
             type="button"
-            onClick={() => setAmount(formatTokenAmount(max, decimals).replace(/,/g, ""))}
+            onClick={() => setAmount(exactAmount(max, decimals))}
             className="num absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-torch"
           >
             MAX
@@ -489,6 +520,7 @@ function WithdrawPanel({
         </button>
         <span className="num text-[12px] text-steel-500">
           Available {formatTokenAmount(max, decimals)} {holding ? holding.symbol ?? "" : "SOL"}
+          {holding ? null : <span className="text-steel-600"> · rent and fee stay behind</span>}
         </span>
         {done ? (
           <a href={explorerTx(done)} target="_blank" rel="noreferrer" className="num text-[12px] text-verdi">

@@ -131,9 +131,12 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
 
 export class ApiError extends Error {
   readonly status: number;
-  constructor(status: number, message: string) {
+  /** Whatever else the API put beside `error`, e.g. a mint to resume. */
+  readonly detail: Record<string, unknown>;
+  constructor(status: number, message: string, detail: Record<string, unknown> = {}) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -146,12 +149,12 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
     body: body instanceof FormData ? body : JSON.stringify(body),
   });
   if (!response.ok) {
-    const detail = await response.json().catch(() => ({ error: response.statusText }));
+    const detail: unknown = await response.json().catch(() => ({ error: response.statusText }));
+    const record = typeof detail === "object" && detail !== null ? (detail as Record<string, unknown>) : {};
     throw new ApiError(
       response.status,
-      typeof detail === "object" && detail && "error" in detail
-        ? String((detail as { error: unknown }).error)
-        : `request failed (${response.status})`,
+      typeof record.error === "string" ? record.error : `request failed (${response.status})`,
+      record,
     );
   }
   return (await response.json()) as T;
@@ -187,6 +190,8 @@ export interface WalletView {
   account: AccountInfo;
   wallet: string;
   sol: string;
+  /** Withdrawable SOL: balance less rent and a network fee. */
+  solAvailable: string;
   holdings: Holding[];
   positions: WalletPosition[];
   totals: { pending: string; claimed: string; positions: number };

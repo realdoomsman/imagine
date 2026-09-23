@@ -6,6 +6,7 @@ import {
   formatTokenAmount,
   shortAddress,
 } from "@vise/sdk";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api, type PoolDetail } from "@/lib/api";
 import { LockPanel } from "@/components/lock-panel";
@@ -14,6 +15,36 @@ import { LockerTable } from "@/components/locker-table";
 import { RewardChart } from "@/components/reward-chart";
 
 export const dynamic = "force-dynamic";
+
+/** Coin pages get shared; the card should carry the coin, not the site. */
+export async function generateMetadata({ params }: { params: Promise<{ mint: string }> }): Promise<Metadata> {
+  const { mint } = await params;
+  let detail: PoolDetail;
+  try {
+    detail = await api.pool(mint);
+  } catch {
+    return { title: "Coin not found" };
+  }
+  const symbol = detail.metadata?.symbol ?? shortAddress(mint);
+  const name = detail.metadata?.name ?? "a coin";
+  const locked = formatPercent(
+    detail.tokenSupply && BigInt(detail.tokenSupply) > 0n
+      ? Number(BigInt(detail.pool.totalLocked)) / Number(BigInt(detail.tokenSupply))
+      : 0,
+    1,
+  );
+  const description = `${name}: ${locked} of supply clamped, ${formatSol(BigInt(detail.pool.lifetimeRewards))} SOL paid to lockers so far. Lock it and earn its fee stream.`;
+  return {
+    title: `${symbol} · ${name}`,
+    description,
+    openGraph: {
+      title: `${symbol} on VISE`,
+      description,
+      ...(detail.metadata?.imageUrl ? { images: [{ url: detail.metadata.imageUrl, width: 512, height: 512 }] } : {}),
+    },
+    twitter: { card: detail.metadata?.imageUrl ? "summary" : "summary_large_image" },
+  };
+}
 
 export default async function CoinPage({
   params,
@@ -208,7 +239,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Term({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-steel-900 px-4 py-3">
+    <div className="bg-steel-900 px-4 py-3 last:col-span-2 sm:last:col-span-1">
       <dt className="rule-label">{label}</dt>
       <dd className="num mt-1 text-[17px] text-steel-50">{value}</dd>
     </div>

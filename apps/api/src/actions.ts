@@ -6,7 +6,7 @@ import {
 import { BN } from "@coral-xyz/anchor";
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
-import { DAY, appFeeLamports } from "@vise/sdk";
+import { DAY, VISE_IDL, appFeeLamports } from "@vise/sdk";
 import { z } from "zod";
 import { env } from "./env.ts";
 import { distributable } from "./keeper.ts";
@@ -287,4 +287,32 @@ async function buildSwap(
       expectedOut: expectedOut.toString(),
     },
   };
+}
+
+/**
+ * Turn a raw RPC or program failure into a sentence a person can act on.
+ *
+ * Program errors arrive as `custom program error: 0x1779`; VISE's own codes
+ * are named in the IDL, so those become their message. The common Solana
+ * failures get plain words. Anything else is passed through, trimmed of the
+ * simulation-log noise.
+ */
+export function friendlyChainError(raw: string): string {
+  const custom = /custom program error: 0x([0-9a-f]+)/i.exec(raw);
+  if (custom) {
+    const code = Number.parseInt(custom[1], 16);
+    const known = (VISE_IDL.errors ?? []).find((e) => e.code === code);
+    if (known) return known.msg ?? known.name;
+    if (code >= 6000) return `the program refused the transaction (error ${code})`;
+  }
+  if (/insufficient lamports|insufficient funds|Attempt to debit an account/i.test(raw)) {
+    return "not enough SOL in the wallet to cover this; the fee and rent come out of the same balance";
+  }
+  if (/block height exceeded|blockhash not found|Blockhash not found/i.test(raw)) {
+    return "the network dropped the transaction before it confirmed; nothing was charged, try again";
+  }
+  if (/slippage|TooMuchSolRequired|TooLittleSolReceived/i.test(raw)) {
+    return "the price moved more than the slippage allowed; try again";
+  }
+  return raw.replace(/\s*Logs:[\s\S]*$/i, "").replace(/\s+/g, " ").slice(0, 240);
 }

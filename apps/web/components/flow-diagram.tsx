@@ -62,10 +62,10 @@ export function FlowDiagram() {
   });
 
   return (
-    <div ref={ref} className="mt-14">
+    <div ref={ref} className="mt-14 -mx-5 overflow-x-auto px-5 sm:mx-0 sm:overflow-visible sm:px-0">
       <svg
         viewBox="0 0 1200 150"
-        className="w-full overflow-visible"
+        className="w-full min-w-[720px] overflow-visible sm:min-w-0"
         role="img"
         aria-label="A trade fee splitting 90 percent to lockers, 10 percent to treasury, nothing to the creator"
       >

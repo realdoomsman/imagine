@@ -3,7 +3,7 @@ import { ViseMark } from "./vise-mark";
 
 export function SiteFooter() {
   return (
-    <footer className="relative overflow-hidden border-t border-steel-780">
+    <footer className="relative overflow-hidden border-t border-steel-780 pb-16 md:pb-0">
       <div className="grid-lines pointer-events-none absolute inset-0 opacity-40" />
       <div className="relative mx-auto grid max-w-[1440px] gap-12 px-5 py-16 sm:px-8 md:grid-cols-[2fr_1fr_1fr_1fr]">
         <div>

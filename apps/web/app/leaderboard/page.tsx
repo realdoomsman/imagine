@@ -2,6 +2,11 @@ import { formatMultiplier, formatSol, shortAddress } from "@vise/sdk";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
+export const metadata = {
+  title: "Leaderboard",
+  description: "Top earners, top coins and the longest clamps, ranked on realised SOL and live on-chain commitments.",
+};
+
 export const dynamic = "force-dynamic";
 
 const BOARDS = [

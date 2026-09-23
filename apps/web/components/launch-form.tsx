@@ -4,7 +4,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { formatTokenAmount } from "@vise/sdk";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, post } from "@/lib/api";
+import { api, ApiError, post } from "@/lib/api";
 import { signAndSend, type BuiltTransaction } from "@/lib/send";
 import { useAccount } from "./account-provider";
 import { LockDial } from "./lock-dial";
@@ -38,6 +38,9 @@ export function LaunchForm() {
   const [progress, setProgress] = useState<string[]>([]);
   const [result, setResult] = useState<{ mint: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A launch that stopped after the coin was created: the mint to finish and
+  // the metadata already pinned for it. Retrying resumes rather than mints again.
+  const [partial, setPartial] = useState<{ mint: string; uri: string } | null>(null);
 
   // The mint is a fresh keypair the browser generates and signs with. It never
   // leaves this page; the API only ever sees the public key.
@@ -52,48 +55,66 @@ export function LaunchForm() {
   const valid =
     name.trim().length > 0 &&
     symbol.trim().length > 0 &&
-    image !== null &&
+    (image !== null || partial !== null) &&
     devBuyLamports > 0n;
 
   const launch = useCallback(async () => {
-    if (!image) return;
+    if (!image && !partial) return;
     setPhase("signing");
     setError(null);
-    setProgress(["Pinning the image and metadata…"]);
+    setProgress([partial ? `Resuming ${partial.mint.slice(0, 6)}…` : "Pinning the image and metadata…"]);
 
     const request = {
       name: name.trim(),
       symbol: symbol.trim().toUpperCase(),
-      uri: "",
+      uri: partial?.uri ?? "",
       devBuyLamports: devBuyLamports.toString(),
       lockPercent,
       lockDurationDays: lockDays,
     };
 
     try {
-      // The image goes from disk to IPFS via the API; what the chain stores
-      // is the URI of the JSON document that points at it.
-      const form = new FormData();
-      form.append("image", image);
-      form.append("name", request.name);
-      form.append("symbol", request.symbol);
-      form.append("description", description.trim());
-      form.append("twitter", twitter.trim());
-      form.append("telegram", telegram.trim());
-      form.append("website", website.trim());
-      const pinned = await api.pinMetadata(form);
-      request.uri = pinned.uri;
-      setProgress([`Pinned — ${pinned.uri.replace("https://ipfs.io/ipfs/", "ipfs://").slice(0, 28)}…`]);
+      if (!partial && image) {
+        // The image goes from disk to IPFS via the API; what the chain stores
+        // is the URI of the JSON document that points at it.
+        const form = new FormData();
+        form.append("image", image);
+        form.append("name", request.name);
+        form.append("symbol", request.symbol);
+        form.append("description", description.trim());
+        form.append("twitter", twitter.trim());
+        form.append("telegram", telegram.trim());
+        form.append("website", website.trim());
+        const pinned = await api.pinMetadata(form);
+        request.uri = pinned.uri;
+        setProgress([`Pinned — ${pinned.uri.replace("https://ipfs.io/ipfs/", "ipfs://").slice(0, 28)}…`]);
+      }
 
       if (account) {
         // A VISE account launches server-side: the API generates the mint,
         // signs all four transactions with the account's wallet, and reports
-        // each one back.
+        // each one back. If it stops partway it tells us the mint, and the
+        // next attempt finishes that coin.
         setProgress((prev) => [...prev, "Launching from your VISE wallet…"]);
-        const done = await api.launchFromAccount(request);
-        setProgress((prev) => [prev[0], ...done.signatures.map((s) => `${s.label} — ${s.signature.slice(0, 12)}…`)]);
-        setResult({ mint: done.mint });
-        setPhase("done");
+        try {
+          const done = await api.launchFromAccount(partial ? { ...request, resume: partial.mint } : request);
+          setProgress((prev) => [prev[0], ...done.signatures.map((s) => `${s.label} — ${s.signature.slice(0, 12)}…`)]);
+          setResult({ mint: done.mint });
+          setPartial(null);
+          setPhase("done");
+        } catch (cause) {
+          if (cause instanceof ApiError && typeof cause.detail.resume === "string") {
+            const completed = cause.detail.completed;
+            setPartial({ mint: cause.detail.resume, uri: request.uri });
+            setProgress((prev) => [
+              prev[0],
+              ...(Array.isArray(completed)
+                ? completed.map((s: { label: string; signature: string }) => `${s.label} — ${s.signature.slice(0, 12)}…`)
+                : []),
+            ]);
+          }
+          throw cause;
+        }
         return;
       }
 
@@ -121,7 +142,7 @@ export function LaunchForm() {
       setError(cause instanceof Error ? cause.message : "launch failed");
       setPhase("error");
     }
-  }, [account, connection, description, devBuyLamports, image, lockDays, lockPercent, mintKeypair, name, symbol, telegram, twitter, wallet, website]);
+  }, [account, connection, description, devBuyLamports, image, lockDays, lockPercent, mintKeypair, name, partial, symbol, telegram, twitter, wallet, website]);
 
   if (phase === "done" && result) {
     return (
@@ -252,7 +273,7 @@ export function LaunchForm() {
           disabled={!valid || phase === "signing"}
           className="btn btn-primary w-full"
         >
-          {phase === "signing" ? "Signing…" : "Launch the coin"}
+          {phase === "signing" ? "Signing…" : partial ? "Finish launching this coin" : "Launch the coin"}
         </button>
       ) : (
         <SignInPrompt what="launch" />
@@ -269,9 +290,16 @@ export function LaunchForm() {
       ) : null}
 
       {error ? (
-        <p className="rounded-machined border border-rust/40 bg-rust/10 px-5 py-4 text-[13px] text-rust">
-          {error}
-        </p>
+        <div className="rounded-machined border border-rust/40 bg-rust/10 px-5 py-4 text-[13px] text-rust">
+          <p>{error}</p>
+          {partial ? (
+            <p className="mt-2 text-steel-300">
+              The coin <span className="num">{partial.mint.slice(0, 8)}…</span> was created and is yours. Press{" "}
+              <em className="not-italic text-steel-50">Finish launching this coin</em> to pick up where it stopped;
+              nothing already done is repeated.
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

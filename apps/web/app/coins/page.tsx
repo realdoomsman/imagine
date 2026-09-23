@@ -3,6 +3,11 @@ import { api, type PoolSummary } from "@/lib/api";
 import { CoinCard } from "@/components/coin-card";
 import { ViseMark } from "@/components/vise-mark";
 
+export const metadata = {
+  title: "Coins",
+  description: "Every pump.fun coin with a VISE lock pool: supply clamped, SOL paid to lockers, trailing yield.",
+};
+
 export const dynamic = "force-dynamic";
 
 const SORTS = [
@@ -67,7 +72,7 @@ export default async function CoinsPage({
           action={{ href: "/launch", label: "Launch a coin" }}
         />
       ) : (
-        <div className="mt-10 grid gap-px border border-steel-700 bg-steel-700 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {pools.map((pool) => (
             <CoinCard key={pool.mint} pool={pool} />
           ))}

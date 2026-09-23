@@ -1,4 +1,4 @@
-import { PUMP_SDK, getBuyTokenAmountFromSolAmount } from "@pump-fun/pump-sdk";
+import { PUMP_SDK, feeSharingConfigPda, getBuyTokenAmountFromSolAmount } from "@pump-fun/pump-sdk";
 import { BN } from "@coral-xyz/anchor";
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey, Transaction, type TransactionInstruction } from "@solana/web3.js";
@@ -106,56 +106,79 @@ export async function buildLaunch(
   }
 
   // Stage two: the curve exists, so the buy can be priced against it.
+  //
+  // Every step here is skipped if the chain already shows it done, so a launch
+  // that stopped halfway (a dropped connection, a stale blockhash) resumes
+  // with the same mint instead of buying twice or minting a second coin.
   const curve = await fetchCurve(mint);
   if (!curve) throw new ActionError(409, "coin not created yet; run the create stage first");
   const decoded = PUMP_SDK.decodeBondingCurve(curve.accountInfo);
   const supply = await connection.getTokenSupply(mint);
-  const expectedTokens = getBuyTokenAmountFromSolAmount({
-    global,
-    feeConfig,
-    mintSupply: new BN(supply.value.amount),
-    bondingCurve: decoded,
-    amount: new BN(devBuy.toString()),
-    quoteMint: PublicKey.default,
-  });
-  const expected = BigInt(expectedTokens.toString());
-  const lockAmount = (expected * BigInt(body.lockPercent)) / 100n;
+  const ata = getAssociatedTokenAddressSync(mint, creator, true, TOKEN_2022_PROGRAM_ID);
+  const [ataInfo, held, existingPool, sharing] = await Promise.all([
+    connection.getAccountInfo(ata),
+    connection.getTokenAccountBalance(ata).then((b) => BigInt(b.value.amount)).catch(() => 0n),
+    vise.fetchPool(mint),
+    connection.getAccountInfo(feeSharingConfigPda(mint)),
+  ]);
 
-  const buyIxs = await PUMP_SDK.buyV2Instructions({
-    global,
-    bondingCurveAccountInfo: curve.accountInfo,
-    bondingCurve: decoded,
-    associatedUserAccountInfo: await connection.getAccountInfo(
-      getAssociatedTokenAddressSync(mint, creator, true, TOKEN_2022_PROGRAM_ID),
-    ),
-    mint,
-    user: creator,
-    amount: expectedTokens,
-    quoteAmount: new BN(devBuy.toString()),
-    slippage: 10,
-  });
-  const routeIxs = await routeCreatorFeesToPool({ creator, mint });
-  const poolIx = await vise.createPool({
-    creator,
-    mint,
-    treasury: (await chainConfig()).treasury,
-    tokenProgram: TOKEN_2022_PROGRAM_ID,
-    // Creators take no cut of their lockers; the split is 90 / 10 / 0.
-    creatorShareBps: 0,
-    initialLockAmount: lockAmount,
-    initialLockDuration: body.lockDurationDays * DAY,
-  });
+  const steps: Array<{ label: string; instructions: TransactionInstruction[] }> = [];
+  let expected: bigint;
+  if (held > 0n) {
+    // The dev buy already landed; the bag in the wallet is the founding lock's basis.
+    expected = held;
+  } else {
+    const expectedTokens = getBuyTokenAmountFromSolAmount({
+      global,
+      feeConfig,
+      mintSupply: new BN(supply.value.amount),
+      bondingCurve: decoded,
+      amount: new BN(devBuy.toString()),
+      quoteMint: PublicKey.default,
+    });
+    expected = BigInt(expectedTokens.toString());
+    const buyIxs = await PUMP_SDK.buyV2Instructions({
+      global,
+      bondingCurveAccountInfo: curve.accountInfo,
+      bondingCurve: decoded,
+      associatedUserAccountInfo: ataInfo,
+      mint,
+      user: creator,
+      amount: expectedTokens,
+      quoteAmount: new BN(devBuy.toString()),
+      slippage: 10,
+    });
+    steps.push({ label: "Buy the first bag", instructions: [...budget, ...buyIxs] });
+  }
+  const lockAmount = existingPool
+    ? existingPool.totalLocked
+    : (expected * BigInt(body.lockPercent)) / 100n;
+
+  if (!existingPool) {
+    const poolIx = await vise.createPool({
+      creator,
+      mint,
+      treasury: (await chainConfig()).treasury,
+      tokenProgram: TOKEN_2022_PROGRAM_ID,
+      // Creators take no cut of their lockers; the split is 90 / 10 / 0.
+      creatorShareBps: 0,
+      initialLockAmount: lockAmount,
+      initialLockDuration: body.lockDurationDays * DAY,
+    });
+    steps.push({ label: "Open the pool and clamp your bag", instructions: [...budget, poolIx] });
+  }
+  if (!sharing) {
+    const routeIxs = await routeCreatorFeesToPool({ creator, mint });
+    steps.push({ label: "Lock the fee stream to holders", instructions: [...budget, ...routeIxs] });
+  }
+  if (steps.length === 0) throw new ActionError(409, "this coin is already launched and its fees are already routed");
 
   return {
     mint: mint.toBase58(),
     pool: poolPda(mint).toBase58(),
     expectedTokens: expected.toString(),
     lockAmount: lockAmount.toString(),
-    steps: [
-      { label: "Buy the first bag", instructions: [...budget, ...buyIxs] },
-      { label: "Open the pool and clamp your bag", instructions: [...budget, poolIx] },
-      { label: "Lock the fee stream to holders", instructions: [...budget, ...routeIxs] },
-    ],
+    steps,
   };
 }
 
