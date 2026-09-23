@@ -26,7 +26,9 @@ import { dirname, resolve } from "node:path";
 import idlJson from "../src/idl/vise.json" with { type: "json" };
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const PROGRAM_SO = resolve(here, "../../../target/deploy/vise.so");
+// LiteSVM executes SBPF v0; the deployable is built for v3. scripts/anchor-build.sh
+// keeps the v0 build of the same source alongside it for this suite.
+export const PROGRAM_SO = resolve(here, "../../../target/deploy/vise-v0.so");
 
 export const VISE_IDL = idlJson as Idl;
 export const coder = new BorshCoder(VISE_IDL);

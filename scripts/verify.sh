@@ -30,11 +30,25 @@ for dir in packages/sdk apps/api apps/web video; do
 done
 
 step "program instructions (LiteSVM integration suite)"
-(cd "$ROOT/packages/sdk" && "$NODE" --test test/vise.test.ts 2>&1 | grep -E '^ℹ (tests|pass|fail)')
+litesvm=$(cd "$ROOT/packages/sdk" && "$NODE" --test test/vise.test.ts 2>&1 | grep -E '^ℹ (tests|pass|fail)')
+echo "$litesvm"
+# A suite that could not load the program reports every test failed and exits
+# non-zero; both must count, or a green banner over 0/37 is possible.
+if ! echo "$litesvm" | grep -qE '^ℹ fail 0$' || ! echo "$litesvm" | grep -qE '^ℹ pass [1-9]'; then
+  echo "   FAILED"; failures=$((failures + 1))
+else
+  echo "   ok"
+fi
 
 step "end to end against the real pump.fun programs"
 if solana -u http://127.0.0.1:8899 cluster-version >/dev/null 2>&1; then
-  bash "$ROOT/scripts/e2e-loop.sh" 3
+  e2e=$(bash "$ROOT/scripts/e2e-loop.sh" 3)
+  echo "$e2e"
+  if echo "$e2e" | grep -qvE '^run [0-9]+: PASS'; then
+    echo "   FAILED"; failures=$((failures + 1))
+  else
+    echo "   ok"
+  fi
 else
   echo "   skipped: no local validator (run scripts/localnet-up.sh)"
 fi
