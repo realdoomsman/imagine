@@ -70,9 +70,14 @@ export default async function LeaderboardPage({
           {rows.map((row, index) => (
             <li
               key={String(row.owner ?? row.mint ?? index)}
-              className="flex items-center gap-4 px-6 py-3.5"
+              className="flex items-center gap-4 px-6 py-3.5 transition-colors duration-200 hover:bg-white/[0.025]"
             >
-              <span className="num w-8 text-[13px] text-steel-600">
+              {/* The top three earn colour; the rest are a ranked list. */}
+              <span
+                className={`num w-8 text-[13px] ${
+                  index < 3 ? "text-torch" : "text-steel-600"
+                }`}
+              >
                 {String(index + 1).padStart(2, "0")}
               </span>
               <div className="min-w-0 flex-1">{renderPrimary(board, row)}</div>

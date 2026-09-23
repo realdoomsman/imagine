@@ -120,7 +120,7 @@ export function Ticker({
   duration?: number;
 }) {
   const [shown, setShown] = useState(0);
-  const fromRef = useRef(0);
+  const currentRef = useRef(0);
   const ref = useRef<HTMLSpanElement>(null);
   const [armed, setArmed] = useState(false);
 
@@ -148,17 +148,22 @@ export function Ticker({
     if (!armed) return;
     if (prefersReducedMotion()) {
       setShown(value);
+      currentRef.current = value;
       return;
     }
-    const from = fromRef.current;
+    // Start from what is on screen right now, not from the last target that
+    // happened to finish: dragging the slider interrupts constantly, and
+    // resuming from a stale value makes the number jump backwards.
+    const from = currentRef.current;
     const start = performance.now();
     let frame = 0;
     const step = (now: number) => {
       const t = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - t, 3);
-      setShown(from + (value - from) * eased);
+      const next = from + (value - from) * eased;
+      currentRef.current = next;
+      setShown(next);
       if (t < 1) frame = requestAnimationFrame(step);
-      else fromRef.current = value;
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);

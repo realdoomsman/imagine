@@ -49,7 +49,7 @@ export function LockerTable({
               {lockers.map((locker) => (
                 <tr
                   key={`${locker.owner}-${locker.index}`}
-                  className="border-t border-steel-860"
+                  className="border-t border-steel-860 transition-colors duration-200 hover:bg-white/[0.025]"
                 >
                   <td className="num px-6 py-2.5 text-steel-300">
                     {shortAddress(locker.owner)}

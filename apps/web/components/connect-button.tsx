@@ -17,7 +17,7 @@ export function ConnectButton() {
       <button
         type="button"
         onClick={() => void disconnect()}
-        className="btn btn-ghost num text-[13px]"
+        className="btn btn-ghost num h-[38px] rounded-full px-4 text-[12.5px]"
         title="Disconnect"
       >
         <span className="size-1.5 rounded-full bg-verdi" />
@@ -31,7 +31,7 @@ export function ConnectButton() {
       type="button"
       onClick={() => setVisible(true)}
       disabled={connecting}
-      className="btn btn-primary"
+      className="btn btn-primary h-[38px] rounded-full px-5 text-[13.5px]"
     >
       {connecting ? "Connecting" : "Connect"}
     </button>

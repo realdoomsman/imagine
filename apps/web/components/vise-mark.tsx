@@ -14,9 +14,14 @@ export function ViseMark({
   className?: string;
 }) {
   const clamped = Math.min(Math.max(grip, 0), 1);
-  // Jaws travel from the outer edge toward the centre, never fully meeting:
-  // a closed vise with nothing in it is a vise with nothing to hold.
-  const travel = 5 + clamped * 5;
+  /*
+   * Jaws travel from the outer edge toward the centre but never meet: a closed
+   * vise with nothing in it is a vise with nothing to hold. The travel is
+   * capped so the held block stays visible at full grip — otherwise the mark
+   * collapses into a single solid bar at small sizes.
+   */
+  const travel = 4 + clamped * 4;
+  const gap = 20 - travel * 2;
 
   return (
     <svg
@@ -37,13 +42,13 @@ export function ViseMark({
         fill="currentColor"
       />
       <rect
-        x={travel + 2.5}
+        x={2 + travel + 1}
         y={8}
-        width={19 - travel * 2}
+        width={gap - 2}
         height={8}
         rx={1}
         fill="currentColor"
-        opacity={0.35}
+        opacity={0.4}
       />
     </svg>
   );

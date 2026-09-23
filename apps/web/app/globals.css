@@ -410,6 +410,69 @@
 }
 
 /*
+ * The wallet-adapter modal.
+ *
+ * It ships a purple theme that every Solana site wears unchanged, which is the
+ * single loudest "assembled from a template" signal a wallet flow can send.
+ * These overrides are scoped to its own class names, so upgrading the package
+ * degrades to the default rather than breaking the flow.
+ */
+.wallet-adapter-modal-wrapper {
+  background: var(--color-steel-900) !important;
+  border: 1px solid var(--color-steel-700);
+  border-radius: var(--radius-machined) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 40px 90px -30px rgba(0, 0, 0, 0.95) !important;
+  font-family: var(--font-sans) !important;
+}
+
+.wallet-adapter-modal-overlay {
+  background: rgba(4, 5, 8, 0.82) !important;
+  backdrop-filter: blur(6px);
+}
+
+.wallet-adapter-modal-title {
+  font-family: var(--font-display) !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em;
+  color: var(--color-steel-50) !important;
+  padding: 26px 26px 6px !important;
+}
+
+.wallet-adapter-modal-list li {
+  margin-bottom: 6px !important;
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button {
+  background: linear-gradient(180deg, var(--color-steel-820), var(--color-steel-900)) !important;
+  border: 1px solid var(--color-steel-700);
+  border-radius: var(--radius-machined) !important;
+  color: var(--color-steel-100) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 14.5px !important;
+  font-weight: 600 !important;
+  height: 50px !important;
+  transition: border-color 180ms var(--ease-clamp), color 180ms var(--ease-clamp);
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button:hover {
+  border-color: var(--color-torch) !important;
+  color: var(--color-steel-50) !important;
+}
+
+.wallet-adapter-modal-list-more,
+.wallet-adapter-modal-button-close {
+  color: var(--color-steel-400) !important;
+  background: transparent !important;
+}
+
+.wallet-adapter-modal-button-close svg {
+  fill: currentColor !important;
+}
+
+/*
  * Global film grain. Flat digital gradients are the loudest "this was
  * generated" tell; a little moving emulsion costs one composited layer.
  */
