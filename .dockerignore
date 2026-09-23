@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+**/.next
+target
+.git
+.env
+.env.*
+!.env.example
+video/out
+*.log

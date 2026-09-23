@@ -1,0 +1,20 @@
+{
+  "name": "vise",
+  "private": true,
+  "version": "0.1.0",
+  "description": "VISE — time-weighted lock-to-earn vaults for pump.fun coins",
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "program:build": "anchor build",
+    "program:test": "pnpm --filter @vise/sdk test",
+    "dev": "pnpm --parallel --filter @vise/web --filter @vise/api dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@vise/video",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio",
+    "render:teaser": "remotion render src/index.ts Teaser out/vise-teaser.mp4 --codec=h264 --crf=16",
+    "render:explainer": "remotion render src/index.ts Explainer out/vise-explainer.mp4 --codec=h264 --crf=16",
+    "render:vertical": "remotion render src/index.ts Vertical out/vise-vertical.mp4 --codec=h264 --crf=16",
+    "render:all": "pnpm render:teaser && pnpm render:explainer && pnpm render:vertical"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.373",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.373",
+    "@remotion/google-fonts": "4.0.373"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.7",
+    "typescript": "^5.7.3"
+  }
+}

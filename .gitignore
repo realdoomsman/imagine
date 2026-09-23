@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+target
+.anchor
+test-ledger
+.env
+.env.local
+.env.*.local
+*.log
+video/out
+video/node_modules
+.DS_Store

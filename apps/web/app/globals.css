@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/*
+ * VISE design tokens. Dark-first, one accent, machined edges.
+ * See docs/BRAND.md for the rules these encode.
+ */
+@theme {
+  --color-steel-950: #08090b;
+  --color-steel-900: #0e1013;
+  --color-steel-850: #111418;
+  --color-steel-800: #161a1f;
+  --color-steel-700: #232a32;
+  --color-steel-600: #39434f;
+  --color-steel-500: #5a6675;
+  --color-steel-400: #7c8798;
+  --color-steel-300: #a8b3c1;
+  --color-steel-200: #ccd3dc;
+  --color-steel-50: #eceff3;
+
+  --color-torch: #ff5a1f;
+  --color-torch-dim: #b33a11;
+  --color-torch-glow: rgba(255, 90, 31, 0.14);
+  --color-verdi: #3fcf8e;
+  --color-rust: #e5484d;
+
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
+
+  --radius-machined: 2px;
+
+  --ease-clamp: cubic-bezier(0.2, 0.9, 0.1, 1);
+}
+
+@layer base {
+  html {
+    background: var(--color-steel-950);
+    color: var(--color-steel-300);
+    -webkit-font-smoothing: antialiased;
+    scrollbar-color: var(--color-steel-700) transparent;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    color: var(--color-steel-50);
+    letter-spacing: -0.02em;
+    font-weight: 700;
+  }
+
+  /* Any number that can change is tabular so nothing reflows mid-update. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  ::selection {
+    background: var(--color-torch);
+    color: #fff;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-torch);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /*
+   * Brushed-metal panel: depth from a 1px top highlight, never a soft shadow.
+   */
+  .panel {
+    position: relative;
+    background: var(--color-steel-900);
+    border: 1px solid var(--color-steel-700);
+    border-radius: var(--radius-machined);
+  }
+
+  .panel::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      rgba(255, 255, 255, 0.07) 20%,
+      rgba(255, 255, 255, 0.07) 80%,
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  /* Knurling: the diagonal hatch of a vise handle. A texture, not a gradient. */
+  .knurl {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.045) 0px,
+      rgba(255, 255, 255, 0.045) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+  }
+
+  .rule-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-steel-500);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 18px;
+    border-radius: var(--radius-machined);
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid transparent;
+    transition:
+      transform 90ms var(--ease-clamp),
+      background-color 140ms var(--ease-clamp),
+      border-color 140ms var(--ease-clamp);
+    cursor: pointer;
+  }
+
+  .btn:active:not(:disabled) {
+    transform: scaleY(0.94);
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--color-torch);
+    color: #140600;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #ff6f3c;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border-color: var(--color-steel-700);
+    color: var(--color-steel-200);
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    border-color: var(--color-steel-500);
+    background: var(--color-steel-850);
+  }
+
+  .hairline {
+    border-top: 1px solid var(--color-steel-700);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

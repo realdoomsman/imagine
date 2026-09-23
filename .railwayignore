@@ -1,0 +1,9 @@
+target
+node_modules
+**/node_modules
+**/.next
+video/out
+test-ledger
+.anchor
+.git
+*.log
