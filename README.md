@@ -70,6 +70,10 @@ pnpm --filter @vise/web dev
 
 ## Tests
 
+```bash
+bash scripts/verify.sh   # everything below, plus clippy and four typechecks
+```
+
 | Command | What it proves |
 |---|---|
 | `cargo test -p vise --lib` | Reward math: multiplier curve, accumulator conservation, penalty decay, and that many uneven deposits can never make a pool owe more than it received |
@@ -77,6 +81,12 @@ pnpm --filter @vise/web dev
 | `node apps/api/scripts/e2e.ts` | End-to-end against the real pump.fun program: launch, fee routing, pool, trade with fee, weighted accrual, claims, solvency |
 
 The integration and e2e suites need the local validator running.
+
+The end-to-end script pre-creates pump.fun's fee-collecting accounts before each
+trade. pump rotates which one it credits by slot, and on a fresh local ledger a
+fee smaller than the rent-exempt minimum would leave a brand-new destination
+rent-paying — the runtime then rejects the whole transaction. On devnet and
+mainnet those accounts already exist, so this is a fixture concern only.
 
 ## What the program will not do
 
