@@ -31,3 +31,17 @@ export function clampEase(t: number): number {
   const c = Math.min(Math.max(t, 0), 1);
   return 1 - Math.pow(1 - c, 3.2);
 }
+
+/**
+ * The program's duration curve, mirrored so every number on screen is one a
+ * locker would actually get: 1x at 7 days rising on a square root to 4x at
+ * 365. `grip` is the closed fraction of the vise, 0..1.
+ */
+export function daysFor(grip: number): number {
+  return Math.round(7 + grip * 358);
+}
+
+export function multiplierFor(days: number): string {
+  const t = Math.max(0, Math.min((days - 7) / 358, 1));
+  return (1 + 3 * Math.sqrt(t)).toFixed(2);
+}

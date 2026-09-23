@@ -1,5 +1,5 @@
-import { AbsoluteFill, interpolate, Sequence, useCurrentFrame } from "remotion";
-import { clampEase, COLORS, FONTS, FPS } from "./theme";
+import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
+import { COLORS, FONTS, FPS, clampEase, daysFor, multiplierFor } from "./theme";
 import { Vise } from "./Vise";
 import { Grain, Knurl, Rule } from "./chrome";
 
@@ -12,6 +12,7 @@ export const TEASER_DURATION = 12 * FPS;
 export function Teaser() {
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.ground }}>
+      <Audio src={staticFile("teaser.wav")} />
       <Knurl />
       <Sequence durationInFrames={3 * FPS}>
         <Statement top="Everyone sells." bottom="That is the whole problem." />
@@ -88,8 +89,8 @@ function ClampScene() {
   const to = steps[Math.min(index + 1, steps.length - 1)];
   const grip = from + (to - from) * clampEase(local);
 
-  const days = Math.round(7 + grip * 358);
-  const multiplier = (1 + grip * 3).toFixed(2);
+  const days = daysFor(grip);
+  const multiplier = multiplierFor(days);
   const shake = index % 2 === 1 ? Math.sin(frame * 2.4) * (1 - local) * 3 : 0;
 
   return (

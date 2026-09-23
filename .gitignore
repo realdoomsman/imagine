@@ -18,3 +18,5 @@ video/node_modules
 # local secrets
 *.tmp
 .env
+video/public/*.wav
+video/out/shots/

@@ -1,4 +1,4 @@
-import { AbsoluteFill, interpolate, Sequence, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Audio, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
 import { clampEase, COLORS, FONTS, FPS } from "./theme";
 import { Grain, Knurl, Panel, Rule } from "./chrome";
 import { Vise } from "./Vise";
@@ -12,6 +12,7 @@ export const EXPLAINER_DURATION = 30 * FPS;
 export function Explainer() {
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.ground }}>
+      <Audio src={staticFile("explainer.wav")} />
       <Knurl />
       <Sequence durationInFrames={6 * FPS}>
         <Beat
@@ -26,7 +27,7 @@ export function Explainer() {
         <Beat
           index="02"
           title="The fee goes to holders"
-          body="Not to a dev wallet. Into the coin's own vault, split across everyone who locked."
+          body="Not to a dev wallet. Into the coin's own vault. 90% to the people who locked, 10% to VISE, nothing to the creator."
         >
           <SplitBar />
         </Beat>
@@ -35,7 +36,7 @@ export function Explainer() {
         <Beat
           index="03"
           title="Longer locks take more"
-          body="Weight is amount times term. Seven days counts once. A year counts four times."
+          body="Weight is amount times term, on a square-root curve. Seven days counts once. A year counts four times. Lock 1% of supply and it counts half again."
         >
           <MultiplierLadder />
         </Beat>
@@ -176,9 +177,8 @@ function SplitBar() {
   const frame = useCurrentFrame();
   const grow = clampEase(Math.min(frame / (1.6 * FPS), 1));
   const parts = [
-    { label: "Lockers", value: 72, color: COLORS.torch },
-    { label: "Treasury", value: 20, color: COLORS.muted },
-    { label: "Creator", value: 8, color: "#39434F" },
+    { label: "Lockers", value: 90, color: COLORS.torch },
+    { label: "Treasury", value: 10, color: COLORS.muted },
   ];
 
   return (
@@ -241,9 +241,9 @@ function MultiplierLadder() {
   const frame = useCurrentFrame();
   const rows = [
     { days: 7, mult: "1.00×", width: 25 },
-    { days: 30, mult: "1.19×", width: 30 },
-    { days: 90, mult: "1.70×", width: 43 },
-    { days: 180, mult: "2.45×", width: 61 },
+    { days: 30, mult: "1.76×", width: 44 },
+    { days: 90, mult: "2.44×", width: 61 },
+    { days: 180, mult: "3.09×", width: 77 },
     { days: 365, mult: "4.00×", width: 100 },
   ];
 

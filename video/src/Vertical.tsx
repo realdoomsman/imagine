@@ -1,5 +1,5 @@
-import { AbsoluteFill, Sequence, useCurrentFrame } from "remotion";
-import { clampEase, COLORS, FONTS, FPS } from "./theme";
+import { AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame } from "remotion";
+import { COLORS, FONTS, FPS, clampEase, daysFor, multiplierFor } from "./theme";
 import { Grain, Knurl } from "./chrome";
 import { Vise } from "./Vise";
 
@@ -20,6 +20,7 @@ const BEATS = [
 export function Vertical() {
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.ground }}>
+      <Audio src={staticFile("vertical.wav")} />
       <Knurl />
       {BEATS.map((beat, index) => (
         <Sequence
@@ -68,8 +69,8 @@ function Lines({ lines }: { lines: string[] }) {
 function Payoff() {
   const frame = useCurrentFrame();
   const grip = clampEase(Math.min(frame / (2.6 * FPS), 1));
-  const days = Math.round(7 + grip * 358);
-  const multiplier = (1 + grip * 3).toFixed(2);
+  const days = daysFor(grip);
+  const multiplier = multiplierFor(days);
 
   return (
     <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", gap: 70 }}>
