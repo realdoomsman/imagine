@@ -1,6 +1,25 @@
 # VISE — X content
 
-Handle: `@visedotfun` · Site: `vise.fun`
+Handle: `@ViseDotFun` · Site: `vise.fun`
+
+## Live (2026-09-23)
+
+- Pinned thread (14 posts, teaser video on the first):
+  https://x.com/ViseDotFun/status/2102748079682195471
+- X Article "Selling is free. Holding is not.":
+  https://x.com/ViseDotFun/status/2102756902497071221 (also https://vise.fun/article)
+- 16 standalone posts with the stills from `video/out/cards`, one product
+  screenshot (launch form). Post 12 shipped without the raw program ID:
+  a bare base58 address in a new account's post was silently dropped to
+  drafts; it links the security page instead.
+- Following: pump.fun, Solana, wallets, aggregators, sister products.
+  Replies left on six live fee-routing / holder-reward conversations.
+- Profile: avatar and banner from `scripts/render-profile.sh`; the
+  checkmark shows "Under review" after the name/photo change, per X.
+
+Posting tooling: `scripts/x-thread.json` and `scripts/x-article.json` are
+the exact payloads; they were driven through the real composer in the
+logged-in browser (CDP input, `DOM.setFileInputFiles` for media).
 
 Voice rules, applied to everything below: no emoji, no "gm", no "wagmi", no
 rocket metaphors, no "revolutionary". Short declarative sentences. Every claim

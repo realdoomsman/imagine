@@ -1,0 +1,32 @@
+{
+  "title": "Selling is free. Holding is not.",
+  "blocks": [
+    ["p", "Every platform in this market pays for the first and charges for the second. That is backwards, and it is fixable with about two thousand lines of Rust. This is what VISE is, what it is not, and what the program will not let anyone do. The site is vise.fun."],
+    ["h", "The only revenue a memecoin has"],
+    ["p", "Strip away the chart and the group chat and a memecoin is a very simple business. It has one product, which is a token, and one recurring revenue stream, which is the fee people pay to trade it. On pump.fun that fee is roughly one percent of every buy and sell, for the life of the coin, and it is paid in SOL."],
+    ["p", "Follow where it goes. A slice to the launchpad. A slice to the creator's wallet, which on most coins is the same person who is selling into you. None of it, ever, to the people whose holding is the reason there is a price at all."],
+    ["p", "So the incentives run exactly one way. The moment you buy, the only action that pays you is the exit. Everybody knows this, which is why everybody sells, which is why the chart looks like that."],
+    ["h", "What we did about it"],
+    ["p", "VISE is a lock pool bolted onto an ordinary pump.fun coin. The coin is created on pump.fun exactly like any other; it trades on the same curve, graduates the same way, shows up in the same places. What changes is where its fees land."],
+    ["p", "Two streams flow into a vault that belongs to the coin, both in SOL. First, 2% of the SOL on every trade routed through vise.fun: the fee instruction sits inside the swap transaction, so if the trade fails the fee is never taken, and if the trade lands the fee is already in the vault. Second, the coin's pump.fun creator fees, in full: at launch, pump's own fee-sharing program is told to pay the creator's share to the vault instead of the creator, and the instruction that does it revokes its own admin. Once it lands, nobody can redirect that stream. Not the creator, not us."],
+    ["p", "The vault splits what it receives one way, forever: 90% to the people who locked the coin, 10% to VISE, nothing to the creator. A creator earns the way everyone else does, by locking, and their founding lock is public on the coin's page from block one."],
+    ["h", "Locking, and why the curve bends"],
+    ["p", "To earn from the vault you lock your coins for a term you choose, between seven days and a year. Your share of every SOL that arrives is your weight divided by the pool's total weight, and weight is amount times a multiplier."],
+    ["p", "The multiplier runs on a square root, not a straight line. Seven days counts once. Thirty days already counts 1.76×. Ninety days is 2.44×, a hundred and eighty is 3.09×, a year is 4×. The bend is deliberate: a short lock should be worth making, and the last months of a long one should still be worth something more than the first."],
+    ["p", "Size matters too. Lock a tenth of a percent of the supply and your weight gets ten percent more; half a percent, twenty-five; lock a full percent and it gets half again. A year-long, one-percent position counts six times over what the same coins would earn on a week."],
+    ["p", "Claiming never touches the lock and the lock never blocks a claim. You can harvest a year-long position every day and the position does not move."],
+    ["h", "Leaving early"],
+    ["p", "You can always break a lock. It costs two things, and both go to the people who stayed: your unclaimed rewards are forfeited into the pool, and a slice of your principal is burned, scaled by how much of your term you did not serve. Leave on day one of a hundred and it hurts. Leave on day ninety-nine and it barely registers."],
+    ["p", "That is the whole cost of the product. You cannot sell a locked bag for free. If you were never going to hold anyway, do not lock. If you were, this pays you for the holding you were already doing."],
+    ["h", "What the program cannot do"],
+    ["p", "\"Trust us\" is not a security model, so the parts that matter are not promises. They are properties of the deployed bytecode, and anyone can check them against the source."],
+    ["ul", ["There is no admin path to the money. No instruction in the program moves a pool's SOL or tokens to an admin. Not a disabled one, not a timelocked one. It does not exist.", "A pool's terms are frozen at creation. The fee split, the multiplier curve, the size tiers, the lock bounds, the exit penalty, the release window and the treasury address are copied onto the pool when it opens, and nothing rewrites them. We can change the defaults for coins launched later. We cannot reach into a pool that already exists.", "The pause switch blocks new pools. That is all. Claiming and unlocking are not pausable; there is no code path that would let them be.", "Rounding always favours the pool. A randomised test drives thousands of locks, deposits, claims and exits and asserts after every step that the vault can still pay everyone it owes.", "The fee routing revokes its own admin. pump.fun's fee-sharing config for the coin is set once, to the vault, and the update authority is discarded in the same call."]],
+    ["p", "The program ID, the source, the tests and the audit notes are linked from the security page at vise.fun/docs/security, which walks through each claim."],
+    ["h", "No wallet? Sign in."],
+    ["p", "Most people who would benefit from this do not have a Solana wallet and do not want to learn what a seed phrase is on the day they buy a coin. So VISE takes a Google sign-in. You get an ordinary Solana address, held for you, that you can send SOL or coins to, lock from, and withdraw from whenever. The key is yours: reveal it from the wallet page and import it anywhere. There is no step where we get to say no."],
+    ["h", "The honest version"],
+    ["p", "None of this makes a bad coin good. A coin with no volume pays nothing, and a locked bag in a coin going to zero is worse than an unlocked one because you cannot sell into the decline for free. Every number on the site is trailing, realised fees divided by locked value; nothing is projected, nothing is annualised from one good hour. If a coin stops trading its number goes to zero, and it should."],
+    ["p", "What VISE changes is narrow and, we think, important: for the first time, on this launchpad, the person who stays is the person who gets paid. The rest is up to the coin."],
+    ["p", "vise.fun"]
+  ]
+}

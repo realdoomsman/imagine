@@ -1,0 +1,51 @@
+[
+  {
+    "text": "Every memecoin has exactly one real revenue stream: the fees people pay to trade it.\n\nThat money goes to a launchpad and a dev wallet. Never to the people actually holding the thing.\n\nVISE changes where it lands.\n\nLong version: vise.fun/article",
+    "media": "C:\\tech\\Hold\\video\\out\\vise-teaser.mp4"
+  },
+  {
+    "text": "Launch a coin on pump.fun through VISE and its fee stream gets pointed at a vault for its holders.\n\nNot by a promise. By pump's own fee-sharing program, with an instruction that revokes its own admin.\n\nAfter it lands, nobody can redirect it. Not the dev. Not us."
+  },
+  {
+    "text": "Two streams flow into that vault, both in SOL:\n\n— 2% of the SOL on every trade routed through vise.fun\n— the coin's pump.fun creator fees, in full\n\n90% is paid to lockers. 10% runs VISE. The creator's cut is zero: they earn the way everyone else does, by locking.\n\nNo emissions. No printed tokens. Just fees that were always being paid, going somewhere else.",
+    "media": "C:\\tech\\Hold\\video\\out\\cards\\04-split.png"
+  },
+  {
+    "text": "To earn from it, you lock.\n\nYour weight is your amount times your term, on a square-root curve so short locks are still worth making:\n\n7d → 1.00×\n30d → 1.76×\n90d → 2.44×\n180d → 3.09×\n365d → 4.00×\n\nLock 0.1% of supply or more and a size tier adds up to 50% on top. Same bag, up to six times the claim.",
+    "media": "C:\\tech\\Hold\\video\\out\\cards\\05-ladder.png"
+  },
+  {
+    "text": "Claiming never touches your lock. Your lock never blocks a claim.\n\nYou can harvest every day of a one-year position and the position does not move."
+  },
+  {
+    "text": "Breaking a lock early costs two things, and both go to the people who stayed:\n\n— unclaimed rewards are forfeited and redistributed\n— a slice of principal is burned, scaled by how much of your term is left\n\nLeave on day 1 of 100, it hurts. Leave on day 99, it barely registers."
+  },
+  {
+    "text": "The part that matters is what the program cannot do.\n\nThere is no instruction that moves a pool's SOL or tokens to an admin. Not disabled. Not timelocked. It does not exist in the bytecode.",
+    "media": "C:\\tech\\Hold\\video\\out\\cards\\11-cannot.png"
+  },
+  {
+    "text": "A pool's terms — fee split, multiplier curve, size tiers, penalty, lock bounds — are copied onto it at creation and are immutable.\n\nWe can change the defaults for future coins. We cannot touch yours."
+  },
+  {
+    "text": "The pause switch blocks new pools. That is all it can do.\n\nClaiming and unlocking are not pausable. There is no code path that would let them be."
+  },
+  {
+    "text": "Creators cannot open a pool without locking their own bag in the same instruction.\n\nThey are exposed before anyone else is, and the amount and term are public on the coin's page from block one.",
+    "media": "C:\\tech\\Hold\\video\\out\\shots\\coin.png"
+  },
+  {
+    "text": "Rounding always favours the pool.\n\nA randomised test drives thousands of locks, deposits, claims and exits and asserts, after every single step, that the vault can still pay everyone it owes."
+  },
+  {
+    "text": "No wallet? Sign in with Google. You get an ordinary Solana address, held for you: send coins to it, lock from it, withdraw whenever, export the key any time.\n\nThere is no step where we get to say no.",
+    "media": "C:\\tech\\Hold\\video\\out\\cards\\14-google.png"
+  },
+  {
+    "text": "What this does not do: make a bad coin good.\n\nThe coin can still go to zero, and locking makes that worse because you cannot sell into the decline for free. A coin with no volume pays nothing.\n\nThat is the honest version."
+  },
+  {
+    "text": "vise.fun\n\nHold under pressure.",
+    "media": "C:\\tech\\Hold\\video\\out\\cards\\20-close.png"
+  }
+]
