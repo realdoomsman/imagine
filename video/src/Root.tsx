@@ -28,6 +28,13 @@ export function Root() {
       <Still id="Card" component={Card} defaultProps={CARD_DEFAULT} width={1600} height={900} />
       <Still id="Avatar" component={Avatar} width={400} height={400} />
       <Still
+        id="OG"
+        component={Card}
+        defaultProps={{ kind: "statement", lines: ["Hold under", "pressure."], accent: 1, sub: "Lock pump.fun coins and earn the fees they generate. Longer locks take a larger share." }}
+        width={1200}
+        height={630}
+      />
+      <Still
         id="Cover"
         component={Card}
         defaultProps={{ kind: "statement", lines: ["Selling is free.", "Holding is not."], sub: "Why every memecoin pays the people who leave and charges the people who stay, and what VISE does about it." }}
