@@ -149,6 +149,13 @@ the same builders as the wallet-adapter path and signs with the account's key
 server-side; each is written to `account_actions` with its signature or the
 error. `/me/export-key` returns the base58 secret and logs the export.
 
+**Launches that stop partway.** Every launch is three or four transactions.
+If one fails after `create_v2` landed, the coin exists and the account owns
+it; the API answers with `resume: <mint>` and the form offers to finish
+that coin. The finish stage is idempotent: it skips the dev buy if the wallet
+already holds the coin, the pool if it exists, the routing if the sharing
+config exists. `POST /api/me/launch { resume }` can also be called by hand.
+
 **Operational rules**
 
 - Back up `WALLET_MASTER_KEY` the moment it is set. The database alone cannot
@@ -188,6 +195,15 @@ day.
 
 Still manual: **`claim_treasury`** per pool moves the platform share out.
 Weekly is fine.
+
+## Media
+
+`scripts/render-video.sh` regenerates the score (`video/audio/score.py`,
+Windows Python + numpy) and renders the three videos; `render-cards.sh`
+renders the twenty feed stills from `video/src/cards.ts`;
+`render-profile.sh` renders the X avatar, banner and the site's
+`opengraph-image.png` (copy it into `apps/web/app/`). All run under WSL
+against a headless shell installed once into `~/.cache/vise-browser`.
 
 ## Incident playbook
 
