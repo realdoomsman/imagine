@@ -192,7 +192,7 @@ function Guarantees() {
       <div className="mt-16 grid gap-px sm:grid-cols-2 lg:grid-cols-4">
         {GUARANTEES.map((item, index) => (
           <Reveal key={item.title} delay={index * 70}>
-            <article className="surface group/card relative h-full overflow-hidden p-7 transition-colors duration-500 hover:border-steel-600">
+            <article className="surface group/card relative h-full overflow-hidden p-7 transition-colors duration-500 hover:border-steel-600/50">
               <span
                 className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover/card:opacity-100"
                 style={{

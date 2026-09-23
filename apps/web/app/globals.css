@@ -16,13 +16,19 @@
   --color-steel-860: #14171f;
   --color-steel-820: #191d26;
   --color-steel-780: #1f2530;
+  /*
+   * 700 and below are structure: borders, hairlines, fills. 600 and above are
+   * text, and every one of them clears WCAG AA against the page at small
+   * sizes — the first pass had the eyebrow labels at 3.4:1, which is a label
+   * nobody can read pretending to be restraint.
+   */
   --color-steel-700: #2a3140;
-  --color-steel-600: #3b4454;
-  --color-steel-500: #5a6578;
-  --color-steel-400: #7d8798;
-  --color-steel-300: #a6aebc;
-  --color-steel-200: #ccd2dc;
-  --color-steel-50: #eef1f5;
+  --color-steel-600: #747d90; /* 4.9:1 — quietest text */
+  --color-steel-500: #8d96a8; /* 6.8:1 — labels, captions */
+  --color-steel-400: #a5adba; /* 8.9:1 — secondary body */
+  --color-steel-300: #c2c9d4; /* 12.1:1 — body */
+  --color-steel-200: #d7dce4; /* 14.6:1 */
+  --color-steel-50: #f1f3f7;
 
   /* Hot side. */
   --color-torch: #ff5a1f;
@@ -91,6 +97,53 @@
     outline: 2px solid var(--color-torch);
     outline-offset: 3px;
     border-radius: 2px;
+  }
+
+  /*
+   * Scrollbar. The OS default is a bright slab on a dark page and the first
+   * thing that breaks the illusion of a designed surface.
+   */
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-steel-990);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-steel-780);
+    border: 3px solid var(--color-steel-990);
+    border-radius: 6px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-steel-700);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: var(--color-steel-990);
+  }
+
+  /* Keyboard users land here first and can jump the nav. */
+  .skip-link {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    z-index: 100;
+    translate: -50% -200%;
+    padding: 11px 20px;
+    border-radius: var(--radius-machined);
+    background: var(--color-torch);
+    color: #190600;
+    font-size: 14px;
+    font-weight: 600;
+    transition: translate 220ms var(--ease-clamp);
+  }
+
+  .skip-link:focus {
+    translate: -50% 0;
   }
 }
 
@@ -174,7 +227,7 @@
         var(--color-steel-860) 55%,
         var(--color-steel-900) 100%
       );
-    border-color: var(--color-steel-600);
+    border-color: #39414f;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.07),
       inset 0 -1px 0 rgba(0, 0, 0, 0.55);
@@ -246,13 +299,13 @@
 
   .btn-ghost {
     background: linear-gradient(180deg, var(--color-steel-820), var(--color-steel-900));
-    border-color: var(--color-steel-600);
+    border-color: #39414f;
     color: var(--color-steel-200);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
   .btn-ghost:hover:not(:disabled) {
-    border-color: var(--color-steel-500);
+    border-color: #4d5769;
     color: var(--color-steel-50);
   }
 
@@ -287,6 +340,37 @@
 
   .hairline {
     border-top: 1px solid var(--color-steel-780);
+  }
+
+  /*
+   * Loading shimmer. A sweep, not a pulse: a pulsing block reads as something
+   * blinking because it is broken, a sweep reads as something in progress.
+   */
+  .shimmer {
+    background:
+      linear-gradient(
+        90deg,
+        var(--color-steel-860) 0%,
+        #2f3644 42%,
+        var(--color-steel-860) 84%
+      );
+    background-size: 280% 100%;
+    animation: shimmer-sweep 1.5s var(--ease-clamp) infinite;
+  }
+
+  @keyframes shimmer-sweep {
+    from { background-position: 140% 0; }
+    to   { background-position: -140% 0; }
+  }
+
+  /* Replayed on every navigation by app/template.tsx. */
+  .route-enter {
+    animation: route-enter 420ms var(--ease-clamp) both;
+  }
+
+  @keyframes route-enter {
+    from { opacity: 0; transform: translate3d(0, 18px, 0); }
+    to   { opacity: 1; transform: none; }
   }
 
   /*
@@ -327,7 +411,7 @@
     height: 26px;
     margin-top: -10px;
     border-radius: 2px;
-    border: 1px solid var(--color-steel-500);
+    border: 1px solid #4d5769;
     background:
       repeating-linear-gradient(
         -48deg,
@@ -353,7 +437,7 @@
     width: 16px;
     height: 26px;
     border-radius: 2px;
-    border: 1px solid var(--color-steel-500);
+    border: 1px solid #4d5769;
     background: linear-gradient(180deg, #3a4354, #171b23);
   }
 

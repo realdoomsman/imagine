@@ -56,6 +56,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${bricolage.variable} ${geist.variable} ${geistMono.variable}`}
     >
       <body>
+        <a href="#content" className="skip-link">
+          Skip to content
+        </a>
         <WalletProvider>
           <SmoothScroll />
           <Grain />
@@ -64,7 +67,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             The header floats over the page, so every route needs to clear it.
             The hero cancels this with a negative margin to run full-bleed.
           */}
-          <main className="min-h-screen pt-[84px]">{children}</main>
+          <main id="content" className="min-h-screen pt-[84px]">
+            {children}
+          </main>
           <SiteFooter />
         </WalletProvider>
       </body>

@@ -49,7 +49,7 @@ export default async function LeaderboardPage({
             className={`rounded-machined border px-3 py-1.5 text-[13px] transition-colors ${
               board === option.key
                 ? "border-torch bg-torch/10 text-torch"
-                : "border-steel-700 text-steel-400 hover:border-steel-500 hover:text-steel-200"
+                : "border-steel-700 text-steel-400 hover:border-steel-600/50 hover:text-steel-200"
             }`}
           >
             {option.label}

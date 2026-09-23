@@ -100,27 +100,44 @@ float sdJawProfile(vec2 q) {
   return jaw;
 }
 
-/// Both jaws plus the bed they ride on.
+/// Both jaws, mirrored from one profile.
 float sdJaws(vec2 p) {
-  float jaws = sdJawProfile(vec2(abs(p.x), p.y));
-  float bed  = sdRoundBox(p - vec2(0.0, bedY()), vec2(1.45, 0.048), 0.008);
-  // A raised lip along the front of the bed, so it is not one flat bar.
-  float lip  = sdRoundBox(p - vec2(0.0, bedY() - 0.052), vec2(1.45, 0.016), 0.006);
-  return min(jaws, min(bed, lip));
+  return sdJawProfile(vec2(abs(p.x), p.y));
 }
 
-/// The screw shaft and its T-handle, sized to stay inside the frame.
+/*
+ * The body casting.
+ *
+ * A vise is mostly mass. Without it the jaws read as two shapes floating on a
+ * line; with it they are the working end of something heavy that is bolted to
+ * a bench. Three stepped slabs — slide rail, body, foot — give the silhouette
+ * somewhere to sit.
+ */
+float sdBase(vec2 p) {
+  float rail = sdRoundBox(p - vec2(0.0, bedY() + 0.010), vec2(1.12, 0.024), 0.008);
+  float body = sdRoundBox(p - vec2(0.0, bedY() - 0.048), vec2(0.72, 0.062), 0.012);
+  float foot = sdRoundBox(p - vec2(0.0, bedY() - 0.150), vec2(0.95, 0.048), 0.010);
+
+  // Chamfer the mount plate's lower outer corners, the way a casting is drafted.
+  vec2 corner = vec2(abs(p.x), p.y) - vec2(0.95 - 0.032, bedY() - 0.150 - 0.048 + 0.032);
+  foot = max(foot, dot(corner, vec2(0.7071, -0.7071)));
+
+  return min(rail, min(body, foot));
+}
+
+/// The screw shaft, its collar nut and the T-handle, sized to stay in frame.
 float sdScrew(vec2 p) {
   float outer = gap() * 0.5 + jawW();
   float endX = 0.900;
   float shaft = sdRoundBox(
     p - vec2((outer + endX) * 0.5, 0.020),
-    vec2(max((endX - outer) * 0.5, 0.0), 0.021),
-    0.018
+    vec2(max((endX - outer) * 0.5, 0.0), 0.020),
+    0.016
   );
-  float collar = sdRoundBox(p - vec2(outer + 0.045, 0.020), vec2(0.030, 0.062), 0.010);
+  float collar = sdRoundBox(p - vec2(outer + 0.048, 0.020), vec2(0.034, 0.068), 0.012);
   float bar    = sdRoundBox(p - vec2(endX, 0.020), vec2(0.026, 0.135), 0.024);
-  return min(shaft, min(collar, bar));
+  float cap    = sdRoundBox(p - vec2(endX - 0.052, 0.020), vec2(0.028, 0.044), 0.010);
+  return min(min(shaft, collar), min(bar, cap));
 }
 
 /*
@@ -136,24 +153,51 @@ float sdBlock(vec2 p) {
   return sdRoundBox(p - vec2(0.0, 0.010), vec2(hw, hh), 0.010);
 }
 
+/// Everything solid, unioned. The surface normal has to come from this rather
+/// than from one part, or a shaft in front of a jaw is lit by the jaw's field.
+float sdSolid(vec2 p) {
+  return min(min(sdJaws(p), sdBase(p)), sdScrew(p));
+}
+
 vec2 gradient(vec2 p, float eps) {
   return normalize(vec2(
-    sdJaws(p + vec2(eps, 0.0)) - sdJaws(p - vec2(eps, 0.0)),
-    sdJaws(p + vec2(0.0, eps)) - sdJaws(p - vec2(0.0, eps))
+    sdSolid(p + vec2(eps, 0.0)) - sdSolid(p - vec2(eps, 0.0)),
+    sdSolid(p + vec2(0.0, eps)) - sdSolid(p - vec2(0.0, eps))
   ) + 1e-6);
 }
 
-/// Machined steel.
-///
-/// The body is a lit face with a brighter chamfer band at every edge, brushed
-/// anisotropically along x. Detail is what sells metal: the gripping faces are
-/// serrated, the jaws carry pin holes, and a fill light from the opposite side
-/// keeps the shadow side from going to black.
-vec3 shadeSteel(vec2 p, float d, float heat) {
+/*
+ * Soft cast shadow.
+ *
+ * March a few steps toward the key light and ask whether anything solid is in
+ * the way, widening the acceptance radius as the march goes — which is what
+ * produces a penumbra that spreads with distance from the contact point. Four
+ * samples is enough at this scale and keeps the shader fill-rate bound rather
+ * than ALU bound.
+ */
+float castShadow(vec2 p) {
+  vec2 toLight = normalize(vec2(-0.50, 0.74));
+  float shade = 0.0;
+  for (int i = 1; i <= 4; i++) {
+    float t = float(i) * 0.055;
+    float d = min(sdJaws(p + toLight * t), sdScrew(p + toLight * t));
+    shade = max(shade, smoothstep(0.015 + t * 0.55, -0.02, d));
+  }
+  return shade;
+}
+
+/*
+ * Steel.
+ *
+ * The "machined" parameter (0..1) chooses the material: 1 is a ground jaw —
+ * fine brushing, tight speculars, crisp chamfers; 0 is the rough body casting,
+ * which is pebbled, matte, and never throws a highlight the jaws do not.
+ */
+vec3 shadeSteel(vec2 p, float d, float heat, float machined) {
   vec2 g = gradient(p, 0.0015);
 
   // 1 at the silhouette, 0 once you are well inside: the machined chamfer.
-  float chamfer = smoothstep(0.028, 0.0, -d);
+  float chamfer = smoothstep(mix(0.045, 0.026, machined), 0.0, -d);
   vec3 n = normalize(vec3(g * chamfer * 1.35, 1.0));
 
   vec3 key  = normalize(vec3(-0.50, 0.74, 0.55));
@@ -162,10 +206,14 @@ vec3 shadeSteel(vec2 p, float d, float heat) {
 
   float diff  = max(dot(n, key), 0.0);
   float fillD = max(dot(n, fill), 0.0) * 0.30;
-  float spec  = pow(max(dot(reflect(-key, n), view), 0.0), 24.0);
+  float spec  = pow(max(dot(reflect(-key, n), view), 0.0), mix(9.0, 30.0, machined));
 
-  float brush = noise(vec2(p.x * 360.0, p.y * 6.0)) * 0.085
-              + noise(vec2(p.x * 64.0,  p.y * 2.6)) * 0.055;
+  // Brushed along x on a jaw; isotropic grit on a casting.
+  float brush = mix(
+    noise(p * 240.0) * 0.10 + noise(p * 62.0) * 0.09,
+    noise(vec2(p.x * 360.0, p.y * 6.0)) * 0.085 + noise(vec2(p.x * 64.0, p.y * 2.6)) * 0.055,
+    machined
+  );
 
   /*
    * Tonal range is the whole game. A uniform mid-grey reads as a drawn box; a
@@ -173,14 +221,15 @@ vec3 shadeSteel(vec2 p, float d, float heat) {
    * lit face at the top, and the eye reads that spread as volume.
    */
   vec3 albedo = mix(STEEL_DARK, STEEL_MID, clamp(0.18 + brush * 2.2, 0.0, 1.0));
-  albedo = mix(albedo, STEEL_HI * 0.46, smoothstep(-0.10, 0.30, p.y) * 0.80);
+  albedo = mix(albedo, STEEL_HI * mix(0.30, 0.46, machined),
+               smoothstep(-0.62, 0.32, p.y) * 0.85);
 
   vec3 col = albedo * (0.34 + diff * 0.86 + fillD);
-  col += STEEL_HI * spec * 0.50;
+  col += STEEL_HI * spec * mix(0.22, 0.55, machined);
 
   // The chamfer catches the key light hardest where it faces up.
   float topFacing = smoothstep(0.15, 0.95, g.y);
-  col += STEEL_HI * chamfer * (0.10 + topFacing * 0.55);
+  col += STEEL_HI * chamfer * (0.10 + topFacing * mix(0.30, 0.60, machined));
   // ...and drops into shade where it faces down.
   col *= mix(1.0, 0.55, chamfer * smoothstep(-0.15, -0.95, g.y));
 
@@ -192,26 +241,40 @@ vec3 shadeSteel(vec2 p, float d, float heat) {
   float onFace = smoothstep(0.028, 0.004, abs(q.x - faceX))
                * smoothstep(jawH() * 0.5 + 0.02, jawH() * 0.5 - 0.02, abs(p.y - 0.02));
   float teeth = abs(fract(p.y * 30.0) - 0.5) * 2.0;
-  col *= mix(1.0, 0.40 + teeth * 1.25, onFace);
+  col *= mix(1.0, 0.40 + teeth * 1.25, onFace * machined);
 
   // A machined relief groove across the jaw face.
   float groove = smoothstep(0.009, 0.0, abs(p.y - 0.145))
-               * smoothstep(0.0, 0.02, q.x - faceX - 0.02);
+               * smoothstep(0.0, 0.02, q.x - faceX - 0.02) * machined;
   col *= mix(1.0, 0.62, groove);
-  col += STEEL_HI * smoothstep(0.004, 0.0, abs(p.y - 0.154)) * 0.30 * step(faceX + 0.04, q.x);
+  col += STEEL_HI * smoothstep(0.004, 0.0, abs(p.y - 0.154)) * 0.30 * machined
+       * step(faceX + 0.04, q.x);
 
   // Pin holes through each jaw, with a lit upper bore lip.
   float holeCx = faceX + jawW() * 0.60;
   float hole = min(length(q - vec2(holeCx, 0.055)), length(q - vec2(holeCx, -0.095))) - 0.024;
-  float holeMask = smoothstep(0.004, -0.004, hole);
+  float holeMask = smoothstep(0.004, -0.004, hole) * machined;
   col = mix(col, vec3(0.010, 0.012, 0.016), holeMask);
-  col += STEEL_HI * smoothstep(0.009, 0.0, abs(hole)) * 0.28
+  col += STEEL_HI * smoothstep(0.009, 0.0, abs(hole)) * 0.28 * machined
        * smoothstep(-0.02, 0.03, p.y - (p.y > -0.02 ? 0.055 : -0.095));
 
   // Heat bleeding onto whatever faces the billet.
   float faceGlow = smoothstep(0.22, 0.0, q.x - faceX) * heat;
   col += TORCH * faceGlow * 0.60 * smoothstep(0.30, 0.0, abs(p.y));
 
+  return col;
+}
+
+/// Acme thread on the exposed length of screw: a shallow helix, read as a
+/// repeating ramp that leans with the pitch.
+vec3 shadeScrew(vec2 p, float d) {
+  vec3 col = shadeSteel(p, d, 0.0, 1.0) * 1.15;
+  float outer = gap() * 0.5 + jawW();
+  float onShaft = step(outer + 0.090, p.x) * step(p.x, 0.845)
+                * smoothstep(0.022, 0.012, abs(p.y - 0.020));
+  float helix = fract((p.x - (p.y - 0.020) * 0.55) * 34.0);
+  float ramp = smoothstep(0.0, 0.35, helix) * smoothstep(1.0, 0.62, helix);
+  col *= mix(1.0, 0.45 + ramp * 1.35, onShaft);
   return col;
 }
 
@@ -225,9 +288,9 @@ void main() {
    * Band: nothing overlaps it, so it centres and fills the strip it was given.
    */
   float wide = uBleed;
-  vec2 p = uv * mix(1.85, 2.30, wide);
-  p.x -= mix(0.0, 0.62, wide);
-  p.y += mix(0.04, 0.12, wide);
+  vec2 p = uv * mix(1.85, 2.18, wide);
+  p.x -= mix(0.0, 0.60, wide);
+  p.y += mix(0.04, 0.02, wide);
 
   float t = uTime * (1.0 - uReduced);
   float heat = uGrip;
@@ -299,19 +362,46 @@ void main() {
   col += TORCH_HOT * exp(-dOut * 70.0) * (0.10 + heat * 0.45);
   col += TORCH * exp(-dOut * 5.5) * (0.020 + heat * 0.075);
 
-  // A wash of heat across the bed directly beneath the billet.
-  float floorY = -jawH() * 0.5 - 0.055;
-  float castGlow = exp(-abs(ps.y - floorY) * 6.0) * smoothstep(0.9, 0.0, abs(ps.x));
-  col += TORCH * castGlow * heat * 0.10;
+  /*
+   * Reflection of the billet in the polished slide rail. Anisotropic: smeared
+   * wide along the rail and cut off sharply above and below it, which is how a
+   * ground surface returns a light source.
+   */
+  float railY = bedY() + 0.010;
+  float rail = smoothstep(0.030, 0.0, abs(ps.y - railY));
+  float reflect2 = exp(-pow(ps.x * 1.9, 2.0)) * rail;
+  col += TORCH * reflect2 * (0.05 + heat * 0.42);
+  col += TORCH_HOT * reflect2 * heat * 0.12;
 
-  // Screw, then jaws on top so the shaft tucks behind them.
+  // A broader wash of heat across the casting under the billet.
+  float castGlow = exp(-abs(ps.y - bedY()) * 5.0) * smoothstep(1.0, 0.0, abs(ps.x));
+  col += TORCH * castGlow * heat * 0.07;
+
+  /*
+   * Cast shadow. Applied before any solid is drawn, so it darkens the
+   * background and the casting but never the thing throwing it.
+   */
+  float shadow = castShadow(ps);
+  col *= mix(1.0, 0.34, shadow);
+
+  // Body casting first — the jaws and screw sit in front of it.
+  float dBase = sdBase(ps);
+  float baseMask = smoothstep(0.003, -0.003, dBase);
+  col = mix(col, shadeSteel(ps, dBase, heat * 0.35, 0.0), baseMask);
+
+  // Ambient occlusion where the jaw feet meet the rail.
+  float contact = smoothstep(0.075, 0.0, abs(ps.y - (bedY() + 0.040)))
+                * smoothstep(0.055, 0.0, min(abs(ps.x) - gap() * 0.5 - jawW() - 0.09, 0.0) * -1.0);
+  col *= mix(1.0, 0.78, contact * baseMask);
+
+  // Screw, then jaws, so the shaft tucks behind the moving jaw.
   float screwMask = smoothstep(0.003, -0.003, dScrew);
-  col = mix(col, shadeSteel(ps, dScrew, 0.0) * 1.18, screwMask);
+  col = mix(col, shadeScrew(ps, dScrew), screwMask);
 
   float jawMask = smoothstep(0.003, -0.003, dJaw);
-  col = mix(col, shadeSteel(ps, dJaw, heat), jawMask);
+  col = mix(col, shadeSteel(ps, dJaw, heat, 1.0), jawMask);
 
-  // Contact shadow: the jaws occlude the bloom they sit in front of.
+  // The jaws occlude the bloom they stand in front of.
   col *= mix(1.0, 0.86, jawMask * bloom);
 
   // Contact sparks when fully clamped.
@@ -351,12 +441,29 @@ void main() {
   outColor = vec4(max(col, 0.0), 1.0);
 }`;
 
-function compile(gl: WebGL2RenderingContext, type: number, source: string) {
-  const shader = gl.createShader(type)!;
+/**
+ * Compile a stage, returning null rather than throwing.
+ *
+ * A decorative canvas must never take the page down with it. Throwing here
+ * aborts the effect, which stops every sibling effect in the same commit from
+ * running — including the one that reveals the headline — so a driver quirk on
+ * one machine would render the hero blank instead of merely unlit.
+ */
+function compile(
+  gl: WebGL2RenderingContext,
+  type: number,
+  source: string,
+): WebGLShader | null {
+  const shader = gl.createShader(type);
+  if (!shader) return null;
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw new Error(gl.getShaderInfoLog(shader) ?? "shader compile failed");
+    if (process.env.NODE_ENV !== "production") {
+      console.error("vise shader:", gl.getShaderInfoLog(shader));
+    }
+    gl.deleteShader(shader);
+    return null;
   }
   return shader;
 }
@@ -385,9 +492,12 @@ export function ViseShader({
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const program = gl.createProgram()!;
-    gl.attachShader(program, compile(gl, gl.VERTEX_SHADER, VERTEX));
-    gl.attachShader(program, compile(gl, gl.FRAGMENT_SHADER, FRAGMENT));
+    const vertex = compile(gl, gl.VERTEX_SHADER, VERTEX);
+    const fragment = compile(gl, gl.FRAGMENT_SHADER, FRAGMENT);
+    const program = gl.createProgram();
+    if (!vertex || !fragment || !program) return;
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
     gl.linkProgram(program);
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
     gl.useProgram(program);

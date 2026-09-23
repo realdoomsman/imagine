@@ -12,6 +12,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, type PortfolioPosition } from "@/lib/api";
 import { buildAndSend } from "@/lib/send";
+import { ViseMark } from "./vise-mark";
+import { Shimmer } from "./skeleton";
 
 export function PortfolioView() {
   const { connection } = useConnection();
@@ -59,9 +61,16 @@ export function PortfolioView() {
 
   if (!wallet.publicKey) {
     return (
-      <p className="panel mt-10 px-6 py-10 text-center text-[14px] text-steel-500">
-        Connect a wallet to see your locks.
-      </p>
+      <div className="panel mt-10 flex flex-col items-center gap-5 px-8 py-20 text-center">
+        <span className="text-steel-700">
+          <ViseMark size={44} grip={0} />
+        </span>
+        <h2 className="t-sub">Connect a wallet to see your locks.</h2>
+        <p className="max-w-[46ch] text-[14.5px] leading-relaxed text-steel-500">
+          Nothing is stored here. Positions and unclaimed rewards are read
+          straight from the chain for whichever wallet you connect.
+        </p>
+      </div>
     );
   }
 
@@ -82,16 +91,27 @@ export function PortfolioView() {
       ) : null}
 
       {loading && positions.length === 0 ? (
-        <p className="panel mt-6 px-6 py-10 text-center text-[13px] text-steel-500">
-          Reading chain…
-        </p>
+        <div className="panel mt-6 space-y-3 px-6 py-8">
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="flex items-center gap-4">
+              <Shimmer className="size-10 shrink-0" />
+              <Shimmer className="h-3.5 w-40" />
+              <Shimmer className="ml-auto h-3.5 w-24" />
+            </div>
+          ))}
+          <p className="sr-only">Reading the chain…</p>
+        </div>
       ) : positions.length === 0 ? (
-        <div className="panel mt-6 flex flex-col items-start gap-4 p-10">
-          <h2 className="text-[18px]">Nothing clamped yet</h2>
-          <p className="text-[14px] text-steel-500">
-            Lock a coin and you start earning its trading fees.
+        <div className="panel mt-6 flex flex-col items-center gap-5 px-8 py-20 text-center">
+          <span className="text-steel-700">
+            <ViseMark size={44} grip={0} />
+          </span>
+          <h2 className="t-sub">Nothing clamped yet</h2>
+          <p className="max-w-[44ch] text-[14.5px] leading-relaxed text-steel-500">
+            Lock a coin and you start earning a share of every fee it generates,
+            for as long as the lock runs.
           </p>
-          <Link href="/coins" className="btn btn-primary">
+          <Link href="/coins" className="btn btn-primary mt-2">
             Browse coins
           </Link>
         </div>

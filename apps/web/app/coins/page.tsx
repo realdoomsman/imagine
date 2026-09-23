@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { api, type PoolSummary } from "@/lib/api";
 import { CoinCard } from "@/components/coin-card";
+import { ViseMark } from "@/components/vise-mark";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export default async function CoinsPage({
               className={`rounded-machined border px-3 py-1.5 text-[13px] transition-colors ${
                 sort === option.key
                   ? "border-torch bg-torch/10 text-torch"
-                  : "border-steel-700 text-steel-400 hover:border-steel-500 hover:text-steel-200"
+                  : "border-steel-700 text-steel-400 hover:border-steel-600/50 hover:text-steel-200"
               }`}
             >
               {option.label}
@@ -86,11 +87,17 @@ function EmptyState({
   action?: { href: string; label: string };
 }) {
   return (
-    <div className="panel mt-10 flex flex-col items-start gap-4 p-12">
-      <h2 className="text-[20px]">{title}</h2>
-      <p className="max-w-lg text-[14px] text-steel-500">{body}</p>
+    <div className="panel mt-12 flex flex-col items-center gap-5 px-8 py-20 text-center">
+      {/* An open vise: nothing is being held yet. */}
+      <span className="text-steel-700">
+        <ViseMark size={44} grip={0} />
+      </span>
+      <h2 className="t-sub max-w-[22ch]">{title}</h2>
+      <p className="max-w-[46ch] text-[14.5px] leading-relaxed text-steel-500">
+        {body}
+      </p>
       {action ? (
-        <Link href={action.href} className="btn btn-primary">
+        <Link href={action.href} className="btn btn-primary mt-2">
           {action.label}
         </Link>
       ) : null}

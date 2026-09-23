@@ -72,8 +72,7 @@ export function Hero() {
                 >
                   {index === 1 ? (
                     <>
-                      <span className="text-torch">pressure</span>
-                      <span className="text-steel-600">.</span>
+                      <span className="text-torch">pressure.</span>
                     </>
                   ) : (
                     line
@@ -157,7 +156,7 @@ export function Hero() {
                     className={`num h-7 flex-1 rounded-[2px] border text-[11px] transition-colors duration-200 ${
                       days === preset.days
                         ? "border-torch/60 bg-torch/12 text-torch-pale"
-                        : "border-steel-700 text-steel-500 hover:border-steel-600 hover:text-steel-300"
+                        : "border-steel-700 text-steel-500 hover:border-steel-600/50 hover:text-steel-300"
                     }`}
                   >
                     {preset.label}

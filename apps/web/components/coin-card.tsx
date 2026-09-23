@@ -10,7 +10,7 @@ export function CoinCard({ pool }: { pool: PoolSummary }) {
   return (
     <Link
       href={`/coins/${pool.mint}`}
-      className="surface group relative block overflow-hidden p-5 transition-[border-color,transform] duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-steel-600"
+      className="surface group relative block overflow-hidden p-5 transition-[border-color,transform] duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 hover:border-steel-600/50"
     >
       {/* Heat rises from the clamp bar on hover — the card's only flourish. */}
       <span

@@ -136,7 +136,7 @@ export function SwapPanel({
               key={preset}
               type="button"
               onClick={() => setInput(String(preset))}
-              className="num flex-1 rounded-machined border border-steel-700 py-1 text-[12px] text-steel-400 hover:border-steel-500 hover:text-steel-200"
+              className="num flex-1 rounded-machined border border-steel-700 py-1 text-[12px] text-steel-400 hover:border-steel-600/50 hover:text-steel-200"
             >
               {preset}
             </button>
