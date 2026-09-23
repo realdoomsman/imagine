@@ -120,7 +120,7 @@ export function SwapPanel({
         onChange={(event) => setInput(event.target.value.replace(/[^\d.]/g, ""))}
         placeholder="0"
         aria-label={side === "buy" ? "SOL to spend" : `${symbol} to sell`}
-        className="num mt-4 w-full rounded-machined border border-steel-700 bg-steel-950 px-3 py-2.5 text-[18px] text-steel-50 outline-none focus:border-torch"
+        className="input num mt-4 text-[18px]"
       />
       <p className="mt-1.5 text-[12px] text-steel-600">
         {side === "buy" ? "SOL" : symbol}
@@ -144,7 +144,7 @@ export function SwapPanel({
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-center justify-between border-t border-steel-800 pt-3 text-[12px]">
+      <div className="mt-4 flex items-center justify-between border-t border-steel-860 pt-3 text-[12px]">
         <span className="text-steel-500">VISE fee (2%)</span>
         <span className="num text-torch">
           {amount > 0n ? `${formatSol(estimatedFee)} SOL` : "—"}

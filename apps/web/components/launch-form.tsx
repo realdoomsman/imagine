@@ -123,6 +123,14 @@ export function LaunchForm() {
     );
   }
 
+  // Custom properties are legal in a style object but absent from CSSProperties.
+  const shareFill: React.CSSProperties & Record<"--fill", string> = {
+    "--fill": `${(creatorShare / 30) * 100}%`,
+  };
+  const lockFill: React.CSSProperties & Record<"--fill", string> = {
+    "--fill": `${((lockPercent - 10) / 90) * 100}%`,
+  };
+
   return (
     <div className="mt-10 space-y-5">
       <section className="panel p-6">
@@ -165,7 +173,7 @@ export function LaunchForm() {
               inputMode="decimal"
               value={devBuy}
               onChange={(event) => setDevBuy(event.target.value.replace(/[^\d.]/g, ""))}
-              className="num mt-2 w-full rounded-machined border border-steel-700 bg-steel-950 px-3 py-2.5 text-[16px] text-steel-50 outline-none focus:border-torch"
+              className="input num mt-2 text-[16px]"
             />
           </div>
           <div>
@@ -179,7 +187,8 @@ export function LaunchForm() {
               max={30}
               value={creatorShare}
               onChange={(event) => setCreatorShare(Number(event.target.value))}
-              className="mt-4 w-full accent-[var(--color-torch)]"
+              className="vise-range mt-4 w-full"
+              style={shareFill}
             />
             <p className="mt-1 text-[12px] text-steel-600">
               Capped at 30%. Lockers receive{" "}
@@ -199,7 +208,8 @@ export function LaunchForm() {
             max={100}
             value={lockPercent}
             onChange={(event) => setLockPercent(Number(event.target.value))}
-            className="mt-3 w-full accent-[var(--color-torch)]"
+            className="vise-range mt-3 w-full"
+            style={lockFill}
           />
           <p className="mt-1.5 text-[12px] text-steel-600">
             A pool cannot open without the creator locking. This is the part that
@@ -274,7 +284,7 @@ function Field({
         maxLength={maxLength}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 w-full rounded-machined border border-steel-700 bg-steel-950 px-3 py-2.5 text-[15px] text-steel-50 outline-none placeholder:text-steel-600 focus:border-torch"
+        className="input mt-2 text-[15px]"
       />
     </div>
   );

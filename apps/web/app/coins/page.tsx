@@ -28,11 +28,11 @@ export default async function CoinsPage({
   }
 
   return (
-    <div className="mx-auto max-w-[1400px] px-5 py-10">
+    <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 lg:py-20">
       <header className="flex flex-wrap items-end justify-between gap-5">
         <div>
           <p className="rule-label">Coins</p>
-          <h1 className="mt-3 text-[clamp(2rem,4vw,2.75rem)] leading-none">
+          <h1 className="t-section mt-5">
             Every coin with a vise on it
           </h1>
         </div>

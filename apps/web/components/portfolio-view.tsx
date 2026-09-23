@@ -124,7 +124,7 @@ export function PortfolioView() {
                       className="size-10 rounded-machined border border-steel-700 object-cover"
                     />
                   ) : (
-                    <div className="size-10 rounded-machined border border-steel-700 bg-steel-800" />
+                    <div className="size-10 rounded-machined border border-steel-700 bg-steel-860" />
                   )}
 
                   <div className="min-w-0 flex-1">

@@ -4,7 +4,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { WalletProvider } from "@/components/wallet-provider";
-import { SmoothScroll } from "@/components/smooth-scroll";
+import { SmoothScroll, Grain } from "@/components/motion";
 
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#08090b",
+  themeColor: "#06070a",
   width: "device-width",
   initialScale: 1,
 };
@@ -58,8 +58,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <WalletProvider>
           <SmoothScroll />
+          <Grain />
           <SiteHeader />
-          <main className="min-h-screen">{children}</main>
+          {/*
+            The header floats over the page, so every route needs to clear it.
+            The hero cancels this with a negative margin to run full-bleed.
+          */}
+          <main className="min-h-screen pt-[84px]">{children}</main>
           <SiteFooter />
         </WalletProvider>
       </body>

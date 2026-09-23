@@ -154,7 +154,7 @@ export function LockPanel({
           value={amountInput}
           onChange={(event) => setAmountInput(event.target.value.replace(/[^\d.]/g, ""))}
           placeholder="0"
-          className="num mt-2 w-full rounded-machined border border-steel-700 bg-steel-950 px-3 py-2.5 text-[18px] text-steel-50 outline-none focus:border-torch"
+          className="input num mt-2 text-[18px]"
         />
       </div>
 

@@ -6,6 +6,10 @@
 set -eu
 PATH="/opt/node/bin:/usr/bin:/bin"
 export PATH
+# inotify does not fire for files on /mnt/c (9p), so the watcher must poll or
+# every edit needs a server restart to be seen.
+export WATCHPACK_POLLING=true
+export CHOKIDAR_USEPOLLING=true
 cd /mnt/c/tech/Hold/apps/web
 # pnpm links the binary into the app's own node_modules, not the workspace root.
 exec node node_modules/next/dist/bin/next dev -p "${PORT:-3000}"

@@ -31,9 +31,9 @@ export default async function LeaderboardPage({
   const active = BOARDS.find((b) => b.key === board)!;
 
   return (
-    <div className="mx-auto max-w-[1100px] px-5 py-10">
+    <div className="mx-auto max-w-[1100px] px-5 py-16 sm:px-8 lg:py-20">
       <p className="rule-label">Leaderboard</p>
-      <h1 className="mt-3 text-[clamp(2rem,4vw,2.75rem)] leading-none">
+      <h1 className="t-section mt-5">
         Ranked on money, not on promises
       </h1>
       <p className="mt-4 max-w-xl text-[15px] text-steel-400">
@@ -66,7 +66,7 @@ export default async function LeaderboardPage({
           Nothing to rank yet.
         </p>
       ) : (
-        <ol className="panel mt-6 divide-y divide-steel-800">
+        <ol className="panel mt-6 divide-y divide-steel-860">
           {rows.map((row, index) => (
             <li
               key={String(row.owner ?? row.mint ?? index)}

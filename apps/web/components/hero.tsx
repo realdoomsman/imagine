@@ -1,10 +1,9 @@
 "use client";
 
-import { LOCK_PRESETS, formatMultiplier } from "@vise/sdk";
 import Link from "next/link";
-import { useState } from "react";
-import { ViseCanvas } from "./vise-canvas";
-import { LockDial } from "./lock-dial";
+import { useEffect, useState } from "react";
+import { ViseShader } from "./vise-shader";
+import { Magnetic, Ticker } from "./motion";
 
 const MIN_DAYS = 7;
 const MAX_DAYS = 365;
@@ -16,98 +15,174 @@ function multiplierForDays(days: number): number {
   return 10_000 + (MAX_MULTIPLIER_BPS - 10_000) * travelled;
 }
 
+const PRESETS = [
+  { days: 7, label: "1W" },
+  { days: 30, label: "1M" },
+  { days: 90, label: "3M" },
+  { days: 180, label: "6M" },
+  { days: 365, label: "1Y" },
+];
+
 export function Hero() {
   const [days, setDays] = useState(90);
+  const [entered, setEntered] = useState(false);
   const grip = (days - MIN_DAYS) / (MAX_DAYS - MIN_DAYS);
-  const multiplier = multiplierForDays(days);
+  const multiplier = multiplierForDays(days) / 10_000;
+
+  // Custom properties are legal in a style object but absent from CSSProperties.
+  const fillStyle: React.CSSProperties & Record<"--fill", string> = {
+    "--fill": `${grip * 100}%`,
+  };
+
+  // Only after mount: Date.now() on the server would not match the client.
+  const unlockDate = entered
+    ? new Date(Date.now() + days * 86_400_000).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "2-digit",
+      })
+    : "—";
+
+  // Stagger the opening so the mechanism is already lit before the type lands.
+  useEffect(() => {
+    const id = window.setTimeout(() => setEntered(true), 90);
+    return () => window.clearTimeout(id);
+  }, []);
 
   return (
-    <section className="relative overflow-hidden border-b border-steel-700">
-      <div className="knurl pointer-events-none absolute inset-0 opacity-40" />
-      <div className="relative mx-auto grid max-w-[1400px] gap-12 px-5 py-20 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center lg:py-28">
-        <div>
-          <p className="rule-label">Lock-to-earn for pump.fun</p>
-          <h1 className="mt-5 text-[clamp(2.75rem,6vw,4.75rem)] leading-[0.95]">
-            Hold under
-            <br />
-            pressure.
-          </h1>
-          <p className="mt-6 max-w-md text-[17px] leading-relaxed text-steel-300">
-            Every trade on a VISE coin pays a fee. That fee goes to the people
-            holding it — not to a dev wallet. Clamp your bags for longer and your
-            share of it gets bigger.
+    <section
+      data-entered={entered}
+      className="group relative isolate -mt-[84px] min-h-[100svh] overflow-hidden"
+    >
+      <div className="relative mx-auto flex min-h-[100svh] max-w-[1440px] flex-col justify-between gap-8 px-5 pb-8 pt-28 sm:px-8 sm:pb-10 lg:gap-10 lg:pt-40">
+        <div className="max-w-[860px]">
+          <p
+            className="rule-label mb-5 translate-y-3 opacity-0 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-data-[entered=true]:translate-y-0 group-data-[entered=true]:opacity-100"
+            style={{ transitionDelay: "60ms" }}
+          >
+            Proof of belief · built on pump.fun
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/launch" className="btn btn-primary">
-              Launch a coin
-            </Link>
-            <Link href="/coins" className="btn btn-ghost">
-              Browse coins
-            </Link>
-          </div>
+          <h1 className="t-hero">
+            {["Hold under", "pressure."].map((line, index) => (
+              <span key={line} className="block overflow-hidden">
+                <span
+                  className="block translate-y-full transition-transform duration-[900ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-data-[entered=true]:translate-y-0"
+                  style={{ transitionDelay: `${120 + index * 90}ms` }}
+                >
+                  {index === 1 ? (
+                    <>
+                      <span className="text-torch">pressure</span>
+                      <span className="text-steel-600">.</span>
+                    </>
+                  ) : (
+                    line
+                  )}
+                </span>
+              </span>
+            ))}
+          </h1>
 
-          <dl className="mt-12 grid max-w-md grid-cols-3 gap-px overflow-hidden border border-steel-700 bg-steel-700">
-            <Stat label="App fee" value="2%" note="of every routed trade" />
-            <Stat label="To lockers" value="72%" note="of that fee" />
-            <Stat label="Max weight" value="4.0×" note="at a 365-day lock" />
-          </dl>
+          <p
+            className="t-lede mt-6 translate-y-3 opacity-0 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-data-[entered=true]:translate-y-0 group-data-[entered=true]:opacity-100 sm:mt-8"
+            style={{ transitionDelay: "380ms" }}
+          >
+            Every trade on a VISE coin pays a fee. That fee goes to the holders who
+            locked — and the longer the lock, the bigger the cut. Selling is still
+            free. It just costs you the stream.
+          </p>
+
+          <div
+            className="mt-8 flex flex-wrap items-center gap-3 opacity-0 transition-opacity duration-700 group-data-[entered=true]:opacity-100 sm:mt-10"
+            style={{ transitionDelay: "480ms" }}
+          >
+            <Magnetic>
+              <Link href="/launch" className="btn btn-primary h-[52px] px-7">
+                Launch a coin
+              </Link>
+            </Magnetic>
+            <Magnetic strength={0.2}>
+              <Link href="/coins" className="btn btn-ghost h-[52px] px-7">
+                Browse live coins
+              </Link>
+            </Magnetic>
+          </div>
         </div>
 
-        <div className="relative">
-          <div className="panel knurl relative overflow-hidden">
-            <ViseCanvas grip={grip} className="block h-[340px] w-full" />
+        {/*
+         * The mechanism.
+         *
+         * On a wide screen it is full-bleed behind everything, escaping this
+         * padded container with a viewport-width absolute. On a phone there is
+         * no room to put type over it, so it takes its own band in the flow
+         * between the call to action and the control.
+         */}
+        <div className="relative -mx-5 h-[34svh] min-h-[180px] sm:-mx-8 lg:absolute lg:left-1/2 lg:top-0 lg:-z-10 lg:mx-0 lg:h-full lg:w-screen lg:min-h-0 lg:-translate-x-1/2">
+          <ViseShader grip={grip} className="h-full w-full" />
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-steel-990 to-transparent lg:h-40" />
+        </div>
 
-            <div className="pointer-events-none absolute left-5 top-5">
-              <p className="rule-label">Weight multiplier</p>
-              <p className="num mt-1 text-[42px] leading-none text-torch">
-                {formatMultiplier(multiplier)}
-              </p>
+        {/* The control sits at the bottom of the fold: grab it, the scene reacts. */}
+        <div
+          className="opacity-0 transition-opacity duration-700 group-data-[entered=true]:opacity-100"
+          style={{ transitionDelay: "620ms" }}
+        >
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="w-full max-w-xl">
+              <div className="mb-3 flex items-baseline justify-between">
+                <span className="rule-label">Lock duration</span>
+                <span className="num text-[13px] text-steel-400">
+                  {days} {days === 1 ? "day" : "days"}
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min={MIN_DAYS}
+                max={MAX_DAYS}
+                value={days}
+                onChange={(event) => setDays(Number(event.target.value))}
+                aria-label="Lock duration in days"
+                className="vise-range w-full"
+                style={fillStyle}
+              />
+
+              <div className="mt-3 flex gap-1.5">
+                {PRESETS.map((preset) => (
+                  <button
+                    key={preset.days}
+                    type="button"
+                    onClick={() => setDays(preset.days)}
+                    aria-pressed={days === preset.days}
+                    className={`num h-7 flex-1 rounded-[2px] border text-[11px] transition-colors duration-200 ${
+                      days === preset.days
+                        ? "border-torch/60 bg-torch/12 text-torch-pale"
+                        : "border-steel-700 text-steel-500 hover:border-steel-600 hover:text-steel-300"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="pointer-events-none absolute right-5 top-5 text-right">
-              <p className="rule-label">Lock term</p>
-              <p className="num mt-1 text-[42px] leading-none text-steel-50">
-                {days}
-                <span className="text-[18px] text-steel-500">d</span>
-              </p>
+            <div className="flex items-end gap-10">
+              <div>
+                <span className="rule-label">Your weight</span>
+                <div className="num mt-1 text-[clamp(2.75rem,6vw,4.5rem)] leading-[0.85] text-steel-50">
+                  <Ticker value={multiplier} decimals={2} suffix="×" duration={450} />
+                </div>
+              </div>
+              <div className="hidden pb-2 sm:block">
+                <span className="rule-label">Unlocks</span>
+                <div className="num mt-1 text-[20px] leading-none text-steel-200">
+                  {unlockDate}
+                </div>
+              </div>
             </div>
-          </div>
-
-          <div className="panel mt-3 p-5">
-            <LockDial
-              days={days}
-              onChange={setDays}
-              min={MIN_DAYS}
-              max={MAX_DAYS}
-              presets={LOCK_PRESETS.map((p) => p.days)}
-            />
-            <p className="mt-4 text-[13px] text-steel-500">
-              Turn the handle. A 7-day lock counts as 1.0× its size. A 365-day
-              lock counts as 4.0×. Same coins, four times the claim on the same
-              fee stream.
-            </p>
           </div>
         </div>
       </div>
     </section>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  note,
-}: {
-  label: string;
-  value: string;
-  note: string;
-}) {
-  return (
-    <div className="bg-steel-900 px-4 py-3.5">
-      <dt className="rule-label">{label}</dt>
-      <dd className="num mt-1 text-[22px] text-steel-50">{value}</dd>
-      <dd className="mt-0.5 text-[11px] text-steel-600">{note}</dd>
-    </div>
   );
 }

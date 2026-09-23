@@ -3,19 +3,23 @@ import { ViseMark } from "./vise-mark";
 
 export function SiteFooter() {
   return (
-    <footer className="mt-32 border-t border-steel-700">
-      <div className="mx-auto grid max-w-[1400px] gap-10 px-5 py-12 md:grid-cols-[2fr_1fr_1fr_1fr]">
+    <footer className="relative overflow-hidden border-t border-steel-780">
+      <div className="grid-lines pointer-events-none absolute inset-0 opacity-40" />
+      <div className="relative mx-auto grid max-w-[1440px] gap-12 px-5 py-16 sm:px-8 md:grid-cols-[2fr_1fr_1fr_1fr]">
         <div>
           <div className="flex items-center gap-2.5 text-steel-50">
             <span className="text-torch">
               <ViseMark size={20} grip={0.6} />
             </span>
-            <span className="font-display text-[15px] font-bold">VISE</span>
+            <span className="font-display text-[16px] font-bold tracking-[-0.04em]">
+              VISE
+            </span>
           </div>
-          <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-steel-500">
+          <p className="mt-4 max-w-[34ch] text-[13.5px] leading-relaxed text-steel-500">
             Lock pump.fun coins. Earn the fees they generate. Longer locks take a
             larger share.
           </p>
+          <p className="rule-label mt-6">Hold under pressure</p>
         </div>
 
         <FooterColumn
@@ -48,8 +52,19 @@ export function SiteFooter() {
         />
       </div>
 
-      <div className="border-t border-steel-800">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-2 px-5 py-5 text-[11px] text-steel-600 sm:flex-row sm:items-center sm:justify-between">
+      {/*
+        A wordmark at the very bottom, cropped by the viewport. Gives the page
+        an ending instead of trailing off into legal text.
+      */}
+      <div className="relative select-none overflow-hidden" aria-hidden="true">
+        <div className="font-display text-[clamp(5rem,21vw,17rem)] font-bold leading-[0.78] tracking-[-0.06em] text-steel-900">
+          VISE
+        </div>
+        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-steel-990 to-transparent" />
+      </div>
+
+      <div className="relative border-t border-steel-860">
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-5 py-5 text-[11px] text-steel-600 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <span className="num">
             Program VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb
           </span>

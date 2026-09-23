@@ -39,7 +39,7 @@ export default async function CoinPage({
   const decimals = 6;
 
   return (
-    <div className="mx-auto max-w-[1400px] px-5 py-8">
+    <div className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8">
       <header className="flex flex-wrap items-start gap-5">
         {metadata?.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- arbitrary IPFS hosts
@@ -49,7 +49,7 @@ export default async function CoinPage({
             className="size-16 rounded-machined border border-steel-700 object-cover"
           />
         ) : (
-          <div className="size-16 rounded-machined border border-steel-700 bg-steel-800" />
+          <div className="size-16 rounded-machined border border-steel-700 bg-steel-860" />
         )}
 
         <div className="min-w-0 flex-1">

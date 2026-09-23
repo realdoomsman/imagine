@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { Hero } from "@/components/hero";
 import { ViseMark } from "@/components/vise-mark";
+import { Reveal, Magnetic } from "@/components/motion";
+import { StatMarquee } from "@/components/stat-marquee";
+import { FlowDiagram } from "@/components/flow-diagram";
 
 export default function HomePage() {
   return (
     <>
       <Hero />
+      <StatMarquee />
       <HowItWorks />
-      <Mechanics />
+      <Split />
       <Guarantees />
       <Cta />
     </>
@@ -18,141 +22,126 @@ const STEPS = [
   {
     n: "01",
     title: "A coin launches on pump.fun",
-    body: "Through VISE, so the coin's creator-fee stream is pointed at its lock pool from the first block. Nothing custom, nothing new to trust: it is an ordinary pump.fun coin on an ordinary bonding curve.",
+    body: "Through VISE, so the creator-fee stream points at its lock pool from the first block. Nothing custom, nothing new to trust — an ordinary coin on an ordinary bonding curve.",
   },
   {
     n: "02",
     title: "Holders clamp their bags",
-    body: "Pick an amount and a term from 7 to 365 days. Your weight is the amount multiplied by your term — 1.0× at a week, 4.0× at a year. The tokens sit in a vault you alone can open.",
+    body: "Pick an amount and a term from 7 to 365 days. Weight is amount × term: 1.0× at a week, 4.0× at a year. The tokens sit in a vault only you can open.",
   },
   {
     n: "03",
     title: "Every trade feeds the vault",
-    body: "A 2% app fee on trades routed through VISE, plus the coin's pump.fun creator fees, land in that coin's vault as SOL. No emissions, no printed tokens, no new supply.",
+    body: "A 2% app fee on trades routed through VISE, plus the coin's pump.fun creator fees, land in that vault as SOL. No emissions, no printed tokens, no new supply.",
   },
   {
     n: "04",
     title: "Claim whenever you like",
-    body: "Rewards accrue continuously by weight. Claiming does not touch your lock and your lock never blocks a claim. When the term ends, take your coins back.",
+    body: "Rewards accrue continuously by weight. Claiming never touches your lock, and a lock never blocks a claim. When the term ends, take your coins back.",
   },
 ];
 
 function HowItWorks() {
   return (
-    <section className="mx-auto max-w-[1400px] px-5 py-24">
-      <header className="max-w-2xl">
-        <p className="rule-label">How it works</p>
-        <h2 className="mt-4 text-[clamp(2rem,4vw,3rem)] leading-[1.05]">
-          Conviction, priced.
-        </h2>
-        <p className="mt-4 text-[16px] text-steel-400">
-          Selling is free everywhere else. Here, not selling pays — and the
-          longer you commit, the larger your cut of the same stream.
-        </p>
-      </header>
-
-      <ol className="mt-14 grid gap-px border border-steel-700 bg-steel-700 md:grid-cols-2 xl:grid-cols-4">
-        {STEPS.map((step) => (
-          <li key={step.n} className="bg-steel-900 p-7">
-            <span className="num text-[12px] text-torch">{step.n}</span>
-            <h3 className="mt-4 text-[17px] leading-snug">{step.title}</h3>
-            <p className="mt-2.5 text-[14px] leading-relaxed text-steel-500">
-              {step.body}
+    <section className="relative mx-auto max-w-[1440px] px-5 py-32 sm:px-8 lg:py-44">
+      <div className="grid gap-16 lg:grid-cols-[minmax(0,4fr)_minmax(0,6fr)] lg:gap-24">
+        {/* Left rail stays put while the steps scroll past it. */}
+        <div className="lg:sticky lg:top-32 lg:self-start">
+          <Reveal>
+            <span className="rule-label">How it works</span>
+            <h2 className="t-section mt-5">
+              Four moves.
+              <br />
+              <span className="text-steel-600">No new tokens.</span>
+            </h2>
+            <p className="t-lede mt-7">
+              VISE does not mint anything, does not promise a yield, and does not
+              hold your coins. It routes fees that already exist to the people who
+              stayed.
             </p>
-          </li>
-        ))}
-      </ol>
+            <Link
+              href="/how-it-works"
+              className="group mt-8 inline-flex items-center gap-2 text-[14px] font-medium text-torch"
+            >
+              Read the mechanics
+              <span className="transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-1">
+                →
+              </span>
+            </Link>
+          </Reveal>
+        </div>
+
+        <ol className="space-y-px">
+          {STEPS.map((step, index) => (
+            <li
+              key={step.n}
+              className="group/step relative border-t border-steel-780 first:border-t-0"
+            >
+              <Reveal delay={index * 80}>
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-6 py-9 sm:gap-10">
+                  <span className="num pt-1 text-[13px] text-steel-600 transition-colors duration-500 group-hover/step:text-torch">
+                    {step.n}
+                  </span>
+                  <div>
+                    <h3 className="t-sub text-steel-50">{step.title}</h3>
+                    <p className="mt-3 max-w-[54ch] text-[15.5px] leading-[1.65] text-steel-400">
+                      {step.body}
+                    </p>
+                  </div>
+                </div>
+              </Reveal>
+              {/* A filament that lights along the divider on hover. */}
+              <span
+                className="pointer-events-none absolute inset-x-0 -top-px h-px origin-left scale-x-0 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/step:scale-x-100"
+                style={{
+                  background:
+                    "linear-gradient(90deg, var(--color-torch), transparent)",
+                }}
+              />
+            </li>
+          ))}
+        </ol>
+      </div>
     </section>
   );
 }
 
-const SPLIT = [
-  { label: "Lockers", value: 72, tone: "bg-torch" },
-  { label: "Treasury", value: 20, tone: "bg-steel-500" },
-  { label: "Creator", value: 8, tone: "bg-steel-600" },
-];
-
-function Mechanics() {
+function Split() {
   return (
-    <section className="border-y border-steel-700 bg-steel-900/40">
-      <div className="mx-auto grid max-w-[1400px] gap-14 px-5 py-24 lg:grid-cols-2">
-        <div>
-          <p className="rule-label">The split</p>
-          <h2 className="mt-4 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1]">
-            Where a fee actually goes
-          </h2>
-          <p className="mt-4 max-w-lg text-[15px] text-steel-400">
-            Take a 2% fee on a 10 SOL buy: 0.2 SOL enters the coin's vault. The
-            platform's cut comes off the top, the creator's cut comes out of
-            what is left, and every remaining lamport is split across locked
-            weight.
-          </p>
+    <section className="relative overflow-hidden border-y border-steel-780">
+      <div className="grid-lines pointer-events-none absolute inset-0 opacity-60" />
+      <div
+        className="pointer-events-none absolute left-1/2 top-0 h-px w-[60%] -translate-x-1/2"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, rgba(255,90,31,0.5), transparent)",
+        }}
+      />
 
-          <div className="mt-8 flex h-10 overflow-hidden border border-steel-700">
-            {SPLIT.map((part) => (
-              <div
-                key={part.label}
-                className={`${part.tone} flex items-center justify-center`}
-                style={{ width: `${part.value}%` }}
-                title={`${part.label} ${part.value}%`}
-              >
-                <span className="num text-[11px] text-steel-950">
-                  {part.value}%
-                </span>
-              </div>
-            ))}
+      <div className="relative mx-auto max-w-[1440px] px-5 py-32 sm:px-8 lg:py-44">
+        <Reveal>
+          <div className="max-w-3xl">
+            <span className="rule-label">Where the fee goes</span>
+            <h2 className="t-section mt-5">
+              Every trade splits
+              <br />
+              <span className="text-torch">three ways.</span>
+            </h2>
           </div>
-          <dl className="mt-3 flex gap-6">
-            {SPLIT.map((part) => (
-              <div key={part.label} className="flex items-center gap-2">
-                <span className={`size-2 ${part.tone}`} />
-                <dt className="text-[13px] text-steel-400">{part.label}</dt>
-              </div>
-            ))}
-          </dl>
+        </Reveal>
 
-          <p className="mt-6 text-[13px] leading-relaxed text-steel-600">
-            A pool's split is stamped in when the coin launches and can never be
-            edited — not by the creator, not by us. The creator picks their own
-            share up front, capped at 30%, and lives with it.
+        <Reveal delay={120}>
+          <FlowDiagram />
+        </Reveal>
+
+        <Reveal delay={200}>
+          <p className="mt-14 max-w-[62ch] text-[15.5px] leading-[1.7] text-steel-400">
+            Splits are fixed when the pool is created and can never be changed —
+            not by us, not by the coin's creator. The locker share is paid out by
+            weight, streamed over 24 hours so nobody can front-run a distribution
+            by locking one block before it lands.
           </p>
-        </div>
-
-        <div>
-          <p className="rule-label">The curve</p>
-          <h2 className="mt-4 text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.1]">
-            Weight is amount × time
-          </h2>
-          <p className="mt-4 max-w-lg text-[15px] text-steel-400">
-            Two wallets lock the same 10,000 coins. One commits a week, one
-            commits a year. They do not earn the same.
-          </p>
-
-          <div className="panel mt-8 divide-y divide-steel-800">
-            {[
-              { days: 7, mult: "1.00×", share: 20 },
-              { days: 30, mult: "1.19×", share: 24 },
-              { days: 90, mult: "1.70×", share: 34 },
-              { days: 180, mult: "2.45×", share: 49 },
-              { days: 365, mult: "4.00×", share: 100 },
-            ].map((row) => (
-              <div key={row.days} className="flex items-center gap-4 px-5 py-3">
-                <span className="num w-14 text-[13px] text-steel-400">
-                  {row.days}d
-                </span>
-                <span className="num w-16 text-[15px] text-steel-50">
-                  {row.mult}
-                </span>
-                <div className="h-2.5 flex-1 border border-steel-700 bg-steel-950">
-                  <div
-                    className="knurl h-full bg-torch"
-                    style={{ width: `${row.share}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -160,79 +149,117 @@ function Mechanics() {
 
 const GUARANTEES = [
   {
-    title: "No admin withdrawal path",
-    body: "There is no instruction in the program that moves a pool's SOL or tokens to an admin. Not a disabled one, not a timelocked one. It does not exist.",
-  },
-  {
-    title: "Terms are frozen at launch",
-    body: "Multiplier curve, fee split, penalty, lock bounds — copied onto the pool at creation. Changing platform defaults later only affects coins launched later.",
+    title: "No admin key over your coins",
+    body: "There is no instruction in the program that moves a locked balance anywhere except back to its owner. Not a disabled one — it does not exist in the bytecode.",
   },
   {
     title: "Claims can never be paused",
-    body: "The pause switch blocks new pools. It cannot touch claiming, unlocking, or an existing pool's accounting.",
+    body: "Claiming and unlocking have no authority check and no pause flag. If our servers vanish tomorrow, the program keeps paying and anyone can call it.",
   },
   {
-    title: "The creator locks first",
-    body: "A pool cannot exist without the creator's own locked position, created in the same instruction. They are exposed before anyone else is.",
+    title: "Terms are frozen at creation",
+    body: "Multiplier curve, fee splits, penalty, stream length: written once when the pool is made, then immutable. Changing them would require a new pool.",
   },
   {
-    title: "Hostile mints are rejected",
-    body: "Any mint with a freeze authority, transfer fee, transfer hook, or permanent delegate is refused at pool creation — those let a third party strand your principal.",
-  },
-  {
-    title: "Solvency is an invariant",
-    body: "Rounding is always in the pool's favour, proven by a randomised test that hammers a pool with locks, claims, deposits and exits and asserts it can always pay everyone.",
+    title: "Rewards stream, never dump",
+    body: "Incoming SOL is released linearly over 24 hours. Locking a second before a big trade earns a second of rewards, not a slice of the whole thing.",
   },
 ];
 
 function Guarantees() {
   return (
-    <section className="mx-auto max-w-[1400px] px-5 py-24">
-      <header className="max-w-2xl">
-        <p className="rule-label">What we cannot do to you</p>
-        <h2 className="mt-4 text-[clamp(2rem,4vw,3rem)] leading-[1.05]">
-          The parts that matter are not promises.
-        </h2>
-        <p className="mt-4 text-[16px] text-steel-400">
-          They are properties of the program. Read it, or read the tests that
-          hold it to them.
-        </p>
-      </header>
+    <section className="mx-auto max-w-[1440px] px-5 py-32 sm:px-8 lg:py-44">
+      <Reveal>
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <span className="rule-label">What is guaranteed</span>
+            <h2 className="t-section mt-5 max-w-[16ch]">
+              Written into the program, not the pitch.
+            </h2>
+          </div>
+          <Link
+            href="/docs/security"
+            className="group inline-flex shrink-0 items-center gap-2 text-[14px] font-medium text-steel-300 transition-colors hover:text-steel-50"
+          >
+            Security model
+            <span className="transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:translate-x-1">
+              →
+            </span>
+          </Link>
+        </div>
+      </Reveal>
 
-      <div className="mt-14 grid gap-px border border-steel-700 bg-steel-700 md:grid-cols-2 lg:grid-cols-3">
-        {GUARANTEES.map((item) => (
-          <article key={item.title} className="bg-steel-900 p-7">
-            <h3 className="text-[16px] leading-snug">{item.title}</h3>
-            <p className="mt-2.5 text-[14px] leading-relaxed text-steel-500">
-              {item.body}
-            </p>
-          </article>
+      <div className="mt-16 grid gap-px sm:grid-cols-2 lg:grid-cols-4">
+        {GUARANTEES.map((item, index) => (
+          <Reveal key={item.title} delay={index * 70}>
+            <article className="surface group/card relative h-full overflow-hidden p-7 transition-colors duration-500 hover:border-steel-600">
+              <span
+                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover/card:opacity-100"
+                style={{
+                  background:
+                    "radial-gradient(90% 60% at 50% 0%, rgba(255,90,31,0.10), transparent 70%)",
+                }}
+              />
+              <span className="num relative text-[11px] text-torch">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <h3 className="relative mt-5 text-[17px] font-semibold leading-[1.25] tracking-[-0.02em] text-steel-50">
+                {item.title}
+              </h3>
+              <p className="relative mt-3 text-[14px] leading-[1.6] text-steel-400">
+                {item.body}
+              </p>
+            </article>
+          </Reveal>
         ))}
       </div>
+
+      <Reveal delay={260}>
+        <p className="mt-10 max-w-[70ch] text-[13px] leading-relaxed text-steel-600">
+          VISE has been reviewed internally and every finding is published, fixed
+          and regression-tested. It has not yet been through an external audit.
+          Treat it accordingly until one is published here.
+        </p>
+      </Reveal>
     </section>
   );
 }
 
 function Cta() {
   return (
-    <section className="mx-auto max-w-[1400px] px-5 pb-8">
-      <div className="panel knurl flex flex-col items-start gap-6 p-10 md:flex-row md:items-center md:justify-between md:p-14">
-        <div>
-          <span className="text-torch">
-            <ViseMark size={30} grip={0.85} />
+    <section className="relative overflow-hidden border-t border-steel-780">
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(70% 90% at 50% 120%, rgba(255,90,31,0.20), transparent 68%)",
+        }}
+      />
+      <div className="relative mx-auto flex max-w-[1440px] flex-col items-center px-5 py-32 text-center sm:px-8 lg:py-48">
+        <Reveal>
+          <span className="inline-flex text-torch">
+            <ViseMark size={46} grip={0.85} />
           </span>
-          <h2 className="mt-5 max-w-lg text-[clamp(1.75rem,3vw,2.5rem)] leading-[1.05]">
-            Stop rewarding the people who leave.
+          <h2 className="t-section mt-10 max-w-[14ch]">
+            Stop asking people to hold. Pay them for it.
           </h2>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Link href="/launch" className="btn btn-primary">
-            Launch a coin
-          </Link>
-          <Link href="/how-it-works" className="btn btn-ghost">
-            Read the mechanics
-          </Link>
-        </div>
+          <p className="t-lede mx-auto mt-7 text-center">
+            Launch in under a minute. The pool, the fee routing and the lock vault
+            are set up in the same transaction batch.
+          </p>
+          <div className="mt-11 flex flex-wrap justify-center gap-3">
+            <Magnetic>
+              <Link href="/launch" className="btn btn-primary h-[52px] px-8">
+                Launch a coin
+              </Link>
+            </Magnetic>
+            <Magnetic strength={0.2}>
+              <Link href="/how-it-works" className="btn btn-ghost h-[52px] px-8">
+                Read the docs
+              </Link>
+            </Magnetic>
+          </div>
+        </Reveal>
       </div>
     </section>
   );

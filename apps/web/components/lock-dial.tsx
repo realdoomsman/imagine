@@ -31,42 +31,34 @@ export function LockDial({
     [onChange],
   );
 
+  // Custom properties are legal in a style object but absent from CSSProperties.
+  const fill: React.CSSProperties & Record<"--fill", string> = {
+    "--fill": `${pct}%`,
+  };
+
   return (
     <div>
       <div className="flex items-baseline justify-between">
         <label htmlFor={id} className="rule-label">
           Lock duration
         </label>
-        <span className="num text-[13px] text-steel-400">
-          {min}–{max} days
+        <span className="num text-[13px] text-steel-200">
+          {days} {days === 1 ? "day" : "days"}
         </span>
       </div>
 
-      <div className="relative mt-3 h-9">
-        <div className="absolute inset-x-0 top-1/2 h-2 -translate-y-1/2 border border-steel-700 bg-steel-950">
-          <div
-            className="knurl h-full bg-torch-dim/60"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-
-        <div
-          className="pointer-events-none absolute top-1/2 h-7 w-3 -translate-x-1/2 -translate-y-1/2 border border-torch bg-torch"
-          style={{ left: `${pct}%` }}
-        />
-
-        <input
-          id={id}
-          type="range"
-          min={min}
-          max={max}
-          step={1}
-          value={days}
-          onChange={handle}
-          aria-valuetext={`${days} days`}
-          className="absolute inset-0 h-full w-full cursor-ew-resize opacity-0"
-        />
-      </div>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={1}
+        value={days}
+        onChange={handle}
+        aria-valuetext={`${days} days`}
+        className="vise-range mt-3 w-full"
+        style={fill}
+      />
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {presets.map((preset) => (

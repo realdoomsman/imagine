@@ -8,11 +8,11 @@ export const metadata = {
 
 export default function LaunchPage() {
   return (
-    <div className="mx-auto max-w-[1400px] px-5 py-10">
+    <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 lg:py-20">
       <div className="grid gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div>
           <p className="rule-label">Launch</p>
-          <h1 className="mt-3 text-[clamp(2rem,4vw,3rem)] leading-[1.02]">
+          <h1 className="t-section mt-5">
             An ordinary pump.fun coin.
             <br />
             With a vise on it.
