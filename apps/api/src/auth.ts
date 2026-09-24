@@ -230,10 +230,11 @@ export function sessionCookieOptions() {
   return {
     path: "/",
     httpOnly: true,
-    // The API and the site sit on different origins in production, so the
-    // cookie has to be sent cross-site. That requires Secure, which requires
-    // HTTPS — hence Lax on a plain-HTTP local rig.
-    sameSite: env.cookieSecure ? ("none" as const) : ("lax" as const),
+    // The site and the API are the same site (vise.fun / api.vise.fun, or
+    // localhost on two ports), so Lax is enough for our own fetches and it
+    // keeps the cookie off every cross-site request: a form on another
+    // domain cannot post a withdrawal with it.
+    sameSite: "lax" as const,
     secure: env.cookieSecure,
     maxAge: SESSION_TTL_SECONDS,
   };

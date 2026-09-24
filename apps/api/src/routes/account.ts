@@ -98,18 +98,24 @@ function publicAccount(account: Account) {
 }
 
 export async function accountRoutes(app: FastifyInstance) {
+  // Belt and braces over the Lax cookie: a state-changing request from a
+  // browser must come from our own site. Requests without an Origin (curl,
+  // scripts) are left to the cookie check.
+  app.addHook("onRequest", async (request, reply) => {
+    if (request.method !== "POST") return;
+    const origin = request.headers.origin;
+    if (!origin) return;
+    const allowed = env.corsOrigins.includes("*") || env.corsOrigins.includes(origin) || origin === env.siteOrigin;
+    if (!allowed) await reply.code(403).send({ error: "cross-site request refused" });
+  });
+
   /** Step one of the redirect flow: remember where to return, send to Google. */
   app.get("/auth/google/start", async (request, reply) => {
     const { return_to } = z.object({ return_to: z.string().max(400).default("/account") }).parse(request.query);
     const returnTo = return_to.startsWith("/") ? return_to : "/account";
     const { url, nonce } = await beginGoogleLogin(returnTo);
-    reply.setCookie(OAUTH_STATE_COOKIE, nonce, {
-      ...sessionCookieOptions(),
-      maxAge: 600,
-      // Google redirects back top-level, which is a cross-site navigation:
-      // the cookie must be Lax (or None) to be sent with it.
-      sameSite: env.cookieSecure ? "none" : "lax",
-    });
+    // Google redirects back top-level; Lax cookies ride on that navigation.
+    reply.setCookie(OAUTH_STATE_COOKIE, nonce, { ...sessionCookieOptions(), maxAge: 600 });
     return reply.redirect(url, 302);
   });
 

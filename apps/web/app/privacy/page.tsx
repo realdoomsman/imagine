@@ -67,9 +67,10 @@ export default function PrivacyPage() {
       <DocSection title="Deleting your data">
         <p>
           Withdraw or export your key first: deleting the account deletes the
-          encrypted key with it and nothing can bring it back. Then write to{" "}
-          <a href="mailto:hello@vise.fun">hello@vise.fun</a> from your Google
-          email and we erase the account record and its action log.
+          encrypted key with it and nothing can bring it back. Then message{" "}
+          <a href="https://x.com/ViseDotFun" target="_blank" rel="noreferrer">@ViseDotFun</a>{" "}
+          on X from an account you control, naming the Google email, and we
+          erase the account record and its action log.
         </p>
       </DocSection>
     </DocPage>
