@@ -1,3 +1,4 @@
+import { createHmac, randomBytes } from "node:crypto";
 import {
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
@@ -38,6 +39,11 @@ import { sql } from "../db.ts";
 import { budgetInstructions } from "../pump.ts";
 import { connection, vise } from "../solana.ts";
 import { buildLaunch, compileV0, LaunchSchema } from "./tx.ts";
+
+/** The mint keypair for an account launch: a function of the account's key and a nonce. */
+function launchMintKeypair(wallet: Keypair, nonce: string): Keypair {
+  return Keypair.fromSeed(createHmac("sha256", wallet.secretKey).update(`vise-launch-mint:${nonce}`).digest());
+}
 
 /**
  * Sign and send with the account's own key, confirmed against the blockhash
@@ -348,9 +354,23 @@ export async function accountRoutes(app: FastifyInstance) {
   });
 
   /**
-   * Launch a coin from the account wallet. The mint keypair is generated here
-   * and signs create_v2 alongside the wallet; it is discarded afterwards — a
-   * pump mint has no further authority to exercise.
+   * Choose the mint for an account launch before its metadata is pinned: the
+   * metadata's website is the coin's page, so it needs the address first. The
+   * keypair is derived from the account's key and a random nonce, so nothing
+   * is stored; `/me/launch` re-derives it from the nonce.
+   */
+  app.post("/me/launch/mint", async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const nonce = randomBytes(16).toString("hex");
+    const mint = launchMintKeypair(await loadKeypair(account), nonce).publicKey.toBase58();
+    return { mint, nonce };
+  });
+
+  /**
+   * Launch a coin from the account wallet. The mint keypair comes from
+   * `/me/launch/mint` and signs create_v2 alongside the wallet; a pump mint
+   * has no further authority to exercise afterwards.
    */
   app.post("/me/launch", async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -358,8 +378,11 @@ export async function accountRoutes(app: FastifyInstance) {
     // `resume` names a mint this account already created whose launch stopped
     // partway; the finish stage skips whatever the chain shows done.
     const body = LaunchSchema.omit({ mint: true, stage: true })
-      .extend({ resume: pubkey.optional() })
+      .extend({ resume: pubkey.optional(), mintNonce: z.string().regex(/^[0-9a-f]{32}$/).optional() })
       .parse(request.body);
+    if (!body.resume && !body.mintNonce) {
+      return reply.code(400).send({ error: "choose the mint first (POST /me/launch/mint)" });
+    }
     if (body.resume) {
       // Only a coin this account's own launch created: finishing signs a pool
       // and a permanent fee routing with the account's key.
@@ -370,7 +393,7 @@ export async function accountRoutes(app: FastifyInstance) {
       if (!launched) return reply.code(403).send({ error: "resume names a coin this account did not launch" });
     }
     const keypair = await loadKeypair(account);
-    const mintKeypair = body.resume ? null : Keypair.generate();
+    const mintKeypair = body.resume ? null : launchMintKeypair(keypair, body.mintNonce as string);
     const mint = body.resume ?? (mintKeypair as Keypair).publicKey.toBase58();
     const signatures: Array<{ label: string; signature: string }> = [];
     try {

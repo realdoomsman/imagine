@@ -1,5 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { pubkey } from "../actions.ts";
+import { sql } from "../db.ts";
+import { env } from "../env.ts";
 
 /**
  * Pin a coin's image and metadata document.
@@ -8,20 +11,30 @@ import { z } from "zod";
  * description and socials; we hand it to pump.fun's own pinning endpoint,
  * which writes the Metaplex-shaped JSON pump reads and returns its IPFS URI.
  * The same host pump's frontend uses, so a coin launched here looks exactly
- * like one launched there. Nothing is stored on our side.
+ * like one launched there.
+ *
+ * The coin's website is always its VISE page, so it has to be pinned for a
+ * mint chosen up front. The URI is recorded against that mint, and a launch
+ * only accepts a URI pinned here for its own mint: every VISE coin links
+ * back to where it is locked.
  */
 const PUMP_IPFS = "https://pump.fun/api/ipfs";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 const FieldsSchema = z.object({
+  mint: pubkey,
   name: z.string().trim().min(1).max(32),
   symbol: z.string().trim().min(1).max(10),
   description: z.string().trim().max(1000).default(""),
   twitter: z.string().trim().url().max(200).or(z.literal("")).default(""),
   telegram: z.string().trim().url().max(200).or(z.literal("")).default(""),
-  website: z.string().trim().url().max(200).or(z.literal("")).default(""),
 });
+
+/** The website written into every coin launched on VISE: its own coin page. */
+export function coinPageUrl(mint: string): string {
+  return `${env.siteOrigin}/coins/${mint}`;
+}
 
 interface PumpPinResponse {
   metadataUri: string;
@@ -59,7 +72,7 @@ export async function metadataRoutes(app: FastifyInstance) {
     form.append("description", body.description);
     if (body.twitter) form.append("twitter", body.twitter);
     if (body.telegram) form.append("telegram", body.telegram);
-    if (body.website) form.append("website", body.website);
+    form.append("website", coinPageUrl(body.mint));
     form.append("showName", "true");
 
     const response = await fetch(PUMP_IPFS, { method: "POST", body: form });
@@ -69,6 +82,10 @@ export async function metadataRoutes(app: FastifyInstance) {
     }
     const pinned = (await response.json()) as PumpPinResponse;
     if (!pinned.metadataUri) return reply.code(502).send({ error: "pinning service returned no URI" });
+    await sql`
+      INSERT INTO pinned_metadata (uri, mint) VALUES (${pinned.metadataUri}, ${body.mint})
+      ON CONFLICT (uri) DO UPDATE SET mint = EXCLUDED.mint
+    `;
     return { uri: pinned.metadataUri, image: pinned.metadata.image };
   });
 }

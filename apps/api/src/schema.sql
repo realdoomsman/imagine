@@ -147,6 +147,14 @@ CREATE TABLE IF NOT EXISTS launched_mints (
   at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Metadata pinned through /metadata, by the mint it was pinned for. Its
+-- website is that mint's VISE page; a launch refuses any other URI.
+CREATE TABLE IF NOT EXISTS pinned_metadata (
+  uri  TEXT PRIMARY KEY,
+  mint TEXT NOT NULL,
+  at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- VISE accounts: a Google identity and the wallet the API holds for it.
 -- wallet_secret is AES-256-GCM under WALLET_MASTER_KEY; the database alone
 -- cannot recover a key. Rows are never deleted — an account that exported its

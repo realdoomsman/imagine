@@ -252,6 +252,14 @@ creator: someone calling it directly with their own code could still open a
 pool, which the indexer would list like any other; unlist it with
 `UPDATE pools SET hidden = TRUE WHERE mint = '<mint>'`.
 
+**Every launched coin's website is its VISE page.** `/api/metadata` takes the
+mint up front, writes `website: ${SITE_ORIGIN}/coins/<mint>` into the pinned
+JSON (whatever the client sends is ignored) and records the URI in
+`pinned_metadata`. The create stage refuses a URI not pinned there for the
+same mint (400). The browser path pins for its own mint keypair; an account
+launch first calls `POST /api/me/launch/mint`, which returns a mint derived
+from the account key and a nonce, and passes `mintNonce` to `/me/launch`.
+
 **Operational rules**
 
 - Back up `WALLET_MASTER_KEY` the moment it is set. The database alone cannot

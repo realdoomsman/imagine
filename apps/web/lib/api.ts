@@ -313,6 +313,8 @@ export const api = {
   exportKey: () => post<{ wallet: string; secretKey: string }>("/api/me/export-key", {}),
   /** Pin the coin's image and metadata JSON; returns the URI pump.fun reads. */
   pinMetadata: (form: FormData) => post<{ uri: string; image: string }>("/api/metadata", form),
+  /** Choose the mint for an account launch, so its metadata can link to its page. */
+  launchMint: () => post<{ mint: string; nonce: string }>("/api/me/launch/mint", {}),
   launchFromAccount: (body: Record<string, unknown>) =>
     post<{ mint: string; pool: string; lockAmount: string; signatures: Array<{ label: string; signature: string }> }>(
       "/api/me/launch",

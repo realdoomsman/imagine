@@ -201,6 +201,14 @@ export async function buildLaunch(
     if (impersonatesVise(body.name, body.symbol)) {
       throw new ActionError(403, "the VISE name and ticker are reserved for the official $VISE coin");
     }
+    // The metadata must be the document pinned here for this mint, whose
+    // website is the coin's VISE page. See routes/metadata.ts.
+    const [pinned] = await sql`
+      SELECT 1 FROM pinned_metadata WHERE uri = ${body.uri} AND mint = ${mint.toBase58()}
+    `;
+    if (!pinned) {
+      throw new ActionError(400, "pin the coin's metadata through vise.fun for this mint before launching");
+    }
     // Only coins created by this flow may ever get a VISE pool. The mint is
     // registered before the create is built, and never for a coin that
     // already exists: that is what stops a finish stage from adopting a coin

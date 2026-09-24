@@ -31,7 +31,6 @@ export function LaunchForm() {
   const [description, setDescription] = useState("");
   const [twitter, setTwitter] = useState("");
   const [telegram, setTelegram] = useState("");
-  const [website, setWebsite] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [devBuy, setDevBuy] = useState("1");
   const [lockPercent, setLockPercent] = useState(50);
@@ -76,30 +75,36 @@ export function LaunchForm() {
     };
 
     try {
+      // The coin's website is its VISE page, so the mint is fixed before the
+      // metadata is pinned: this page's keypair, or for a VISE account one the
+      // API derives and will sign with.
+      const accountMint = !partial && account ? await api.launchMint() : null;
       if (!partial && image) {
         // The image goes from disk to IPFS via the API; what the chain stores
         // is the URI of the JSON document that points at it.
         const form = new FormData();
         form.append("image", image);
+        form.append("mint", accountMint?.mint ?? mintKeypair.publicKey.toBase58());
         form.append("name", request.name);
         form.append("symbol", request.symbol);
         form.append("description", description.trim());
         form.append("twitter", twitter.trim());
         form.append("telegram", telegram.trim());
-        form.append("website", website.trim());
         const pinned = await api.pinMetadata(form);
         request.uri = pinned.uri;
         setProgress([`Pinned — ${pinned.uri.replace("https://ipfs.io/ipfs/", "ipfs://").slice(0, 28)}…`]);
       }
 
       if (account) {
-        // A VISE account launches server-side: the API generates the mint,
-        // signs every transaction with the account's wallet, and reports each
-        // one back. If it stops partway it tells us the mint, and the next
-        // attempt finishes that coin.
+        // A VISE account launches server-side: the API signs every
+        // transaction with the account's wallet and the mint it chose, and
+        // reports each one back. If it stops partway it tells us the mint,
+        // and the next attempt finishes that coin.
         setProgress((prev) => [...prev, "Launching from your VISE wallet…"]);
         try {
-          const done = await api.launchFromAccount(partial ? { ...request, resume: partial.mint } : request);
+          const done = await api.launchFromAccount(
+            partial ? { ...request, resume: partial.mint } : { ...request, mintNonce: accountMint?.nonce },
+          );
           setProgress((prev) => [prev[0], ...done.signatures.map((s) => `${s.label} — ${s.signature.slice(0, 12)}…`)]);
           setResult({ mint: done.mint });
           setPartial(null);
@@ -146,7 +151,7 @@ export function LaunchForm() {
       setError(cause instanceof Error ? cause.message : "launch failed");
       setPhase("error");
     }
-  }, [account, connection, description, devBuyLamports, image, lockPercent, lockSeconds, mintKeypair, name, partial, symbol, telegram, twitter, wallet, website]);
+  }, [account, connection, description, devBuyLamports, image, lockPercent, lockSeconds, mintKeypair, name, partial, symbol, telegram, twitter, wallet]);
 
   // A finished launch goes straight to its coin page. The pool is on chain by
   // now, but a load-balanced RPC or the indexer's metadata read can trail by
@@ -221,14 +226,15 @@ export function LaunchForm() {
             />
           </div>
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label="X (optional)" value={twitter} onChange={setTwitter} placeholder="https://x.com/…" maxLength={200} />
           <Field label="Telegram (optional)" value={telegram} onChange={setTelegram} placeholder="https://t.me/…" maxLength={200} />
-          <Field label="Website (optional)" value={website} onChange={setWebsite} placeholder="https://…" maxLength={200} />
         </div>
         <p className="mt-3 text-[12px] leading-relaxed text-steel-600">
-          The image and these details are pinned to IPFS and written onto the
-          coin at creation, exactly as pump.fun does it. They cannot be changed
+          The coin&apos;s website is set to its page on vise.fun, so anyone who
+          finds it on pump.fun or a chart lands where it can be locked. The
+          image and these details are pinned to IPFS and written onto the coin
+          at creation, exactly as pump.fun does it. They cannot be changed
           afterwards.
         </p>
       </section>
