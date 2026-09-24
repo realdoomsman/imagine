@@ -303,6 +303,9 @@ export function friendlyChainError(raw: string): string {
     const code = Number.parseInt(custom[1], 16);
     const known = (VISE_IDL.errors ?? []).find((e) => e.code === code);
     if (known) return known.msg ?? known.name;
+    // Anchor's own codes: the ones a user can actually run into.
+    if (code === 3012) return "that position no longer exists; it was already unlocked. Refresh the page";
+    if (code === 3007 || code === 2006) return "the accounts in this transaction do not match; refresh the page and try again";
     if (code >= 6000) return `the program refused the transaction (error ${code})`;
   }
   if (/insufficient lamports|insufficient funds|Attempt to debit an account/i.test(raw)) {
