@@ -88,8 +88,13 @@ const SWEEPS_PER_TICK = 10;
 const UNLOCKS_PER_TICK = 5;
 /** How often the full position scan for matured locks runs. */
 const MATURED_SCAN_MS = 10 * 60_000;
-/** A config that does not route to the pool yet may still be pointed at it. */
-const ROUTING_RECHECK_MS = 60 * 60_000;
+/**
+ * A config that does not route to the pool yet may still be pointed at it —
+ * and a fresh launch always looks unrouted for a moment, because the pool
+ * opens a transaction before the fee routing lands. Re-read soon, so a new
+ * coin's first fees are not held back for an hour.
+ */
+const ROUTING_RECHECK_MS = 5 * 60_000;
 /**
  * Missing owner token accounts the keeper will pay rent for, per rolling day.
  * The owner can close that account again and pocket the rent, so without a
