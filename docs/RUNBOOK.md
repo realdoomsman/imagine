@@ -243,17 +243,14 @@ founding lock would be under the config's minimum lock (409).
 `POST /api/me/launch { resume }` can also be called by hand, only for a mint
 that account launched.
 
-**Coins launched on pump.fun directly.** The form under the launch form (or
-`POST /api/tx/attach` / `/api/me/attach { mint, lockPercent, lockDurationDays }`)
-runs the finish stage without a dev buy: `create_pool` with a founding lock of
-`lockPercent` of what the wallet holds now, then the fee routing. Pre-conditions,
-each checked before anything is built: the mint has a pump bonding curve (404),
-it is a Token-2022 mint as `create_v2` makes (409; older SPL-Token pump coins
-are refused because swap and lock are Token-2022 only), the signer is the
-curve's creator (403), the founding lock (`lockPercent` of the holding) is at
-least the config's minimum lock amount (409), and pump fee
-sharing is not already on (409 — permanent, so such a coin can never get a
-pool). It is idempotent like a launch: re-running skips the steps done.
+**Only coins launched on vise.fun get a pool.** The create stage registers the
+mint in `launched_mints` (refusing a mint that already has a pump curve), and
+the finish stage refuses any mint not registered there for the same creator.
+There is no way to bring a coin launched on pump.fun onto VISE through the
+site or the API. The program's `create_pool` itself stays open to a coin's
+creator: someone calling it directly with their own code could still open a
+pool, which the indexer would list like any other; unlist it with
+`UPDATE pools SET hidden = TRUE WHERE mint = '<mint>'`.
 
 **Operational rules**
 

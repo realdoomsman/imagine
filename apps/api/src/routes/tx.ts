@@ -33,6 +33,7 @@ import {
   lockDuration,
   pubkey,
 } from "../actions.ts";
+import { sql } from "../db.ts";
 import { env } from "../env.ts";
 import {
   budgetInstructions,
@@ -134,7 +135,7 @@ export const LaunchSchema = z.object({
 
 export type LaunchRequest = z.infer<typeof LaunchSchema>;
 
-/** One transaction of a launch or attach, in the order it must land. */
+/** One transaction of a launch, in the order it must land. */
 export interface LaunchStep {
   label: string;
   instructions: TransactionInstruction[];
@@ -186,6 +187,17 @@ export async function buildLaunch(
   }
 
   if (body.stage === "create") {
+    // Only coins created by this flow may ever get a VISE pool. The mint is
+    // registered before the create is built, and never for a coin that
+    // already exists: that is what stops a finish stage from adopting a coin
+    // launched anywhere else.
+    if (await fetchCurve(mint)) {
+      throw new ActionError(409, "this coin already exists; VISE pools are only for coins launched on vise.fun");
+    }
+    await sql`
+      INSERT INTO launched_mints (mint, creator) VALUES (${mint.toBase58()}, ${creator.toBase58()})
+      ON CONFLICT (mint) DO NOTHING
+    `;
     const table = await launchLookupTable();
     if (table) {
       const [global, feeConfig] = await Promise.all([
@@ -244,9 +256,14 @@ export async function buildLaunch(
     };
   }
 
-  // Stage two: the curve exists. It is requested the moment the create
-  // confirms, and a load-balanced RPC can answer from a node that has not seen
-  // that slot yet, so a missing curve is retried briefly before it is believed.
+  // Stage two: only for a coin this flow registered, for the same creator.
+  const [launched] = await sql`SELECT creator FROM launched_mints WHERE mint = ${mint.toBase58()}`;
+  if (!launched || launched.creator !== creator.toBase58()) {
+    throw new ActionError(403, "VISE pools are only for coins launched on vise.fun");
+  }
+  // The curve exists. It is requested the moment the create confirms, and a
+  // load-balanced RPC can answer from a node that has not seen that slot yet,
+  // so a missing curve is retried briefly before it is believed.
   let coin = await readCoin(creator, mint);
   for (let attempt = 0; !coin && attempt < 10; attempt += 1) {
     await sleep(1_500);
@@ -318,11 +335,11 @@ const short = (key: PublicKey) => `${key.toBase58().slice(0, 4)}…${key.toBase5
 const TOKEN_DECIMALS = 6;
 
 /**
- * Whether `creator` may put this coin on VISE, decided before any step is
- * built. The ordering constraint is the launch's: `create_pool` proves the
- * signer launched the coin by reading `BondingCurve::creator`, which fee
- * sharing rewrites. So a coin whose fee sharing was already turned on outside
- * VISE can never get a pool — that routing is permanent and points elsewhere.
+ * Whether `creator` may finish this launch, decided before any step is built.
+ * The ordering constraint is the launch's: `create_pool` proves the signer
+ * launched the coin by reading `BondingCurve::creator`, which fee sharing
+ * rewrites. So a coin whose fee sharing was already turned on can never get a
+ * pool — that routing is permanent and points elsewhere.
  */
 function assertFinishable(creator: PublicKey, coin: CoinState): void {
   if (coin.sharing) {
@@ -337,7 +354,7 @@ function assertFinishable(creator: PublicKey, coin: CoinState): void {
   if (!coin.decoded.creator.equals(creator)) {
     throw new ActionError(
       403,
-      `only the wallet that launched this coin on pump.fun can bring it to VISE (launched by ${short(coin.decoded.creator)})`,
+      `only the wallet that launched this coin can finish its launch (launched by ${short(coin.decoded.creator)})`,
     );
   }
   const quote = coin.decoded.quoteMint;
@@ -347,10 +364,8 @@ function assertFinishable(creator: PublicKey, coin: CoinState): void {
 }
 
 /**
- * The half of a launch that puts a coin on VISE: [dev buy] → `create_pool`
- * (founding lock) → route creator fees to the pool. Shared by launches and by
- * coins brought over from pump.fun, which pass `devBuy: null` and lock a
- * share of what the wallet already holds.
+ * The half of a launch that puts the coin on VISE: [dev buy] → `create_pool`
+ * (founding lock) → route creator fees to the pool.
  *
  * Every step is skipped if the chain already shows it done, so a run that
  * stopped halfway (a dropped connection, a stale blockhash) resumes with the
@@ -360,7 +375,7 @@ async function buildFinish(
   creator: PublicKey,
   coin: CoinState,
   options: {
-    devBuy: bigint | null;
+    devBuy: bigint;
     lockPercent: number;
     lockDurationSecs: number;
     priorityFeeMicroLamports: number;
@@ -371,10 +386,10 @@ async function buildFinish(
   const budget = budgetInstructions(options.priorityFeeMicroLamports, 400_000);
 
   const steps: LaunchStep[] = [];
-  // The bag in the wallet is the founding lock's basis: the dev buy landed
-  // with the create, or the coin was launched elsewhere and bought there.
+  // The bag in the wallet is the founding lock's basis: normally the dev buy
+  // already landed with the create.
   let expected = held;
-  if (options.devBuy !== null && !existingPool) {
+  if (!existingPool) {
     const [global, feeConfig, supply] = await Promise.all([
       onlinePump.fetchGlobal(),
       onlinePump.fetchFeeConfig().catch(() => null),
@@ -439,7 +454,7 @@ async function buildFinish(
       creatorShareBps: 0,
       initialLockAmount: lockAmount,
       initialLockDuration: options.lockDurationSecs,
-      // A coin brought over after graduating is priced off its AMM pool.
+      // A launch resumed after its coin graduated is priced off its AMM pool.
       ammVaults: decoded.complete ? ammVaultsFor(mint, tokenProgram) : undefined,
     });
     steps.push({ label: "Open the pool and clamp your bag", instructions: [...budget, poolIx] });
@@ -457,33 +472,6 @@ async function buildFinish(
   };
 }
 
-export const AttachSchema = z.object({
-  mint: pubkey,
-  /** Share of the wallet's current holding the creator locks, 10–100%. */
-  lockPercent: z.number().int().min(10).max(100).default(50),
-  lockDurationSecs: lockDuration,
-  priorityFeeMicroLamports: z.number().int().min(0).max(10_000_000).default(200_000),
-});
-
-export type AttachRequest = z.infer<typeof AttachSchema>;
-
-/**
- * Bring a coin launched directly on pump.fun onto VISE: the finish half of a
- * launch, without the dev buy. The founding lock is `lockPercent` of what the
- * launching wallet holds now.
- */
-export async function buildAttach(creator: PublicKey, body: AttachRequest): Promise<FinishResult> {
-  const mint = new PublicKey(body.mint);
-  const coin = await readCoin(creator, mint);
-  if (!coin) throw new ActionError(404, "not a pump.fun coin (no bonding curve for this mint)");
-  return buildFinish(creator, coin, {
-    devBuy: null,
-    lockPercent: body.lockPercent,
-    lockDurationSecs: body.lockDurationSecs,
-    priorityFeeMicroLamports: body.priorityFeeMicroLamports,
-  });
-}
-
 export async function txRoutes(app: FastifyInstance) {
   app.post("/tx/launch", async (request, reply) => {
     const body = LaunchSchema.extend({ creator: pubkey }).parse(request.body);
@@ -499,29 +487,6 @@ export async function txRoutes(app: FastifyInstance) {
           launch.steps.map(async (step) => ({
             label: step.label,
             ...(await serialize(step.instructions, creator, step.lookupTables)),
-          })),
-        ),
-      };
-    } catch (error) {
-      if (error instanceof ActionError) return reply.code(error.status).send({ error: error.message });
-      throw error;
-    }
-  });
-
-  /** Bring a coin launched on pump.fun onto VISE; see `buildAttach`. */
-  app.post("/tx/attach", async (request, reply) => {
-    const body = AttachSchema.extend({ creator: pubkey }).parse(request.body);
-    const creator = new PublicKey(body.creator);
-    try {
-      const attach = await buildAttach(creator, body);
-      return {
-        mint: attach.mint,
-        pool: attach.pool,
-        lockAmount: attach.lockAmount,
-        transactions: await Promise.all(
-          attach.steps.map(async (step) => ({
-            label: step.label,
-            ...(await serialize(step.instructions, creator)),
           })),
         ),
       };

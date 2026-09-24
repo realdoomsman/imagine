@@ -309,10 +309,4 @@ export const api = {
       "/api/me/launch",
       body,
     ),
-  /** Bring a coin this account launched on pump.fun onto VISE. */
-  attachFromAccount: (body: { mint: string; lockPercent: number; lockDurationSecs: number }) =>
-    post<{ mint: string; pool: string; lockAmount: string; signatures: Array<{ label: string; signature: string }> }>(
-      "/api/me/attach",
-      body,
-    ),
 };

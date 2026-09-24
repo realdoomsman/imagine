@@ -37,7 +37,7 @@ import { env } from "../env.ts";
 import { sql } from "../db.ts";
 import { budgetInstructions } from "../pump.ts";
 import { connection, vise } from "../solana.ts";
-import { AttachSchema, buildAttach, buildLaunch, compileV0, LaunchSchema } from "./tx.ts";
+import { buildLaunch, compileV0, LaunchSchema } from "./tx.ts";
 
 /**
  * Sign and send with the account's own key, confirmed against the blockhash
@@ -395,34 +395,6 @@ export async function accountRoutes(app: FastifyInstance) {
       }
       request.log.error({ err: error }, "launch failed");
       return reply.code(502).send({ error: friendlyChainError(message), completed: signatures, resume: created ? mint : null });
-    }
-  });
-
-  /**
-   * Bring a coin this account's wallet launched on pump.fun onto VISE. Each
-   * step is skipped when the chain shows it done, so a retry resumes.
-   */
-  app.post("/me/attach", async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
-    const body = AttachSchema.parse(request.body);
-    const keypair = await loadKeypair(account);
-    const signatures: Array<{ label: string; signature: string }> = [];
-    try {
-      const attach = await buildAttach(keypair.publicKey, body);
-      for (const step of attach.steps) {
-        signatures.push({ label: step.label, signature: await signAndSend(keypair, step.instructions) });
-      }
-      await recordAction(account, "attach", { pool: attach.pool, ...body }, signatures.at(-1)?.signature ?? null);
-      return { mint: attach.mint, pool: attach.pool, lockAmount: attach.lockAmount, signatures };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await recordAction(account, "attach", { ...body, completed: signatures, error: message }, null);
-      if (error instanceof ActionError) {
-        return reply.code(error.status).send({ error: error.message, completed: signatures });
-      }
-      request.log.error({ err: error }, "attach failed");
-      return reply.code(502).send({ error: friendlyChainError(message), completed: signatures });
     }
   });
 

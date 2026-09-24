@@ -342,8 +342,6 @@ function describeAction(kind: string, detail: Record<string, unknown>): string {
       return `Withdrew to ${String(detail.to).slice(0, 6)}…`;
     case "launch":
       return `Launched ${String(detail.symbol ?? "a coin")}`;
-    case "attach":
-      return `Brought ${String(detail.mint).slice(0, 6)}… to VISE`;
     case "export-key":
       return "Exported the wallet key";
     default:

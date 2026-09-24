@@ -138,6 +138,15 @@ CREATE TABLE IF NOT EXISTS keeper_runs (
 
 CREATE INDEX IF NOT EXISTS keeper_runs_mint_at_idx ON keeper_runs (mint, at DESC);
 
+-- Coins created by the vise.fun launch flow. Only these may finish a launch
+-- and get a VISE pool: the create stage registers the mint (never one that
+-- already exists) and the finish stage refuses anything else.
+CREATE TABLE IF NOT EXISTS launched_mints (
+  mint    TEXT PRIMARY KEY,
+  creator TEXT NOT NULL,
+  at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- VISE accounts: a Google identity and the wallet the API holds for it.
 -- wallet_secret is AES-256-GCM under WALLET_MASTER_KEY; the database alone
 -- cannot recover a key. Rows are never deleted — an account that exported its

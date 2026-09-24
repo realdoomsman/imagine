@@ -1,4 +1,3 @@
-import { AttachForm } from "@/components/attach-form";
 import { LaunchForm } from "@/components/launch-form";
 
 export const metadata = {
@@ -24,7 +23,6 @@ export default function LaunchPage() {
             that routing is made permanent in the same session.
           </p>
           <LaunchForm />
-          <AttachForm />
         </div>
 
         <aside className="space-y-4">
