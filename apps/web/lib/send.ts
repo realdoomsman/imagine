@@ -139,10 +139,17 @@ export async function fetchLookupTables(
  * Sign and submit a transaction the API assembled.
  *
  * The API returns unsigned bytes, legacy or v0; they are checked with
- * `assertTransactionAllowed` before the wallet is asked, and the wallet is the
- * only thing that signs. Confirmation is awaited against the same blockhash
- * the API used so a dropped transaction surfaces as an error rather than a
- * silent no-op.
+ * `assertTransactionAllowed` before the wallet is asked. Confirmation is
+ * awaited against the same blockhash the API used so a dropped transaction
+ * surfaces as an error rather than a silent no-op.
+ *
+ * Shaped the way Phantom asks, because it blocks requests it cannot simulate
+ * as "this dApp could be malicious": a transaction only the wallet signs goes
+ * through `sendTransaction`, which Phantom serves with its own
+ * signAndSendTransaction; one the browser co-signs (a fresh mint) is signed
+ * by the wallet *first*, and only then by the keypairs, since a transaction
+ * that arrives already carrying another signature is exactly what a drainer
+ * sends.
  */
 export async function signAndSend(
   connection: Connection,
@@ -153,21 +160,23 @@ export async function signAndSend(
   if (!wallet.publicKey || !wallet.signTransaction) throw new Error("wallet cannot sign transactions");
   const bytes = Buffer.from(built.transaction, "base64");
   const versioned = VersionedTransaction.deserialize(bytes);
-  let raw: Uint8Array;
-  // Keypairs the browser owns (a fresh mint, for instance) sign before the
-  // wallet, so the wallet's signature covers the final message.
-  if (versioned.version === "legacy") {
-    // Every wallet signs a legacy Transaction; not all take a versioned one.
-    const tx = Transaction.from(bytes);
+  // Every wallet signs a legacy Transaction; not all take a versioned one.
+  const tx = versioned.version === "legacy" ? Transaction.from(bytes) : versioned;
+  if (tx instanceof Transaction) {
     assertTransactionAllowed(tx.compileMessage(), [], wallet.publicKey);
-    if (extraSigners.length > 0) tx.partialSign(...extraSigners);
-    raw = (await wallet.signTransaction(tx)).serialize();
   } else {
-    assertTransactionAllowed(versioned.message, await fetchLookupTables(connection, versioned.message), wallet.publicKey);
-    if (extraSigners.length > 0) versioned.sign(extraSigners);
-    raw = (await wallet.signTransaction(versioned)).serialize();
+    assertTransactionAllowed(tx.message, await fetchLookupTables(connection, tx.message), wallet.publicKey);
   }
-  const signature = await connection.sendRawTransaction(raw, { maxRetries: 3 });
+
+  let signature: string;
+  if (extraSigners.length === 0) {
+    signature = await wallet.sendTransaction(tx, connection, { maxRetries: 3 });
+  } else {
+    const signed = await wallet.signTransaction(tx);
+    if (signed instanceof Transaction) signed.partialSign(...extraSigners);
+    else signed.sign(extraSigners);
+    signature = await connection.sendRawTransaction(signed.serialize(), { maxRetries: 3 });
+  }
   const result = await connection.confirmTransaction(
     {
       signature,
