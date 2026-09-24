@@ -119,7 +119,7 @@ cranks; the API would serve an empty catalogue over a live program.
 | `SITE_ORIGIN` | Where the browser is sent after sign-in. Production: `https://vise.fun` |
 | `SESSION_SECRET` | 32 random bytes, hex. Signs session cookies and OAuth state. Rotating it signs everyone out |
 | `WALLET_MASTER_KEY` | 32 random bytes, hex. Encrypts account wallet keys at rest. **Losing it loses every account wallet.** Back it up outside Railway; never rotate without re-encrypting |
-| `COOKIE_SECURE` | `1` in production (cookies `Secure; SameSite=None`), `0` on plain-http localhost |
+| `COOKIE_SECURE` | `1` in production (cookies `Secure`), `0` on plain-http localhost. Cookies are always `SameSite=Lax`: the site and API must be the same site (`vise.fun` / `api.vise.fun`), which is why the Railway and `www` hosts redirect to `vise.fun` |
 
 The treasury address and trade fee are **not** environment: the program pins
 them in `Config` and the API reads them from chain (`chainConfig()`), so they
