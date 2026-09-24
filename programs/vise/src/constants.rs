@@ -22,6 +22,7 @@ pub const SCALE: u128 = 1_000_000_000_000;
 
 pub const BPS_DENOMINATOR: u64 = 10_000;
 
+pub const SECONDS_PER_HOUR: u32 = 3_600;
 pub const SECONDS_PER_DAY: u32 = 86_400;
 
 /// Hard ceilings enforced on every admin write so a compromised admin key can
@@ -34,7 +35,11 @@ pub const MAX_PENALTY_BPS: u16 = 5_000; // 50% of principal at full remaining te
 /// through the reward stream expensive, so a pool may not set it to zero.
 pub const MIN_PENALTY_BPS: u16 = 500; // 5%
 pub const MAX_MULTIPLIER_BPS: u32 = 100_000; // 10.0x
-pub const MIN_LOCK_SECS_FLOOR: u32 = SECONDS_PER_DAY; // 1 day
+/// The shortest lock a pool may offer. An hour, not a day: short locks still
+/// earn, at the bottom of the multiplier curve, and the reward stream plus the
+/// early-exit burn are what stop a short lock from sniping a fee backlog, not
+/// the length of the lock itself.
+pub const MIN_LOCK_SECS_FLOOR: u32 = SECONDS_PER_HOUR; // 1 hour
 pub const MAX_LOCK_SECS_CEILING: u32 = 4 * 365 * SECONDS_PER_DAY; // 4 years
 pub const MAX_POOL_CREATION_FEE: u64 = 5_000_000_000; // 5 SOL
 
@@ -59,7 +64,7 @@ pub const MIN_LOCK_AMOUNT_FLOOR: u64 = 1_000_000;
 /// earned by weight *held over time*. Without it, anyone could watch lamports
 /// pile up in the vault, lock a large bag, trigger the accounting, claim a
 /// slice of a backlog they were never present for, and leave.
-pub const MIN_REWARD_STREAM_SECS: u32 = 3_600; // 1 hour
+pub const MIN_REWARD_STREAM_SECS: u32 = SECONDS_PER_HOUR; // 1 hour
 pub const MAX_REWARD_STREAM_SECS: u32 = 7 * SECONDS_PER_DAY;
 
 #[constant]

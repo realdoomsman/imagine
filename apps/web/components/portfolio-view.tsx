@@ -204,9 +204,11 @@ export function PortfolioView() {
                   {!matured ? (
                     <ExtendControl
                       lockEnd={position.lockEnd}
+                      minLockSecs={position.minLockSecs}
+                      maxLockSecs={position.maxLockSecs}
                       busy={busy === key}
-                      onExtend={(days) =>
-                        void act({ kind: "extend", mint: position.mint, index: position.index, durationDays: days }, key)
+                      onExtend={(seconds) =>
+                        void act({ kind: "extend", mint: position.mint, index: position.index, durationSecs: seconds }, key)
                       }
                     />
                   ) : null}

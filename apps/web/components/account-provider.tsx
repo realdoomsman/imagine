@@ -8,7 +8,9 @@ import { api, type AccountInfo } from "@/lib/api";
  *
  * Session state lives in an HttpOnly cookie on the API's origin; this context
  * only mirrors it. `refresh` re-asks the API, which is the sole authority on
- * whether anyone is signed in.
+ * whether anyone is signed in. `logout` signs the account out everywhere and
+ * rejects if the API did not confirm it, so the caller can say so instead of
+ * showing a signed-out page over a live session.
  */
 interface AccountContextValue {
   ready: boolean;
@@ -40,7 +42,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await api.logout().catch(() => undefined);
+    await api.logout();
     setAccount(null);
   }, []);
 

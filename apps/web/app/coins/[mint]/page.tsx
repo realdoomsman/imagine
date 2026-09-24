@@ -49,10 +49,14 @@ export async function generateMetadata({ params }: { params: Promise<{ mint: str
 
 export default async function CoinPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ mint: string }>;
+  /** `launched=1&pct=&term=` when the launch form sends its creator here. */
+  searchParams: Promise<{ launched?: string; pct?: string; term?: string }>;
 }) {
   const { mint } = await params;
+  const launched = await searchParams;
 
   let detail: PoolDetail;
   try {
@@ -66,7 +70,7 @@ export default async function CoinPage({
     api.rewards(mint).catch(() => ({ buckets: [] })),
   ]);
 
-  const { pool, metadata, curve } = detail;
+  const { pool, metadata, curve, rewardRate } = detail;
   const supplyLocked = BigInt(pool.totalLocked);
   const decimals = detail.tokenDecimals;
   const tokenSupply = detail.tokenSupply ?? "0";
@@ -76,6 +80,23 @@ export default async function CoinPage({
 
   return (
     <div className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8">
+      {launched.launched === "1" ? (
+        <section className="panel mb-8 flex flex-wrap items-center justify-between gap-4 p-5">
+          <div>
+            <h2 className="text-[17px]">Clamped and live.</h2>
+            <p className="mt-1 text-[13px] text-steel-400">
+              Your coin is trading on pump.fun, your founding lock is in, and its
+              fee stream is permanently pointed at this pool.
+            </p>
+          </div>
+          <ShareButton
+            text={`${metadata?.symbol ?? "My coin"} is live on pump.fun with a vise on it: every trade pays the people who lock it${launched.pct && launched.term ? `, and I locked ${launched.pct}% of my dev buy for ${launched.term}` : ""}.`}
+            url={`https://vise.fun/coins/${mint}`}
+            label="Tell X"
+            className="h-10 px-4 text-[13.5px]"
+          />
+        </section>
+      ) : null}
       <header className="flex flex-wrap items-start gap-5">
         {metadata?.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- arbitrary IPFS hosts
@@ -137,6 +158,31 @@ export default async function CoinPage({
 
       <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-5">
+          <section className="panel p-6">
+            <h2 className="text-[17px]">Rewards run on this coin&apos;s volume</h2>
+            <p className="mt-2 text-[13px] text-steel-500">
+              Every trade pays a fee into this pool, so what lockers earn rises
+              and falls with how much {metadata?.symbol ?? "the coin"} trades.
+              Realised over the last 24 hours, not projected.
+            </p>
+            <dl className="mt-5 grid grid-cols-2 gap-px border border-steel-700 bg-steel-700 sm:grid-cols-4">
+              <Term label="Fees, 24h" value={`${formatSol(BigInt(rewardRate.feesPerDay))} SOL`} />
+              <Term label="To lockers, 24h" value={`${formatSol(BigInt(rewardRate.lockersPerDay))} SOL`} />
+              <Term label="Paying out now" value={`${formatSol(BigInt(rewardRate.releasingPerDay))} SOL/day`} />
+              <Term label="Waiting at pump" value={`${formatSol(BigInt(rewardRate.waitingAtPump))} SOL`} />
+            </dl>
+            <p className="mt-4 text-[12px] leading-relaxed text-steel-600">
+              {BigInt(pool.undistributed) > 0n && pool.streamEnd > Math.floor(Date.now() / 1000)
+                ? `${formatSol(BigInt(pool.undistributed))} SOL is streaming to lockers over the next ${formatDuration(pool.streamEnd - Math.floor(Date.now() / 1000))}. `
+                : "Nothing is streaming right now; the next fee starts a new stream. "}
+              Claim any time from your portfolio. Creator fees waiting at
+              pump.fun are swept into the pool automatically.{" "}
+              {rewardRate.trades > 0
+                ? `${rewardRate.trades} trades (${formatSol(BigInt(rewardRate.siteVolume))} SOL) went through VISE in this window.`
+                : null}
+            </p>
+          </section>
+
           <RewardChart buckets={rewards.buckets} />
 
           <section className="panel p-6">
@@ -172,8 +218,8 @@ export default async function CoinPage({
               />
             </dl>
             <p className="mt-4 text-[12px] leading-relaxed text-steel-600">
-              Lock window {pool.terms.minLockSecs / 86_400}–
-              {pool.terms.maxLockSecs / 86_400} days on a{" "}
+              Lock window {formatDuration(pool.terms.minLockSecs)}–
+              {formatDuration(pool.terms.maxLockSecs)} on a{" "}
               {pool.terms.durationCurve === 1 ? "square-root" : "linear"} curve.
               {tiers.length > 0 ? (
                 <>
@@ -215,6 +261,7 @@ export default async function CoinPage({
             totalWeight={pool.totalWeight}
             accRewardPerWeight={pool.accRewardPerWeight}
             supply={tokenSupply}
+            lockersPerDay={detail.rewardRate.lockersPerDay}
           />
         </aside>
       </div>

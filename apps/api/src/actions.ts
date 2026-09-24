@@ -6,7 +6,16 @@ import {
 import { BN } from "@coral-xyz/anchor";
 import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
-import { DAY, VISE_IDL, appFeeLamports } from "@vise/sdk";
+import {
+  DAY,
+  HOUR,
+  VISE_IDL,
+  appFeeLamports,
+  decodePosition,
+  formatDuration,
+  positionPda,
+  type PoolTerms,
+} from "@vise/sdk";
 import { z } from "zod";
 import { env } from "./env.ts";
 import { distributable } from "./keeper.ts";
@@ -44,7 +53,11 @@ export const lamports = z
 
 const priority = z.number().int().min(0).max(10_000_000);
 const index = z.number().int().min(0).max(4_294_967_295);
-const days = z.number().int().min(7).max(365);
+/**
+ * A lock term in seconds. The bounds are the program's own hard limits; each
+ * pool's frozen window is narrower and is checked against the pool itself.
+ */
+export const lockDuration = z.number().int().min(HOUR).max(4 * 365 * DAY);
 
 export const ActionSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -52,7 +65,7 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     mint: pubkey,
     index,
     amount: lamports,
-    durationDays: days,
+    durationSecs: lockDuration,
     priorityFeeMicroLamports: priority.default(100_000),
   }),
   z.object({
@@ -66,7 +79,7 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("extend"),
     mint: pubkey,
     index,
-    durationDays: days,
+    durationSecs: lockDuration,
     priorityFeeMicroLamports: priority.default(100_000),
   }),
   z.object({ kind: z.literal("claim"), mint: pubkey, index }),
@@ -97,6 +110,16 @@ export class ActionError extends Error {
   }
 }
 
+/** Refuse a term outside the pool's frozen window before anything is signed. */
+export function assertInWindow(durationSecs: number, terms: Pick<PoolTerms, "minLockSecs" | "maxLockSecs">): void {
+  if (durationSecs < terms.minLockSecs || durationSecs > terms.maxLockSecs) {
+    throw new ActionError(
+      400,
+      `this pool takes locks from ${formatDuration(terms.minLockSecs)} to ${formatDuration(terms.maxLockSecs)}`,
+    );
+  }
+}
+
 export interface BuiltAction {
   instructions: TransactionInstruction[];
   /** Figures the caller may want to show: fees, legs, expected output. */
@@ -108,12 +131,15 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
 
   switch (action.kind) {
     case "lock": {
+      const pool = await vise.fetchPool(mint);
+      if (!pool) throw new ActionError(404, "this coin has no VISE pool");
+      assertInWindow(action.durationSecs, pool.terms);
       const ix = await vise.lock({
         owner,
         mint,
         index: action.index,
         amount: BigInt(action.amount),
-        durationSecs: action.durationDays * DAY,
+        durationSecs: action.durationSecs,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
       });
       return {
@@ -123,6 +149,21 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
     }
 
     case "increase": {
+      // The program reprices the whole position against the term still to
+      // run, and refuses when that is below the pool's minimum lock. Say so
+      // before signing rather than after a failed transaction.
+      const [positionInfo, pool] = await Promise.all([
+        connection.getAccountInfo(positionPda(mint, owner, action.index)),
+        vise.fetchPool(mint),
+      ]);
+      if (!positionInfo || !pool) throw new ActionError(404, "that lock does not exist");
+      const remaining = decodePosition(positionInfo.data).lockEnd - Math.floor(Date.now() / 1000);
+      if (remaining < pool.terms.minLockSecs) {
+        throw new ActionError(
+          409,
+          `less than ${formatDuration(pool.terms.minLockSecs)} is left on this lock, so it cannot be added to; extend it first, or open a new lock`,
+        );
+      }
       const ix = await vise.increase({
         owner,
         mint,
@@ -137,11 +178,14 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
     }
 
     case "extend": {
+      const pool = await vise.fetchPool(mint);
+      if (!pool) throw new ActionError(404, "this coin has no VISE pool");
+      assertInWindow(action.durationSecs, pool.terms);
       const ix = await vise.extend({
         owner,
         mint,
         index: action.index,
-        durationSecs: action.durationDays * DAY,
+        durationSecs: action.durationSecs,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
       });
       return {
@@ -156,14 +200,16 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
     }
 
     case "unlock": {
-      const ix = await vise.unlock({
+      // The program pays principal only into the owner's canonical ATA, which
+      // the owner may have closed since locking; recreate it idempotently.
+      const ixs = await vise.unlockInstructions({
         owner,
         mint,
         index: action.index,
         early: action.early,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
       });
-      return { instructions: [...budgetInstructions(100_000, 200_000), ix], meta: {} };
+      return { instructions: [...budgetInstructions(100_000, 200_000), ...ixs], meta: {} };
     }
 
     case "swap":
@@ -267,10 +313,13 @@ async function buildSwap(
     expectedOut = solLeg;
   }
 
+  // A buy's fee was already netted out of the stated budget above, so it is
+  // 2% of that budget; charging it on the smaller curve leg would take 1.96%
+  // and leave the rest of the budget unspent.
   const fee = await appFeeInstruction({
     payer: user,
     mint,
-    solLegLamports: solLeg,
+    solLegLamports: action.side === "buy" ? amount : solLeg,
     side: action.side,
   });
 
@@ -298,9 +347,12 @@ async function buildSwap(
  * simulation-log noise.
  */
 export function friendlyChainError(raw: string): string {
-  const custom = /custom program error: 0x([0-9a-f]+)/i.exec(raw);
-  if (custom) {
-    const code = Number.parseInt(custom[1], 16);
+  // Simulation reports `custom program error: 0x1772`; a transaction that
+  // passed simulation but failed on chain reports `{"Custom":6002}`.
+  const hex = /custom program error: 0x([0-9a-f]+)/i.exec(raw);
+  const dec = /"Custom":(\d+)/.exec(raw);
+  const code = hex ? Number.parseInt(hex[1], 16) : dec ? Number(dec[1]) : null;
+  if (code !== null) {
     const known = (VISE_IDL.errors ?? []).find((e) => e.code === code);
     if (known) return known.msg ?? known.name;
     // Anchor's own codes: the ones a user can actually run into.

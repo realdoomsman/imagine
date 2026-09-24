@@ -1,11 +1,10 @@
 "use client";
 
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { ECONOMICS, appFeeLamports, exactAmount, formatSol, formatTokenAmount } from "@vise/sdk";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useActor } from "@/lib/signer";
+import { useTokenBalance } from "@/lib/use-token-balance";
 import { SignInPrompt } from "./sign-in-prompt";
 
 const PRESETS = [0.1, 0.5, 1, 5];
@@ -28,33 +27,11 @@ export function SwapPanel({
   graduated: boolean;
 }) {
   const actor = useActor();
-  const { connection } = useConnection();
+  const held = useTokenBalance(mint, actor.publicKey);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [held, setHeld] = useState<bigint | null>(null);
-
-  // What the signer holds of this coin, for the sell side's "available".
-  useEffect(() => {
-    if (!actor.publicKey) {
-      setHeld(null);
-      return;
-    }
-    const ata = getAssociatedTokenAddressSync(new PublicKey(mint), actor.publicKey, true, TOKEN_2022_PROGRAM_ID);
-    let cancelled = false;
-    void connection
-      .getTokenAccountBalance(ata)
-      .then((result) => {
-        if (!cancelled) setHeld(BigInt(result.value.amount));
-      })
-      .catch(() => {
-        if (!cancelled) setHeld(0n);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [connection, mint, actor.publicKey, status]);
 
   const amount = (() => {
     const parsed = Number(input);

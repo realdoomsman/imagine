@@ -1,4 +1,4 @@
-import { formatMultiplier, formatSol, shortAddress } from "@vise/sdk";
+import { formatDuration, formatMultiplier, formatSol, shortAddress } from "@vise/sdk";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -135,7 +135,7 @@ function renderPrimary(board: string, row: Record<string, string | number | null
 function renderValue(board: string, row: Record<string, string | number | null>) {
   if (board === "coins") return `${formatSol(BigInt(String(row.lifetime_rewards ?? "0")))} SOL`;
   if (board === "diamond") {
-    return `${Math.round(Number(row.term_secs ?? 0) / 86_400)}d`;
+    return formatDuration(Number(row.term_secs ?? 0));
   }
   return `${formatSol(BigInt(String(row.earned ?? "0")))} SOL`;
 }

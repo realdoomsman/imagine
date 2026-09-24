@@ -26,6 +26,9 @@ export interface Actor {
   act: (action: Record<string, unknown>) => Promise<string>;
 }
 
+/** Fired on `window` after any action lands, so panels re-read the chain. */
+export const CHAIN_CHANGED = "vise:chain-changed";
+
 export function useActor(): Actor {
   const { ready, account } = useAccount();
   const wallet = useWallet();
@@ -40,16 +43,19 @@ export function useActor(): Actor {
 
   const act = useCallback(
     async (action: Record<string, unknown>) => {
+      let signature: string;
       if (account) {
-        const { signature } = await api.act(action);
-        return signature;
+        ({ signature } = await api.act(action));
+      } else {
+        if (!wallet.publicKey) throw new Error("connect a wallet or sign in first");
+        const built = await post<BuiltTransaction>("/api/tx/action", {
+          owner: wallet.publicKey.toBase58(),
+          ...action,
+        });
+        signature = await signAndSend(connection, wallet, built);
       }
-      if (!wallet.publicKey) throw new Error("connect a wallet or sign in first");
-      const built = await post<BuiltTransaction>("/api/tx/action", {
-        owner: wallet.publicKey.toBase58(),
-        ...action,
-      });
-      return signAndSend(connection, wallet, built);
+      window.dispatchEvent(new Event(CHAIN_CHANGED));
+      return signature;
     },
     [account, wallet, connection],
   );

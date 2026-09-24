@@ -1,10 +1,14 @@
 import { PublicKey } from "@solana/web3.js";
-import { accrued, curveProgress, curveSpotPrice, estimateApr } from "@vise/sdk";
+import { accrued, curveProgress, curveSpotPrice, estimateApr, FeeKind } from "@vise/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";
+import { distributable } from "../keeper.ts";
 import { fetchCurve, onlinePump } from "../pump.ts";
-import { connection, vise } from "../solana.ts";
+import { chainConfig, connection, vise } from "../solana.ts";
+
+/** `fee_events.kind` for a `RewardsSynced` row: what the pool actually took in. */
+const SYNCED = 4;
 
 const SORTS = {
   new: sql`created_at DESC`,
@@ -25,8 +29,8 @@ export async function poolRoutes(app: FastifyInstance) {
       .parse(request.query);
 
     const filter = query.search
-      ? sql`WHERE (name ILIKE ${`%${query.search}%`} OR symbol ILIKE ${`%${query.search}%`} OR mint = ${query.search})`
-      : sql``;
+      ? sql`WHERE NOT hidden AND (name ILIKE ${`%${query.search}%`} OR symbol ILIKE ${`%${query.search}%`} OR mint = ${query.search})`
+      : sql`WHERE NOT hidden`;
 
     const rows = await sql`
       SELECT mint, symbol, name, image_url, creator, total_locked, total_weight,
@@ -44,7 +48,7 @@ export async function poolRoutes(app: FastifyInstance) {
     // projected volume. A memecoin's projected anything is fiction.
     const windowSeconds = 7 * 86_400;
     const recent = await sql`
-      SELECT mint, COALESCE(SUM(to_lockers), 0)::BIGINT AS lockers_7d
+      SELECT mint, COALESCE(SUM(to_lockers), 0)::NUMERIC::TEXT AS lockers_7d
       FROM fee_events
       WHERE at > NOW() - INTERVAL '7 days'
       GROUP BY mint
@@ -84,14 +88,34 @@ export async function poolRoutes(app: FastifyInstance) {
 
     // Chain is authoritative for anything a user will act on; the database only
     // supplies metadata and history the chain does not carry.
-    const [onChain, meta, curve, global, supply] = await Promise.all([
+    const [onChain, meta, curve, global, supply, [day], waiting, config] = await Promise.all([
       vise.fetchProjectedPool(key),
       sql`SELECT * FROM pools WHERE mint = ${mint}`,
       fetchCurve(key),
       onlinePump.fetchGlobal(),
       connection.getTokenSupply(key).catch(() => null),
+      // Synced rows are what the pool took in (every source, once); deposit
+      // rows are the app fee legs, so they also count trades routed here.
+      sql`
+        SELECT COALESCE(SUM(to_lockers) FILTER (WHERE kind = ${SYNCED}), 0)::NUMERIC::TEXT AS to_lockers,
+               COALESCE(SUM(amount) FILTER (WHERE kind = ${SYNCED}), 0)::NUMERIC::TEXT AS inflow,
+               COALESCE(SUM(amount) FILTER (WHERE kind IN (${FeeKind.Buy}, ${FeeKind.Sell})), 0)::NUMERIC::TEXT AS app_fees,
+               COUNT(*) FILTER (WHERE kind IN (${FeeKind.Buy}, ${FeeKind.Sell}))::INT AS trades
+        FROM fee_events
+        WHERE mint = ${mint} AND at > NOW() - INTERVAL '24 hours'
+      `,
+      distributable(key).catch(() => ({ pump: 0n, amm: 0n })),
+      chainConfig(),
     ]);
     if (!onChain) return reply.code(404).send({ error: "pool not found" });
+
+    // Rewards are the coin's own fees, so they move with its volume. The rate
+    // is realised, never projected: what actually arrived in the last 24
+    // hours. A younger pool shows what it has taken so far rather than an
+    // extrapolation of its launch burst.
+    const streamLeft = onChain.streamEnd - Math.floor(Date.now() / 1000);
+    const releasingPerDay =
+      streamLeft > 0 ? ((onChain.undistributed * 86_400n) / BigInt(streamLeft)).toString() : "0";
 
     const row = meta[0];
     return {
@@ -134,6 +158,22 @@ export async function poolRoutes(app: FastifyInstance) {
         openPositions: Number(onChain.openPositions),
         createdAt: onChain.createdAt,
       },
+      rewardRate: {
+        /** SOL that reached lockers' streams in the last 24 hours. */
+        lockersPerDay: day.to_lockers as string,
+        /** Everything the pool took in over the last 24 hours, before the treasury cut. */
+        feesPerDay: day.inflow as string,
+        /** The stream in progress, per day: what is being paid out right now. */
+        releasingPerDay,
+        /** Creator fees accrued at pump.fun, not yet swept into the pool. */
+        waitingAtPump: (waiting.pump + waiting.amm).toString(),
+        /** SOL traded through VISE in the window, from the app fee it paid. */
+        siteVolume:
+          config.tradeFeeBps > 0
+            ? ((BigInt(day.app_fees as string) * 10_000n) / BigInt(config.tradeFeeBps)).toString()
+            : "0",
+        trades: day.trades as number,
+      },
       curve: curve
         ? {
             complete: curve.state.complete,
@@ -149,8 +189,8 @@ export async function poolRoutes(app: FastifyInstance) {
     };
   });
 
-  /** Locker table for a coin, largest weight first. */
-  app.get("/pools/:mint/lockers", async (request, reply) => {
+  /** Locker table for a coin, largest weight first. RPC-backed, so a tighter limit. */
+  app.get("/pools/:mint/lockers", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { mint } = z.object({ mint: z.string() }).parse(request.params);
     const query = z
       .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
@@ -163,11 +203,11 @@ export async function poolRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "invalid mint" });
     }
 
-    const [pool, positions] = await Promise.all([
-      vise.fetchProjectedPool(key),
-      vise.fetchPositionsByPool(key),
-    ]);
+    // A pool first: the position scan is the expensive read, and is never
+    // worth making for a mint that has no pool.
+    const pool = await vise.fetchProjectedPool(key);
     if (!pool) return reply.code(404).send({ error: "pool not found" });
+    const positions = await vise.fetchPositionsByPool(key);
 
     const rows = positions
       .map((position) => ({
@@ -199,9 +239,9 @@ export async function poolRoutes(app: FastifyInstance) {
     const { mint } = z.object({ mint: z.string() }).parse(request.params);
     const rows = await sql`
       SELECT date_trunc('hour', at) AS bucket,
-             SUM(amount)::BIGINT AS inflow,
-             SUM(to_lockers)::BIGINT AS to_lockers,
-             COUNT(*)::INT AS events
+             SUM(amount) FILTER (WHERE kind = ${SYNCED})::NUMERIC::TEXT AS inflow,
+             SUM(to_lockers)::NUMERIC::TEXT AS to_lockers,
+             COUNT(*) FILTER (WHERE kind = ${SYNCED})::INT AS events
       FROM fee_events
       WHERE mint = ${mint} AND at > NOW() - INTERVAL '7 days'
       GROUP BY bucket

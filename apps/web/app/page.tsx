@@ -31,7 +31,7 @@ const STEPS = [
   {
     n: "02",
     title: "Holders clamp their bags",
-    body: "Pick an amount and a term from 7 to 365 days. Weight is amount × term on a front-loaded curve: 1.0× at a week, 1.76× at a month, 4.0× at a year — and up to +50% more for a serious share of supply. The tokens sit in a vault only you can open.",
+    body: "Pick an amount and a term from 4 hours to a year. Even the shortest lock earns: weight is amount × term on a front-loaded curve — 1.0× at 4 hours, 1.41× at a week, 1.86× at a month, 4.0× at a year — and up to +50% more for a serious share of supply. The tokens sit in a vault only you can open.",
   },
   {
     n: "03",
@@ -142,8 +142,8 @@ function Split() {
           <p className="mt-14 max-w-[62ch] text-[15.5px] leading-[1.7] text-steel-400">
             The split is fixed when the pool is created and can never be changed —
             not by us, not by the coin's creator, who takes nothing from it. The
-            lockers' 90% is paid out by weight, streamed over 24 hours so nobody
-            can front-run a distribution by locking one block before it lands.
+            lockers' 90% is paid out by weight, streamed over an hour while every
+            lock runs at least four, so nobody can front-run a distribution by locking one block before it lands.
           </p>
         </Reveal>
       </div>
@@ -166,7 +166,7 @@ const GUARANTEES = [
   },
   {
     title: "Rewards stream, never dump",
-    body: "Incoming SOL is released linearly over 24 hours. Locking a second before a big trade earns a second of rewards, not a slice of the whole thing.",
+    body: "Incoming SOL is released linearly over an hour, and the shortest lock is four. Locking a second before a big trade earns a second of rewards, not a slice of the whole thing.",
   },
 ];
 

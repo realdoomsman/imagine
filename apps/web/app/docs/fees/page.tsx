@@ -76,7 +76,7 @@ export default function FeesPage() {
       <DocSection title="Fees do not land all at once">
         <p>
           Arriving fees stream out to lockers linearly over a release window —
-          24 hours by default, frozen per pool like everything else.
+          one hour by default, frozen per pool like everything else.
         </p>
         <p>
           This is deliberate. If a fee were handed out the instant it arrived,

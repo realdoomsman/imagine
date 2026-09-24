@@ -9,7 +9,7 @@ review: `docs/AUDIT.md`. Operations: `docs/RUNBOOK.md`.
 A lock-to-earn layer on top of pump.fun. Coins launch on pump.fun normally,
 through our site. Every trade routed through the site pays an adjustable app fee
 (default 2%), and the coin's pump.fun creator fees are permanently redirected to
-the same place: a per-coin vault. Holders lock tokens for 7–365 days. Longer
+the same place: a per-coin vault. Holders lock tokens for 4 hours to 365 days. Longer
 commitment means more weight, and weight decides your share of the SOL flowing
 through that vault. Rewards are claimable at any time without unlocking, and
 nothing depends on the creator continuing to exist.
@@ -50,8 +50,9 @@ weight        = amount × multiplier
 ```
 
 Both factors are frozen on the pool. The shipped defaults use the square-root
-curve: 7 days is 1.0×, 30 days 1.76×, 90 days 2.44×, 180 days 3.09×, 365 days
-4.0×. Front-loaded on purpose — a month is worth making, a year still takes
+curve: 4 hours is 1.0×, 1 day 1.14×, 7 days 1.41×, 30 days 1.86×, 90 days
+2.49×, 180 days 3.11×, 365 days 4.0×. Front-loaded on purpose — even the
+shortest lock earns, a month is worth making, a year still takes
 the top. Size tiers are measured against total supply (never the pool, so no
 other locker can move yours): +10% at 0.1% of supply, +25% at 0.5%, +50% at
 1%. The combined ceiling is validated against the 10.0× bound the accumulator's
@@ -65,7 +66,9 @@ the same `isqrt`, and a LiteSVM test asserts the two agree on real positions.
 
 Fees do **not** land on lockers the instant they arrive. Each inflow is split by
 the pool's frozen terms, and the lockers' share enters `undistributed`, which
-pays out linearly over `reward_stream_secs` (default 24 hours). New arrivals
+pays out linearly over `reward_stream_secs` (default 1 hour, shorter than the
+4-hour minimum lock, so every locker holds through the whole release of what
+arrived while they were in). New arrivals
 reprice the stream so a steady fee flow becomes a steady payout.
 
 This is the property that makes the headline claim true. Without it, a reward
@@ -168,11 +171,11 @@ APR is trailing realised fees over locked value. Nothing is projected.
 | App fee | 2% | ≤ 10% |
 | Treasury share | 10% of inflow | ≤ 30% |
 | Creator share | 0% — platform ceiling is zero | ≤ 30% of post-treasury |
-| Lock window | 7–365 days | 1 day – 4 years |
+| Lock window | 4 hours – 365 days | 1 hour – 4 years |
 | Duration curve | square root (`CURVE_SQRT`) | linear or sqrt |
 | Max duration multiplier | 4.0× | 1.0×–10.0× |
 | Size tiers | +10% at 0.1% of supply, +25% at 0.5%, +50% at 1% | ≤ +100% each; combined ceiling ≤ 10.0× |
 | Early exit penalty | 25% | 5%–50% |
-| Reward stream | 24 hours | 1 hour – 7 days |
+| Reward stream | 1 hour | 1 hour – 7 days |
 | Min lock | 1 token | ≥ 1 whole token |
 | Pool creation fee | 0.05 SOL | ≤ 5 SOL |

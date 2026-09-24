@@ -10,6 +10,9 @@ vise = "VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb"
 [programs.devnet]
 vise = "VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb"
 
+[programs.mainnet]
+vise = "VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb"
+
 [registry]
 url = "https://api.apr.dev"
 

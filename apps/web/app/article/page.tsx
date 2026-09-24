@@ -83,22 +83,24 @@ export default function ArticlePage() {
       <DocSection title="Locking, and why the curve bends">
         <p>
           To earn from the vault you lock your coins for a term you choose,
-          between seven days and a year. Your share of every SOL that arrives
+          between four hours and a year. Your share of every SOL that arrives
           is your <em>weight</em> divided by the pool&apos;s total weight, and
           weight is amount times a multiplier.
         </p>
         <p>
-          The multiplier runs on a square root, not a straight line. Seven
-          days counts once. Thirty days already counts 1.76×. Ninety days is
-          2.44×, a year is 4×. The bend is deliberate: a short lock should be
+          The multiplier runs on a square root, not a straight line. Four
+          hours counts once — and still earns. A week counts 1.41×, thirty
+          days 1.86×, ninety days 2.49×, a year 4×. The bend is deliberate: a short lock should be
           worth making, and the last months of a long one should still be
           worth something more than the first.
         </p>
         <pre className="num">
-{`7d    1.00×
-30d   1.76×
-90d   2.44×
-180d  3.09×
+{`4h    1.00×
+1d    1.14×
+7d    1.41×
+30d   1.86×
+90d   2.49×
+180d  3.11×
 365d  4.00×
 
 lock ≥ 0.1% of supply   +10%
@@ -109,7 +111,7 @@ lock ≥ 1.0% of supply   +50%`}
           Size matters too. Lock a tenth of a percent of the supply and your
           weight gets ten percent more; lock a full percent and it gets half
           again. A year-long, one-percent position counts six times over what
-          the same coins would earn on a week.
+          the same coins would earn on the shortest lock.
         </p>
         <p>
           Claiming never touches the lock and the lock never blocks a claim.

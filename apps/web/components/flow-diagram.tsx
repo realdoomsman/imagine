@@ -8,7 +8,7 @@ const SPLIT = [
     key: "lockers",
     pct: 90,
     label: "Lockers",
-    note: "Paid by weight, streamed over 24 hours",
+    note: "Paid by weight, streamed over an hour",
     hot: true,
   },
   {

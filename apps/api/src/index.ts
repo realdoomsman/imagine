@@ -5,17 +5,28 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { sql } from "./db.ts";
-import { env } from "./env.ts";
+import { assertApiEnv, env } from "./env.ts";
 import { accountRoutes } from "./routes/account.ts";
 import { metadataRoutes } from "./routes/metadata.ts";
 import { poolRoutes } from "./routes/pools.ts";
 import { portfolioRoutes } from "./routes/portfolio.ts";
 import { txRoutes } from "./routes/tx.ts";
 import { chainConfig, connection } from "./solana.ts";
+import { timingSafeEqual } from "node:crypto";
+
+const INTERNAL_KEY = process.env.VISE_INTERNAL_KEY ? Buffer.from(process.env.VISE_INTERNAL_KEY) : null;
+function isInternal(header: string | string[] | undefined): boolean {
+  if (!INTERNAL_KEY || typeof header !== "string") return false;
+  const given = Buffer.from(header);
+  return given.length === INTERNAL_KEY.length && timingSafeEqual(given, INTERNAL_KEY);
+}
+
+// Auth secrets load lazily so the indexer never needs them; this role does,
+// so it checks them (and a mainnet CORS allowlist) before serving anything.
+assertApiEnv();
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL ?? "info" },
-  trustProxy: true,
   bodyLimit: 32 * 1024,
 });
 
@@ -35,7 +46,18 @@ await app.register(multipart);
 await app.register(rateLimit, {
   max: 240,
   timeWindow: "1 minute",
-  allowList: (request) => request.url === "/health",
+  // Railway's edge appends the address it accepted the connection from as the
+  // right-most X-Forwarded-For entry; everything left of it is whatever the
+  // client sent, so keying on it would let anyone reset their own limit.
+  // Direct connections (the local rig) have no header and use the socket.
+  keyGenerator: (request) => {
+    const header = request.headers["x-forwarded-for"];
+    const forwarded = Array.isArray(header) ? header.join(",") : header;
+    return forwarded?.split(",").at(-1)?.trim() || request.socket.remoteAddress || "unknown";
+  },
+  // The web server's own renders: every visitor's page load reaches us from
+  // its single address, so it proves itself with a shared key instead.
+  allowList: (request) => isInternal(request.headers["x-vise-internal"]),
 });
 
 app.setErrorHandler((error: unknown, request, reply) => {
@@ -54,17 +76,23 @@ app.setErrorHandler((error: unknown, request, reply) => {
   return reply.code(status).send({ error: status >= 500 ? "internal error" : message });
 });
 
+// Polled by the platform and by anyone else who likes; the slot is served
+// from a value at most 10s old so polling never becomes an RPC call each.
+const SLOT_TTL_MS = 10_000;
+let slotCache: { at: number; slot: Promise<number> } | null = null;
+
 app.get("/health", async () => {
   const [{ ok }] = await sql`SELECT 1 AS ok`;
-  const slot = await connection.getSlot("confirmed");
-  return { ok: ok === 1, slot, cluster: env.cluster };
+  if (!slotCache || Date.now() - slotCache.at >= SLOT_TTL_MS) {
+    slotCache = { at: Date.now(), slot: connection.getSlot("confirmed") };
+  }
+  return { ok: ok === 1, slot: await slotCache.slot, cluster: env.cluster };
 });
 
 app.get("/config", async () => {
   const config = await chainConfig();
   return {
     cluster: env.cluster,
-    rpcUrl: env.rpcUrl,
     treasury: config.treasury.toBase58(),
     tradeFeeBps: config.tradeFeeBps,
     googleClientId: env.googleClientId,

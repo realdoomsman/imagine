@@ -1,10 +1,20 @@
+import { BN } from "@coral-xyz/anchor";
 import {
+  canonicalPumpPoolPda,
   creatorVaultPda,
   feeSharingConfigPda,
   OnlinePumpSdk,
   PUMP_SDK,
+  type Global,
+  type SharingConfig,
 } from "@pump-fun/pump-sdk";
-import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+  NATIVE_MINT,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import {
   ComputeBudgetProgram,
   PublicKey,
@@ -15,6 +25,7 @@ import {
 import {
   appFeeLamports,
   bondingCurvePda,
+  PUMP_PROGRAM_ID,
   FeeKind,
   rewardVaultPda,
   type BondingCurveState,
@@ -32,7 +43,9 @@ export async function fetchCurve(
   mint: PublicKey,
 ): Promise<{ state: BondingCurveState; accountInfo: AccountInfo<Buffer> } | null> {
   const accountInfo = await connection.getAccountInfo(bondingCurvePda(mint));
-  if (!accountInfo) return null;
+  // Anyone can send lamports to the PDA before pump creates it, leaving a
+  // system-owned empty account there; only a pump-owned account is a curve.
+  if (!accountInfo || !accountInfo.owner.equals(PUMP_PROGRAM_ID)) return null;
   const curve = PUMP_SDK.decodeBondingCurve(accountInfo);
   return {
     accountInfo,
@@ -88,6 +101,63 @@ export function budgetInstructions(
   ];
 }
 
+/** Slippage allowed on a launch's dev buy, in percent (pump-sdk's unit). */
+export const DEV_BUY_SLIPPAGE_PERCENT = 2;
+
+/**
+ * A launch's first two moves as one instruction set: `create_v2`, the
+ * creator's Token-2022 account, and the dev buy (`buy_v2`) against the curve
+ * `create_v2` is about to write. Sent in one transaction, nothing can land
+ * between the create and the buy, so nobody can buy ahead of the creator.
+ *
+ * `tokensOut` is priced on the fresh curve
+ * (`getBuyTokenAmountFromSolAmount` with `bondingCurve: null`). pump-sdk's own
+ * `createV2AndBuyV2Instructions` builds the same set but fixes slippage at 1%;
+ * this uses `DEV_BUY_SLIPPAGE_PERCENT` and picks the fee recipient from
+ * `global`, as `buyV2Instructions` does for a live curve.
+ */
+export async function createAndBuyInstructions(params: {
+  global: Global;
+  mint: PublicKey;
+  creator: PublicKey;
+  name: string;
+  symbol: string;
+  uri: string;
+  devBuyLamports: bigint;
+  tokensOut: BN;
+}): Promise<TransactionInstruction[]> {
+  const { global, mint, creator } = params;
+  const create = await PUMP_SDK.createV2Instruction({
+    mint,
+    name: params.name,
+    symbol: params.symbol,
+    uri: params.uri,
+    creator,
+    user: creator,
+    mayhemMode: false,
+    holderReward: false,
+  });
+  const ata = getAssociatedTokenAddressSync(mint, creator, true, TOKEN_2022_PROGRAM_ID);
+  const recipients = [global.feeRecipient, ...global.feeRecipients];
+  const maxCost = params.devBuyLamports + (params.devBuyLamports * BigInt(DEV_BUY_SLIPPAGE_PERCENT)) / 100n;
+  const buy = await PUMP_SDK.getBuyV2InstructionRaw({
+    user: creator,
+    mint,
+    creator,
+    amount: params.tokensOut,
+    quoteAmount: new BN(maxCost.toString()),
+    feeRecipient: recipients[Math.floor(Math.random() * recipients.length)],
+    tokenProgram: TOKEN_2022_PROGRAM_ID,
+    quoteMint: NATIVE_MINT,
+    quoteTokenProgram: TOKEN_PROGRAM_ID,
+  });
+  return [
+    create,
+    createAssociatedTokenAccountIdempotentInstruction(creator, ata, creator, mint, TOKEN_2022_PROGRAM_ID),
+    buy,
+  ];
+}
+
 /**
  * Point a coin's entire pump.fun creator-fee stream at its VISE lock pool.
  *
@@ -99,12 +169,14 @@ export function budgetInstructions(
 export async function routeCreatorFeesToPool(params: {
   creator: PublicKey;
   mint: PublicKey;
+  /** The curve completed and the coin trades on its canonical AMM pool. */
+  graduated: boolean;
 }): Promise<TransactionInstruction[]> {
   const vault = rewardVaultPda(params.mint);
   const create = await PUMP_SDK.createFeeSharingConfig({
     creator: params.creator,
     mint: params.mint,
-    pool: null, // pre-graduation; the AMM pool does not exist yet
+    pool: params.graduated ? canonicalPumpPoolPda(params.mint) : null,
   });
   const update = await PUMP_SDK.updateFeeSharesV2({
     authority: params.creator,
@@ -131,6 +203,34 @@ export async function routeCreatorFeesToPool(params: {
 }
 
 /**
+ * Whether a coin's pump fee-sharing config sends its whole creator-fee stream
+ * to the VISE pool, permanently: exactly one shareholder, the pool's reward
+ * vault, at 10,000 bps, with the admin revoked so nobody can ever change it.
+ *
+ * This is what makes a sweep worth paying for. A config that routes anywhere
+ * else turns the keeper into a free crank for someone else's wallet — and a
+ * creator who routes to themselves can donate dust to the vault every minute
+ * and have the keeper pay a transaction fee to send it straight back.
+ */
+export function routesEntirelyToPool(mint: PublicKey, config: SharingConfig): boolean {
+  const [only, ...rest] = config.shareholders;
+  return (
+    config.adminRevoked &&
+    config.mint.equals(mint) &&
+    only !== undefined &&
+    rest.length === 0 &&
+    only.shareBps === 10_000 &&
+    only.address.equals(rewardVaultPda(mint))
+  );
+}
+
+/** The coin's decoded sharing config, or null if it never opted in. */
+export async function fetchSharingConfig(mint: PublicKey): Promise<SharingConfig | null> {
+  const info = await connection.getAccountInfo(feeSharingConfigPda(mint));
+  return info ? PUMP_SDK.decodeSharingConfig(info) : null;
+}
+
+/**
  * Permissionless crank that pushes a coin's accrued pump.fun creator fees into
  * its lock pool. Anyone may call it; the keeper runs it so lockers do not
  * have to.
@@ -146,11 +246,12 @@ export async function sweepCreatorFees(params: {
   payer: PublicKey;
   mint: PublicKey;
   includeAmm: boolean;
+  /** Already fetched (and, by the keeper, verified); saves a read. */
+  sharingConfig?: SharingConfig;
 }): Promise<TransactionInstruction[]> {
   const sharingConfigAddress = feeSharingConfigPda(params.mint);
-  const info = await connection.getAccountInfo(sharingConfigAddress);
-  if (!info) return []; // coin never opted into fee sharing
-  const sharingConfig = PUMP_SDK.decodeSharingConfig(info);
+  const sharingConfig = params.sharingConfig ?? (await fetchSharingConfig(params.mint));
+  if (!sharingConfig) return []; // coin never opted into fee sharing
 
   const instructions: TransactionInstruction[] = [];
   if (params.includeAmm) {

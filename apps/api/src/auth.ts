@@ -124,23 +124,53 @@ export async function completeGoogleLogin(params: {
 
 const NONCE_BYTES = 12;
 const TAG_BYTES = 16;
+const SECRET_KEY_BYTES = 64;
+const FORMAT_V1 = 0x01;
+/** Legacy rows: nonce || ciphertext || tag, no version byte, no AAD. */
+const V0_BYTES = NONCE_BYTES + SECRET_KEY_BYTES + TAG_BYTES;
+/** 0x01 || nonce || ciphertext || tag, with the row's identity as AAD. */
+const V1_BYTES = 1 + V0_BYTES;
 
-/** AES-256-GCM under the master key. Layout: nonce || ciphertext || tag. */
-export function encryptSecret(secret: Uint8Array): Buffer {
-  const nonce = randomBytes(NONCE_BYTES);
-  const cipher = createCipheriv("aes-256-gcm", env.walletMasterKey, nonce);
-  const body = Buffer.concat([cipher.update(secret), cipher.final()]);
-  return Buffer.concat([nonce, body, cipher.getAuthTag()]);
+/** The row a wallet ciphertext belongs to; v1 ciphertexts open only there. */
+export interface WalletBinding {
+  googleSub: string;
+  walletPubkey: string;
 }
 
-export function decryptSecret(blob: Uint8Array): Uint8Array {
+/** The AAD: a v1 blob copied onto another account's row fails to decrypt. */
+function walletAad(binding: WalletBinding): Buffer {
+  return Buffer.from(`vise-wallet:v1:${binding.googleSub}:${binding.walletPubkey}`);
+}
+
+/** AES-256-GCM under the master key, format v1, sealed to its row. */
+export function encryptSecret(secret: Uint8Array, binding: WalletBinding): Buffer {
+  // The formats are told apart by length, which holds only for 64-byte keys.
+  if (secret.length !== SECRET_KEY_BYTES) throw new Error(`wallet secret must be ${SECRET_KEY_BYTES} bytes`);
+  const nonce = randomBytes(NONCE_BYTES);
+  const cipher = createCipheriv("aes-256-gcm", env.walletMasterKey, nonce);
+  cipher.setAAD(walletAad(binding));
+  const body = Buffer.concat([cipher.update(secret), cipher.final()]);
+  return Buffer.concat([Buffer.of(FORMAT_V1), nonce, body, cipher.getAuthTag()]);
+}
+
+/**
+ * Either format. `legacy` marks a v0 blob, which the caller re-seals as v1
+ * once it has checked the key is the account's.
+ */
+export function decryptSecret(blob: Uint8Array, binding: WalletBinding): { secret: Buffer; legacy: boolean } {
   const buf = Buffer.from(blob);
-  const nonce = buf.subarray(0, NONCE_BYTES);
-  const tag = buf.subarray(buf.length - TAG_BYTES);
-  const body = buf.subarray(NONCE_BYTES, buf.length - TAG_BYTES);
+  let legacy: boolean;
+  if (buf.length === V1_BYTES && buf[0] === FORMAT_V1) legacy = false;
+  else if (buf.length === V0_BYTES) legacy = true;
+  else throw new Error("unrecognised wallet ciphertext");
+  const sealed = legacy ? buf : buf.subarray(1);
+  const nonce = sealed.subarray(0, NONCE_BYTES);
+  const tag = sealed.subarray(sealed.length - TAG_BYTES);
+  const body = sealed.subarray(NONCE_BYTES, sealed.length - TAG_BYTES);
   const decipher = createDecipheriv("aes-256-gcm", env.walletMasterKey, nonce);
+  if (!legacy) decipher.setAAD(walletAad(binding));
   decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(body), decipher.final()]);
+  return { secret: Buffer.concat([decipher.update(body), decipher.final()]), legacy };
 }
 
 // --- accounts ---------------------------------------------------------------
@@ -153,6 +183,8 @@ export interface Account {
   picture: string | null;
   walletPubkey: string;
   createdAt: Date;
+  /** Bumped by logout; sessions issued under an older epoch are void. */
+  sessionEpoch: number;
 }
 
 function rowToAccount(row: Record<string, unknown>): Account {
@@ -164,6 +196,7 @@ function rowToAccount(row: Record<string, unknown>): Account {
     picture: (row.picture as string | null) ?? null,
     walletPubkey: row.wallet_pubkey as string,
     createdAt: row.created_at as Date,
+    sessionEpoch: Number(row.session_epoch),
   };
 }
 
@@ -173,31 +206,48 @@ export async function upsertAccount(identity: GoogleIdentity): Promise<Account> 
     UPDATE accounts SET email = ${identity.email}, name = ${identity.name}, picture = ${identity.picture},
                         last_login_at = NOW()
     WHERE google_sub = ${identity.sub}
-    RETURNING id, google_sub, email, name, picture, wallet_pubkey, created_at
+    RETURNING id, google_sub, email, name, picture, wallet_pubkey, created_at, session_epoch
   `;
   if (existing[0]) return rowToAccount(existing[0]);
 
   const keypair = Keypair.generate();
+  const walletPubkey = keypair.publicKey.toBase58();
   const rows = await sql`
     INSERT INTO accounts (google_sub, email, name, picture, wallet_pubkey, wallet_secret)
     VALUES (${identity.sub}, ${identity.email}, ${identity.name}, ${identity.picture},
-            ${keypair.publicKey.toBase58()}, ${encryptSecret(keypair.secretKey)})
+            ${walletPubkey}, ${encryptSecret(keypair.secretKey, { googleSub: identity.sub, walletPubkey })})
     ON CONFLICT (google_sub) DO UPDATE SET last_login_at = NOW()
-    RETURNING id, google_sub, email, name, picture, wallet_pubkey, created_at
+    RETURNING id, google_sub, email, name, picture, wallet_pubkey, created_at, session_epoch
   `;
   return rowToAccount(rows[0]);
 }
 
-/** The account's signing key, decrypted for the duration of one action. */
+/**
+ * The account's signing key, decrypted for the duration of one action. A
+ * legacy (v0) ciphertext is re-sealed as v1 on the way through, once the key
+ * it holds is known to be the account's and the new blob is known to open.
+ */
 export async function loadKeypair(account: Account): Promise<Keypair> {
   const [row] = await sql`SELECT wallet_secret FROM accounts WHERE id = ${account.id}`;
   if (!row) throw new Error("account vanished");
-  const keypair = Keypair.fromSecretKey(decryptSecret(row.wallet_secret as Uint8Array));
+  const stored = row.wallet_secret as Uint8Array;
+  const { secret, legacy } = decryptSecret(stored, account);
+  const keypair = Keypair.fromSecretKey(secret);
   // Belt and braces: the decrypted key must be the key we advertised.
   const advertised = Buffer.from(account.walletPubkey);
   const actual = Buffer.from(keypair.publicKey.toBase58());
   if (advertised.length !== actual.length || !timingSafeEqual(advertised, actual)) {
     throw new Error("wallet key does not match the account");
+  }
+  if (legacy) {
+    const resealed = encryptSecret(keypair.secretKey, account);
+    if (decryptSecret(resealed, account).secret.equals(secret)) {
+      // Compare-and-set on the old blob; a failure leaves the v0 row, which
+      // still opens, so the action goes ahead either way.
+      await sql`UPDATE accounts SET wallet_secret = ${resealed} WHERE id = ${account.id} AND wallet_secret = ${stored}`.catch(
+        (error: unknown) => console.warn(`wallet re-seal failed for account ${account.id}: ${(error as Error).message}`),
+      );
+    }
   }
   return keypair;
 }
@@ -219,14 +269,53 @@ export async function recordAction(
 
 export const SESSION_COOKIE = "vise_session";
 const SESSION_TTL_SECONDS = 7 * 86_400;
+/** How old a sign-in may be and still export the key or withdraw. */
+export const RECENT_AUTH_SECONDS = 15 * 60;
 
+/** `ep` is the account's session epoch now; logout moves it on. */
 export async function issueSession(account: Account): Promise<string> {
-  return new SignJWT({ sub: String(account.id) })
+  return new SignJWT({ sub: String(account.id), ep: account.sessionEpoch })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setIssuer("vise")
     .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
     .sign(env.sessionSecret);
+}
+
+export interface SessionClaims {
+  accountId: number;
+  epoch: number;
+  /** Unix seconds: when the user last proved who they are to Google. */
+  issuedAt: number;
+}
+
+export interface Session {
+  account: Account;
+  issuedAt: number;
+}
+
+/** A session token's claims if we signed it and it is unexpired; else null. */
+export async function verifySessionToken(token: string): Promise<SessionClaims | null> {
+  try {
+    const { payload } = await jwtVerify(token, env.sessionSecret, { issuer: "vise" });
+    const accountId = Number(payload.sub);
+    // Tokens from before epochs existed carry no `ep`; they are void.
+    if (!Number.isInteger(accountId) || typeof payload.ep !== "number" || typeof payload.iat !== "number") return null;
+    return { accountId, epoch: payload.ep, issuedAt: payload.iat };
+  } catch {
+    return null;
+  }
+}
+
+/** What a token grants over an account row: nothing once logout moved the epoch past it. */
+export function sessionFor(claims: SessionClaims, account: Account): Session | null {
+  if (claims.accountId !== account.id || claims.epoch !== account.sessionEpoch) return null;
+  return { account, issuedAt: claims.issuedAt };
+}
+
+/** Whether the sign-in behind a session is fresh enough to move custody. */
+export function isRecentAuth(issuedAt: number, now = Date.now() / 1000): boolean {
+  return now - issuedAt <= RECENT_AUTH_SECONDS;
 }
 
 export function sessionCookieOptions() {
@@ -251,20 +340,15 @@ export function clearSession(reply: FastifyReply) {
   reply.clearCookie(SESSION_COOKIE, { ...sessionCookieOptions(), maxAge: undefined });
 }
 
-/** The account behind a request's session, or null. Never throws on a bad cookie. */
-export async function sessionAccount(request: FastifyRequest): Promise<Account | null> {
+/** The session behind a request, or null. Never throws on a bad cookie. */
+export async function readSession(request: FastifyRequest): Promise<Session | null> {
   const token = request.cookies[SESSION_COOKIE];
   if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, env.sessionSecret, { issuer: "vise" });
-    const id = Number(payload.sub);
-    if (!Number.isInteger(id)) return null;
-    const [row] = await sql`
-      SELECT id, google_sub, email, name, picture, wallet_pubkey, created_at
-      FROM accounts WHERE id = ${id}
-    `;
-    return row ? rowToAccount(row) : null;
-  } catch {
-    return null;
-  }
+  const claims = await verifySessionToken(token);
+  if (!claims) return null;
+  const [row] = await sql`
+    SELECT id, google_sub, email, name, picture, wallet_pubkey, created_at, session_epoch
+    FROM accounts WHERE id = ${claims.accountId}
+  `;
+  return row ? sessionFor(claims, rowToAccount(row)) : null;
 }

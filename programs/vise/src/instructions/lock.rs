@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::errors::ViseError;
 use crate::events::{Locked, PositionExtended, PositionIncreased, RewardsSynced};
-use crate::math::{accrued, reward_debt_for, weight_of};
+use crate::math::{accrued, blended_lock_start, reward_debt_for, weight_of};
 use crate::state::{Pool, Position};
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{
@@ -246,6 +246,11 @@ pub struct ModifyPosition<'info> {
 /// full-multiplier weight against principal that can be withdrawn the same
 /// slot — a risk-free claim on everyone else's fee stream. Extend or open a
 /// new position instead.
+///
+/// `lock_start` moves forward so the added principal carries the early-exit
+/// penalty of a fresh lock over the term still to run, while the existing
+/// principal keeps exactly the penalty it already had. See
+/// `blended_lock_start`.
 pub fn increase(ctx: Context<ModifyPosition>, amount: u64) -> Result<()> {
     require!(amount > 0, ViseError::AmountTooSmall);
     let now = Clock::get()?.unix_timestamp;
@@ -301,6 +306,13 @@ pub fn increase(ctx: Context<ModifyPosition>, amount: u64) -> Result<()> {
     let pool = &mut ctx.accounts.pool;
     let position = &mut ctx.accounts.position;
     let old_weight = position.weight;
+    position.lock_start = blended_lock_start(
+        position.amount,
+        position.lock_start,
+        position.lock_end,
+        amount,
+        now,
+    )?;
     position.amount = position
         .amount
         .checked_add(amount)

@@ -2,19 +2,19 @@
 
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { formatTokenAmount } from "@vise/sdk";
+import { DAY, ECONOMICS, formatTokenAmount } from "@vise/sdk";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, post } from "@/lib/api";
 import { signAndSend, type BuiltTransaction } from "@/lib/send";
 import { useAccount } from "./account-provider";
-import { LockDial } from "./lock-dial";
-import { ShareButton } from "./share-button";
+import { durationLabel, LockDial } from "./lock-dial";
 import { SignInPrompt } from "./sign-in-prompt";
 
 interface LaunchPlan {
   mint: string;
   pool: string;
-  expectedTokens: string;
+  expectedTokens?: string;
   transactions: BuiltTransaction[];
 }
 
@@ -24,6 +24,7 @@ export function LaunchForm() {
   const { connection } = useConnection();
   const wallet = useWallet();
   const { account } = useAccount();
+  const router = useRouter();
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
@@ -34,7 +35,7 @@ export function LaunchForm() {
   const [image, setImage] = useState<File | null>(null);
   const [devBuy, setDevBuy] = useState("1");
   const [lockPercent, setLockPercent] = useState(50);
-  const [lockDays, setLockDays] = useState(90);
+  const [lockSeconds, setLockSeconds] = useState(30 * DAY);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<string[]>([]);
   const [result, setResult] = useState<{ mint: string } | null>(null);
@@ -71,7 +72,7 @@ export function LaunchForm() {
       uri: partial?.uri ?? "",
       devBuyLamports: devBuyLamports.toString(),
       lockPercent,
-      lockDurationDays: lockDays,
+      lockDurationSecs: lockSeconds,
     };
 
     try {
@@ -93,9 +94,9 @@ export function LaunchForm() {
 
       if (account) {
         // A VISE account launches server-side: the API generates the mint,
-        // signs all four transactions with the account's wallet, and reports
-        // each one back. If it stops partway it tells us the mint, and the
-        // next attempt finishes that coin.
+        // signs every transaction with the account's wallet, and reports each
+        // one back. If it stops partway it tells us the mint, and the next
+        // attempt finishes that coin.
         setProgress((prev) => [...prev, "Launching from your VISE wallet…"]);
         try {
           const done = await api.launchFromAccount(partial ? { ...request, resume: partial.mint } : request);
@@ -132,9 +133,11 @@ export function LaunchForm() {
           setProgress((prev) => [...prev.slice(0, -1), `${label} — ${signature.slice(0, 12)}…`]);
         }
       };
-      // Stage one creates the mint, so the mint keypair signs it. Stage two is
-      // priced against the curve that stage one just created, which is why it
-      // is fetched only after the first signature confirms.
+      // Stage one creates the mint, so the mint keypair signs it; with the
+      // API's lookup table it also carries the dev buy, in the same
+      // transaction, so nobody can buy between the two. Stage two is built
+      // against the curve stage one created, which is why it is fetched only
+      // after the first signature confirms.
       await run(await post<LaunchPlan>("/api/tx/launch", { ...request, creator, mint, stage: "create" }), true);
       await run(await post<LaunchPlan>("/api/tx/launch", { ...request, creator, mint, stage: "finish" }), false);
       setResult({ mint });
@@ -143,28 +146,41 @@ export function LaunchForm() {
       setError(cause instanceof Error ? cause.message : "launch failed");
       setPhase("error");
     }
-  }, [account, connection, description, devBuyLamports, image, lockDays, lockPercent, mintKeypair, name, partial, symbol, telegram, twitter, wallet, website]);
+  }, [account, connection, description, devBuyLamports, image, lockPercent, lockSeconds, mintKeypair, name, partial, symbol, telegram, twitter, wallet, website]);
+
+  // A finished launch goes straight to its coin page. The pool is on chain by
+  // now, but a load-balanced RPC or the indexer's metadata read can trail by
+  // a few seconds; wait for the page's own data (briefly) so it opens complete
+  // rather than as a 404 or an unnamed coin.
+  useEffect(() => {
+    if (phase !== "done" || !result) return;
+    let cancelled = false;
+    void (async () => {
+      for (let attempt = 0; attempt < 12 && !cancelled; attempt += 1) {
+        const ready = await api.pool(result.mint).then((detail) => detail.metadata !== null, () => false);
+        if (ready) break;
+        const { promise, resolve } = Promise.withResolvers<void>();
+        setTimeout(resolve, 1_500);
+        await promise;
+      }
+      if (cancelled) return;
+      const share = new URLSearchParams({ launched: "1", pct: String(lockPercent), term: durationLabel(lockSeconds) });
+      router.replace(`/coins/${result.mint}?${share.toString()}`);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lockPercent, lockSeconds, phase, result, router]);
 
   if (phase === "done" && result) {
     return (
       <section className="panel mt-10 p-8">
         <h2 className="text-[22px]">Clamped and live.</h2>
-        <p className="mt-3 text-[14px] text-steel-400">
-          Your coin is trading on pump.fun and its fee stream is permanently
-          pointed at its lock pool.
-        </p>
+        <p className="mt-3 text-[14px] text-steel-400">Opening your coin page…</p>
         <p className="num mt-4 break-all text-[12px] text-steel-500">{result.mint}</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <a href={`/coins/${result.mint}`} className="btn btn-primary">
-            Open the coin page
-          </a>
-          <ShareButton
-            text={`${symbol.trim().toUpperCase()} is live on pump.fun with a vise on it: every trade pays the people who lock it, and I locked ${lockPercent}% of my dev buy for ${lockDays} days.`}
-            url={`https://vise.fun/coins/${result.mint}`}
-            label="Tell X"
-            className="h-10 px-4 text-[13.5px]"
-          />
-        </div>
+        <a href={`/coins/${result.mint}`} className="btn btn-primary mt-6">
+          Open it now
+        </a>
       </section>
     );
   }
@@ -266,11 +282,10 @@ export function LaunchForm() {
 
         <div className="mt-6">
           <LockDial
-            days={lockDays}
-            onChange={setLockDays}
-            min={7}
-            max={365}
-            presets={[7, 30, 90, 180, 365]}
+            seconds={lockSeconds}
+            onChange={setLockSeconds}
+            min={ECONOMICS.minLockSecs}
+            max={ECONOMICS.maxLockSecs}
           />
         </div>
       </section>

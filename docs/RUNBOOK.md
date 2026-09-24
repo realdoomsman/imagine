@@ -6,20 +6,34 @@ The program is identical on every cluster: `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoq
 The keypair lives at `target/deploy/vise-keypair.json` — back it up; losing it
 means the program can never be upgraded again under that address.
 
-### Devnet
+### Deploying
 
 ```bash
-anchor build                                  # produces target/deploy/vise.so
-solana balance -u devnet                      # deploy needs ~4 SOL for a 474KB program
-anchor deploy --provider.cluster devnet
-node --env-file=apps/api/.env.devnet apps/api/scripts/init-config.ts
+bash scripts/anchor-build.sh                  # SBPF v3 binary: target/deploy/vise.so
+bash scripts/deploy.sh devnet
+bash scripts/deploy.sh mainnet-beta          # RPC from apps/api/.mainnet-rpc.tmp or $RPC_URL
+bash scripts/keeper.sh mainnet-beta 0.05     # keeper key + funding; prints KEEPER_KEYPAIR pubkey
 ```
 
-> **Currently blocked:** the deploy wallet
-> `MZRpiuK2Lyc5SKNXaqBitbmNafou66EvuGYMKdQ6DEu` holds 0 SOL and every public
-> devnet faucet is rate-limiting this IP. Fund it with ~5 SOL and the deploy is a
-> single command. Everything downstream is already verified against the same
-> program binary on a local validator carrying the real pump.fun programs.
+`deploy.sh` skips the deploy if the program already exists (unless `UPGRADE=1`) and always ends by
+running `init-config.ts`, which is idempotent: it creates the config, or, if one
+exists and differs from the SDK's `ECONOMICS`, sends one `update_config` (admin
+signs; treasury and pause flag kept). It writes through a fixed buffer
+keypair (`target/deploy/vise-buffer.json`), so a deploy interrupted by
+congestion resumes on re-run instead of stranding rent in a new buffer. Needs
+~3 SOL in the deploy wallet for a 560,000-byte program account.
+
+**Upgrading.** `UPGRADE=1 bash scripts/deploy.sh mainnet-beta`. It builds
+(unless `SKIP_BUILD=1`), writes the buffer (the binary's rent up front, about
+2.7 SOL for ~527 KB, refunded when the upgrade lands), upgrades, then dumps the
+program and refuses to continue unless its first `wc -c vise.so` bytes equal
+the local binary. Then it runs `init-config.ts` to sync the config. Always
+rebuild with `scripts/anchor-build.sh` first: it forces a recompile, because
+the cached build has handed back a previous program before.
+
+Before a mainnet deploy, run the end-to-end suite against pump.fun's **mainnet**
+state: `CLUSTER_URL=<mainnet rpc> bash scripts/localnet-up.sh`, then
+`bash scripts/e2e-loop.sh 3`.
 
 ### Mainnet checklist
 
@@ -56,11 +70,13 @@ not have.
 
 | Piece | Where | State |
 |---|---|---|
-| API | https://api.vise.fun (also api-production-885d.up.railway.app) | live, `/health` green |
-| Web | https://vise.fun (also web-production-3100c.up.railway.app) | live |
+| API | https://api.vise.fun (also api-production-885d.up.railway.app) | live on **mainnet-beta**, `/health` green |
+| Indexer + keeper | Railway `indexer` service | live on mainnet; keeper `C1RhfARwh4XPoHj9xpubfgSzZs9V7NJcNGAT6RcAbbnW` (key in `apps/api/.keeper-mainnet.json`, gitignored) |
+| Web | https://vise.fun (also web-production-3100c.up.railway.app) | live, built for mainnet |
 | DNS | Porkbun, account `doomsyy` | `vise.fun` ALIAS, `www`/`api` CNAME → Railway edge |
-| Postgres | Railway private network | live, migrated |
-| Program | `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb` | verified on a local validator carrying the real pump.fun programs; **not yet on devnet** |
+| Postgres | Railway private network | live, migrated; devnet read models cleared at the mainnet cutover (accounts kept) |
+| Program | `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb` | **mainnet-beta**: sha256 `07f58aa2…`, commit `a057417` plus the 1-hour lock floor (`MIN_LOCK_SECS_FLOOR`), upgraded in slot 449952415; config synced to 4h–365d locks and a 1h stream by `init-config.ts`. Pools created before keep their frozen 7d–365d / 24h terms. Devnet still runs `5febae50…`. Upgrade authority, config admin and treasury: `MZRpiuK2Lyc5SKNXaqBitbmNafou66EvuGYMKdQ6DEu`, a hot key on the operator's machine — the owner's decision; move to a multisig with `set-upgrade-authority` / `transfer_admin` when one exists (treasury is frozen per pool) |
+| RPC | Helius, key `vise` | API/indexer use the keyed URL (`apps/api/.mainnet-rpc.tmp`); the browser uses the keyless per-IP "secure" URL baked by `push-web.sh` |
 
 ### Why the images are pushed, not built on Railway
 
@@ -69,20 +85,17 @@ emits no log, including a three-line Dockerfile that builds fine locally. Rather
 than wait it out, both services deploy from prebuilt images:
 
 ```bash
-docker build -f apps/api/Dockerfile -t ghcr.io/realdoomsman/vise-api:latest .
-docker push ghcr.io/realdoomsman/vise-api:latest
-
-docker build -f apps/web/Dockerfile \
-  --build-arg NEXT_PUBLIC_API_URL=https://api-production-885d.up.railway.app \
-  --build-arg NEXT_PUBLIC_RPC_URL=https://api.devnet.solana.com \
-  -t ghcr.io/realdoomsman/vise-web:latest .
-docker push ghcr.io/realdoomsman/vise-web:latest
+bash scripts/push-api.sh     # api + indexer image
+bash scripts/push-web.sh     # web image; mainnet build args by default
+railway redeploy --service api -y && railway redeploy --service indexer -y
+railway redeploy --service web -y
 ```
 
-Railway redeploys on push. The web app's `NEXT_PUBLIC_*` values are baked into
-the client bundle at build time, so changing the API URL means rebuilding the
-image, not editing a variable. If the builder starts working, the Dockerfiles
-are unchanged and `railway up` will use them directly.
+Pushing does **not** redeploy; `railway redeploy` pulls `:latest`. The web
+app's `NEXT_PUBLIC_*` values are baked into the client bundle at build time,
+so changing the API or RPC URL means rebuilding the image, not editing a
+variable. If the builder starts working, the Dockerfiles are unchanged and
+`railway up` will use them directly.
 
 ## Services
 
@@ -100,9 +113,24 @@ database self-provisions.
 The indexer is not optional. Without it `pools` never populates and nothing
 cranks; the API would serve an empty catalogue over a live program.
 
+What the indexer trusts: only events VISE itself emitted. Logs are parsed with
+Anchor's `EventParser`, which follows the invoke stack, so a `Program data:`
+line from another program or a Memo in the same transaction is ignored. Rows
+are stamped with the transaction's time (block time on backfill, receipt time
+live, never in the future), not the event's own timestamp; positions and pools
+are re-read from their accounts rather than copied out of events. Transactions
+are handled four at a time. Coin metadata is fetched only for mints with a
+pool, only from IPFS (`ipfs://`, or `/ipfs/<cid>` on ipfs.io, Pinata or
+cf-ipfs), always through `pump.mypinata.cloud` (ipfs.io as fallback), with no
+redirects and a 64 KiB cap; image URLs are rewritten to that gateway and
+social links kept only if they are http(s) URLs.
+
 ### Environment
 
-**API and indexer** (both roles read the same set)
+**API and indexer** (both roles read the same set, except the auth secrets —
+`GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `WALLET_MASTER_KEY` — which only the
+`api` service needs: they load on first use, so the indexer and the migration
+never read them and should not be given them)
 
 | Variable | Purpose |
 |---|---|
@@ -110,16 +138,24 @@ cranks; the API would serve an empty catalogue over a live program.
 | `DATABASE_URL` | Postgres. On Railway: `${{Postgres.DATABASE_URL}}` |
 | `RPC_URL` | Solana RPC. A paid endpoint is required in production — the public one will rate-limit the indexer within minutes |
 | `RPC_WS_URL` | Optional websocket override for log subscriptions |
-| `CORS_ORIGINS` | Comma-separated; set to the web origin in production, not `*` |
+| `CORS_ORIGINS` | Comma-separated; set to the web origin in production. With `CLUSTER=mainnet-beta` the API refuses to start if it is unset or `*` |
 | `KEEPER_KEYPAIR` | Indexer only. The CLI's JSON byte array or a base58 secret. Enables the keeper |
 | `SWEEP_MIN_LAMPORTS` | Indexer only. Sweep a coin once this much waits at pump. Default 0.005 SOL |
 | `KEEPER_INTERVAL_MS` | Indexer only. Default 60s |
+| `LAUNCH_ALT` | `api` only. Address lookup table from `apps/api/scripts/create-alt.ts`. With it, `create_v2` and the dev buy go out as one v0 transaction, so nobody can buy between them. Unset (or the table missing/deactivated): launches fall back to the two-step flow, create then a separate dev buy, which bots can front-run |
+| `VISE_INTERNAL_KEY` | `api` **and** `web` (runtime, not a build arg). 32 random bytes, hex. The web server's renders send it as `x-vise-internal` and skip the per-IP rate limit, which they would otherwise share across every visitor. Never prefix it `NEXT_PUBLIC_` |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | The "VISE web" OAuth client in Google Cloud project `vise-509508` |
 | `GOOGLE_REDIRECT_URI` | Must equal an authorised redirect URI on that client, byte for byte. Production: `https://api.vise.fun/api/auth/google/callback` |
 | `SITE_ORIGIN` | Where the browser is sent after sign-in. Production: `https://vise.fun` |
-| `SESSION_SECRET` | 32 random bytes, hex. Signs session cookies and OAuth state. Rotating it signs everyone out |
-| `WALLET_MASTER_KEY` | 32 random bytes, hex. Encrypts account wallet keys at rest. **Losing it loses every account wallet.** Back it up outside Railway; never rotate without re-encrypting |
+| `SESSION_SECRET` | `api` only. 32 random bytes, hex. Signs session cookies and OAuth state. Rotating it signs everyone out |
+| `WALLET_MASTER_KEY` | `api` only. 32 random bytes, hex. Encrypts account wallet keys at rest. **Losing it loses every account wallet.** Back it up outside Railway; never rotate without re-encrypting |
 | `COOKIE_SECURE` | `1` in production (cookies `Secure`), `0` on plain-http localhost. Cookies are always `SameSite=Lax`: the site and API must be the same site (`vise.fun` / `api.vise.fun`), which is why the Railway and `www` hosts redirect to `vise.fun` |
+
+`GOOGLE_CLIENT_SECRET`, `SESSION_SECRET` and `WALLET_MASTER_KEY` are checked
+when the `api` role boots. Missing, the process exits when `NODE_ENV=production`
+or `CLUSTER=mainnet-beta` (either is enough); elsewhere the two keys fall back
+to random per-process keys, so local accounts and sessions do not survive a
+restart.
 
 The treasury address and trade fee are **not** environment: the program pins
 them in `Config` and the API reads them from chain (`chainConfig()`), so they
@@ -130,9 +166,15 @@ cannot drift from what the program will accept.
 | Variable | Purpose |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | API origin. Must be same-site with the web origin (`api.vise.fun` under `vise.fun`) or browsers treat the session cookie as third-party and drop it |
-| `NEXT_PUBLIC_RPC_URL` | RPC the browser uses for balances and confirmations |
+| `NEXT_PUBLIC_RPC_URL` | RPC the browser uses for balances and confirmations. `push-web.sh` fills it from `WEB_RPC_URL` (never `RPC_URL`, which holds the keyed URL for deploy/keeper scripts) and refuses to build if the value contains `api-key` |
 | `NEXT_PUBLIC_CLUSTER` | `devnet` or `mainnet-beta`; explorer links |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Same client ID as the API |
+
+The web app sends a Content-Security-Policy built in `next.config.ts` from
+`NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_RPC_URL`: scripts from the site only,
+network requests to the API and RPC only, images from the IPFS gateways the
+indexer pins metadata to plus Google avatars. A new external host (an image
+CDN, an analytics endpoint) has to be added there or the browser blocks it.
 
 ## Accounts (Google sign-in)
 
@@ -149,19 +191,77 @@ the same builders as the wallet-adapter path and signs with the account's key
 server-side; each is written to `account_actions` with its signature or the
 error. `/me/export-key` returns the base58 secret and logs the export.
 
-**Launches that stop partway.** Every launch is three or four transactions.
-If one fails after `create_v2` landed, the coin exists and the account owns
-it; the API answers with `resume: <mint>` and the form offers to finish
-that coin. The finish stage is idempotent: it skips the dev buy if the wallet
-already holds the coin, the pool if it exists, the routing if the sharing
-config exists. `POST /api/me/launch { resume }` can also be called by hand.
+**Sessions and sign-out.** A session token carries the account's
+`session_epoch` as `ep`; a token whose `ep` differs from the row (or has none)
+is refused. `POST /api/auth/logout` increments the epoch and clears the
+cookie, so signing out anywhere ends every session for that account. To sign
+an account out by hand: `UPDATE accounts SET session_epoch = session_epoch + 1 WHERE id = $1`.
+
+**Re-auth for custody moves.** `/me/withdraw` and `/me/export-key` also need
+the sign-in itself (the token's `iat`) to be under 15 minutes old. Older, they
+answer `401 { reauth: true }` and do nothing; the account page offers "Sign in
+again", which goes through Google and comes back to `/account` with a fresh
+session. A fresh sign-in always passes, so this never stands between the
+owner and their wallet.
+
+**Wallet ciphertext format.** v1 is `0x01 || nonce(12) || ciphertext || tag(16)`
+(93 bytes) with AAD `vise-wallet:v1:<google_sub>:<wallet_pubkey>`, so a blob
+copied onto another row will not decrypt. Rows written before v1 are v0,
+`nonce || ciphertext || tag` (92 bytes, no AAD); the format is told apart by
+length. v0 still decrypts, and the first time a v0 wallet signs anything
+(after the decrypted key is checked against `wallet_pubkey`) it is re-sealed
+as v1 and written back, only if the new blob decrypts to the same key. New
+accounts are v1 from the start. Because the AAD names them, **never change
+`google_sub` or `wallet_pubkey` on a row**: the wallet would no longer decrypt.
+To see what is left on v0: `SELECT id FROM accounts WHERE length(wallet_secret) = 92`.
+
+**Launch transactions.** With `LAUNCH_ALT` set a launch is three
+transactions: `create_v2` + dev buy (v0, 2% slippage, signed by the creator
+and the mint keypair), `create_pool` with the founding lock, the fee routing.
+Without it the dev buy is its own transaction between the first two. Create
+the table once per cluster with the operator key, then set the printed address
+on the `api` service:
+
+```bash
+cd apps/api && RPC_URL=<keyed rpc> node scripts/create-alt.ts ~/.config/solana/id.json
+```
+
+Re-running with the table (`LAUNCH_ALT=<address>` or as the second argument)
+only appends addresses pump added since — run it after a pump-sdk upgrade.
+The API re-reads the table every five minutes and falls back to the two-step
+flow, logging why, if the pair ever stops fitting in a packet.
+
+**Launches that stop partway.** If a launch fails after the create landed, the
+coin exists and the account owns it; the API answers with `resume: <mint>` and
+the form offers to finish that coin. The finish stage is idempotent: it skips
+the dev buy once the wallet holds at least 90% of what the dev buy would buy
+now (a few units sent by someone else do not count), the pool if it exists,
+and the routing if the sharing config exists. It refuses before building
+anything when the signer is not the curve's creator (403), the coin is not
+SOL-paired (409), fee sharing is already on without a pool (409), or the
+founding lock would be under the config's minimum lock (409).
+`POST /api/me/launch { resume }` can also be called by hand, only for a mint
+that account launched.
+
+**Coins launched on pump.fun directly.** The form under the launch form (or
+`POST /api/tx/attach` / `/api/me/attach { mint, lockPercent, lockDurationDays }`)
+runs the finish stage without a dev buy: `create_pool` with a founding lock of
+`lockPercent` of what the wallet holds now, then the fee routing. Pre-conditions,
+each checked before anything is built: the mint has a pump bonding curve (404),
+it is a Token-2022 mint as `create_v2` makes (409; older SPL-Token pump coins
+are refused because swap and lock are Token-2022 only), the signer is the
+curve's creator (403), the founding lock (`lockPercent` of the holding) is at
+least the config's minimum lock amount (409), and pump fee
+sharing is not already on (409 — permanent, so such a coin can never get a
+pool). It is idempotent like a launch: re-running skips the steps done.
 
 **Operational rules**
 
 - Back up `WALLET_MASTER_KEY` the moment it is set. The database alone cannot
   recover a wallet.
 - Nothing in the API can refuse a withdrawal or an export: the wallet is the
-  user's. Do not add such a path.
+  user's. Do not add such a path. The 15-minute re-auth asks *who* is asking,
+  never *whether*: a fresh sign-in always gets through.
 - Deleting an account: have the user withdraw or export first, then
   `DELETE FROM account_actions WHERE account_id = $1; DELETE FROM accounts WHERE id = $1`.
 - Google console: `https://console.cloud.google.com/auth/clients?project=vise-509508`.
@@ -169,23 +269,56 @@ config exists. `POST /api/me/launch { resume }` can also be called by hand.
 
 ## The keeper
 
-pump.fun pays a coin's creator fees into a vault and leaves them there until
-someone calls `distribute_creator_fees_v2`. Nobody else has a reason to do that
-promptly, so the indexer process does: every `KEEPER_INTERVAL_MS` it reads each
-pool's pump vault (and, once an AMM pool exists, the AMM's WSOL vault), and for
-any coin holding at least `SWEEP_MIN_LAMPORTS` sends one transaction —
-`[transfer_creator_fees_to_pump_v2]?, distribute_creator_fees_v2, sync` —
-signed by `KEEPER_KEYPAIR`. Each send is logged to `keeper_runs`.
+The indexer process runs two permissionless cranks every `KEEPER_INTERVAL_MS`,
+signed and paid for by `KEEPER_KEYPAIR`.
 
-What it costs: one transaction fee per sweep. The threshold is what keeps that
-proportionate — a coin doing volume is swept every minute, a dead coin never.
-The keeper refuses to send below 0.02 SOL of its own balance and logs a
-warning instead; **keep the keeper wallet topped up** or fees pile up at pump
-(safely — they are not lost, just not yet distributed).
+**Fee sweeps.** pump.fun pays a coin's creator fees into a vault and leaves them
+there until someone calls `distribute_creator_fees_v2`. Nobody else has a reason
+to do that promptly, so the keeper does. For each pool it first checks the
+coin's pump sharing config: exactly one shareholder, the pool's reward vault, at
+10,000 bps, with the admin revoked. A coin that fails is never swept (logged
+once; re-checked hourly in case it is routed later); a passing verdict is
+cached, since a revoked config cannot change. It then reads the pump vault (and,
+once an AMM pool exists, the AMM's WSOL vault) and, if at least
+`SWEEP_MIN_LAMPORTS` is waiting, sends one transaction —
+`[transfer_creator_fees_to_pump_v2]?, distribute_creator_fees_v2, sync`.
+Each send is logged to `keeper_runs` and to the log with the reward vault's
+change.
 
-Anyone can run the same crank without waiting: `POST /api/tx/sweep`. Neither
-path can move funds anywhere other than the vault recorded on pump's sharing
-config, which was made immutable at launch.
+Backoff: a coin is swept at most once per 10 minutes. If a sweep did not raise
+the pool's reward vault balance, or failed, that coin waits 20 minutes, then
+40, 80… capped at 24 hours; a sweep that does move lamports resets it. At most
+10 sweeps go out per tick. Together these stop anyone from turning small
+donations into a stream of keeper-paid transactions. Backoff lives in memory
+and resets when the indexer restarts.
+
+**Matured unlocks.** A position past its lock end keeps its full weight — and
+dilutes every live locker — until someone closes it. `unlock` is permissionless
+once matured and pays principal, rewards and rent to the position's owner, so
+the keeper closes them: every 10 minutes it scans all positions on chain, and
+each tick it re-reads up to 5 matured ones (owner, pool and address re-derived)
+and sends `[compute budget, create owner ATA (idempotent), unlock]` with the
+keeper as payer. Logged as `unlocked matured position …`. Failures back off
+per position like sweeps.
+
+**What it costs.** A sweep is ~25,000 lamports (5,000 fee + 400k CU at 50,000
+µlamports/CU), so a coin with steady volume costs at most ~0.0036 SOL a day
+(144 sweeps). A matured unlock is ~7,000 lamports, plus ~0.0021 SOL of rent when
+the owner's Token-2022 account is missing and the keeper has to create it. That
+rent goes to the owner, who could close the account and keep it, so the keeper
+pays for at most 10 missing accounts per rolling 24 hours (≤ ~0.021 SOL/day);
+positions over that budget wait until it frees.
+
+**Funding.** The keeper refuses to send below 0.02 SOL of its own balance and
+logs a warning instead. Keep it at 0.1 SOL or more and top up when it falls
+under 0.05 SOL; budget roughly 0.004 SOL per actively traded coin per day plus
+up to 0.02 SOL a day for unlocks. An empty keeper is safe — fees wait at pump
+and matured positions wait for their owners — but lockers are not paid
+promptly and served-out locks keep diluting.
+
+Anyone can run the same sweep without waiting: `POST /api/tx/sweep`. That path
+pays whatever the coin's sharing config names; only the keeper checks that the
+config routes everything to the pool before spending its own SOL on it.
 
 "Pending" figures in the UI do not depend on the keeper. The API projects every
 pool to the current moment with the program's own stream arithmetic
@@ -217,6 +350,13 @@ and restart. No on-chain state is affected.
 **A pool looks wrong in the UI.** Compare against chain:
 `node apps/api/scripts/curve-check.ts <mint>` and `vise.fetchPool(mint)`. The
 chain wins; if they disagree, the indexer has a bug and the fix belongs there.
+
+**Unlisting a pool.** `UPDATE pools SET hidden = TRUE WHERE mint = '<mint>'`
+(run it through `railway ssh --service indexer`). The pool leaves the coin list,
+leaderboards, stats and sitemap; its page still loads by direct link so its
+lockers can claim and unlock. Nothing on chain changes — the pool keeps working.
+The mainnet smoke-test coin VTEST (`9Vfo4Gx1EVAPdar6MVytzxjvsMykhDdSThCDF7V7g9rv`)
+is unlisted this way.
 
 **Someone reports they cannot claim.** Check `accrued(weight, acc, reward_debt)`
 for their position. `NothingToClaim` with a zero result is correct behaviour, not

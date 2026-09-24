@@ -23,6 +23,11 @@ cp target/idl/vise.json packages/sdk/src/idl/vise.json
 cp target/types/vise.ts packages/sdk/src/idl/vise-types.ts
 echo "idl refreshed"
 
+# cargo's fingerprint can hand back a stale binary from the per-arch cache:
+# a rebuild after source changes has copied out the previous program. Touching
+# the crate root forces the program itself to recompile; dependencies stay cached.
+touch programs/vise/src/lib.rs
+
 cargo build-sbf --arch v3 --manifest-path programs/vise/Cargo.toml -- --target-dir "$HOME/.cache/vise/sbpf-v3" 2>&1 | grep -E "^(error|Finished)" || true
 cp "$HOME/.cache/vise/sbpf-v3/deploy/vise.so" target/deploy/vise.so
 cargo build-sbf --arch v0 --manifest-path programs/vise/Cargo.toml -- --target-dir "$HOME/.cache/vise/sbpf-v0" 2>&1 | grep -E "^(error|Finished)" || true

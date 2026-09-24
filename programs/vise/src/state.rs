@@ -364,20 +364,40 @@ impl Pool {
         Ok(())
     }
 
-    /// Hand lamports already sitting in the vault back to the remaining lockers.
+    /// Return lamports already sitting in the vault to the remaining lockers.
     ///
     /// Used when an early exit forfeits accrued rewards. The lamports never
     /// move, so `last_vault_balance` must NOT change — only their ownership
-    /// does. These were already counted in `lifetime_rewards` when they were
-    /// first released, so `credit_lockers` re-counting them is corrected here.
-    pub fn redistribute(&mut self, lamports: u64) -> Result<()> {
+    /// does.
+    ///
+    /// They join the stream like any inflow rather than landing on the
+    /// accumulator in one step: a lump credit would pay whoever held weight at
+    /// that instant, so a sniper could lock a large bag in the same bundle as a
+    /// big early exit and take a pro-rata slice of the forfeit for one slot.
+    ///
+    /// These lamports were counted in `lifetime_rewards` when they were first
+    /// released and will be counted again when the stream releases them, so
+    /// they are taken back out here. That keeps
+    /// `lifetime_rewards + reward_remainder + undistributed` equal to every
+    /// lamport ever routed to lockers, and `lifetime_inflow` is untouched
+    /// because nothing new arrived.
+    ///
+    /// With nobody left to stream to, they go to the treasury, exactly as
+    /// `credit_lockers` would route any other locker lamports.
+    pub fn forfeit(&mut self, lamports: u64, now: i64) -> Result<()> {
         if lamports == 0 {
             return Ok(());
         }
-        let before = self.lifetime_rewards;
-        self.credit_lockers(lamports)?;
-        self.lifetime_rewards = before;
-        Ok(())
+        if self.total_weight == 0 {
+            return self.credit_lockers(lamports);
+        }
+        // Saturating: a display counter must never be able to block an exit.
+        self.lifetime_rewards = self.lifetime_rewards.saturating_sub(lamports);
+        self.undistributed = self
+            .undistributed
+            .checked_add(lamports)
+            .ok_or(ViseError::MathOverflow)?;
+        self.restart_stream(now)
     }
 
     /// Record lamports leaving the vault so the next sync does not mistake the

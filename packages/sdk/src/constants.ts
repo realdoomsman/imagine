@@ -29,6 +29,7 @@ export const SEED = {
 export const SCALE = 1_000_000_000_000n;
 export const BPS = 10_000n;
 
+export const HOUR = 3_600;
 export const DAY = 86_400;
 
 /**
@@ -39,8 +40,13 @@ export const DAY = 86_400;
  * Split: lockers 90%, treasury 10%, creator 0%. The creator's reward is the
  * coin having a reason to be held, not a cut of its lockers.
  *
- * Duration: a sqrt curve from 1.0x at a week to 4.0x at a year, so a month is
- * 1.76x and ninety days 2.44x — short commitments are worth making.
+ * Duration: a sqrt curve from 1.0x at four hours to 4.0x at a year. The
+ * shortest lock still earns at full 1.0x weight; a day is 1.14x, a week 1.41x,
+ * a month 1.86x, ninety days 2.49x.
+ *
+ * Release: fees stream to lockers over one hour. Shorter than the shortest
+ * lock, so any locker is present for the whole release of what arrived while
+ * they were in, and a backlog cannot be sniped without holding through it.
  *
  * Size: +10% at 0.1% of supply, +25% at 0.5%, +50% at 1%. A serious position
  * is paid like one; the ceiling stays under the accumulator's 10x bound.
@@ -65,25 +71,30 @@ export const ECONOMICS: Readonly<Economics> = {
   tradeFeeBps: 200,
   treasuryShareBps: 1_000,
   maxCreatorShareBps: 0,
-  minLockSecs: 7 * DAY,
+  minLockSecs: 4 * HOUR,
   maxLockSecs: 365 * DAY,
   maxMultiplierBps: 40_000,
   earlyUnlockPenaltyBps: 2_500,
   minLockAmount: 1_000_000n,
-  rewardStreamSecs: 24 * 3_600,
+  rewardStreamSecs: HOUR,
   durationCurve: 1, // CURVE_SQRT
   sizeTierBps: [10, 50, 100],
   sizeBonusBps: [1_000, 2_500, 5_000],
   poolCreationFeeLamports: 50_000_000n,
 };
 
-/** Lock presets surfaced in the UI. Durations are seconds. */
+/**
+ * Lock presets surfaced in the UI, shortest first. Durations are seconds; a
+ * pool shows only the ones inside its own frozen window.
+ */
 export const LOCK_PRESETS = [
-  { label: "7d", days: 7, seconds: 7 * DAY },
-  { label: "30d", days: 30, seconds: 30 * DAY },
-  { label: "90d", days: 90, seconds: 90 * DAY },
-  { label: "180d", days: 180, seconds: 180 * DAY },
-  { label: "365d", days: 365, seconds: 365 * DAY },
+  { label: "4h", seconds: 4 * HOUR },
+  { label: "1d", seconds: DAY },
+  { label: "7d", seconds: 7 * DAY },
+  { label: "30d", seconds: 30 * DAY },
+  { label: "90d", seconds: 90 * DAY },
+  { label: "180d", seconds: 180 * DAY },
+  { label: "365d", seconds: 365 * DAY },
 ] as const;
 
 /** Reward-source tags carried by `FeeDeposited.kind`. */

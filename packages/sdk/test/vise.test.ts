@@ -1,10 +1,23 @@
 import { BN } from "@coral-xyz/anchor";
-import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import {
+  ACCOUNT_SIZE,
+  createCloseAccountInstruction,
+  createInitializeAccount3Instruction,
+  createTransferCheckedInstruction,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
+import {
+  Connection,
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+} from "@solana/web3.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { decodeConfig, decodePool, decodePosition } from "../src/accounts.ts";
 import { ViseClient } from "../src/client.ts";
-import { FeeKind } from "../src/constants.ts";
+import { ECONOMICS, FeeKind } from "../src/constants.ts";
 import {
   configPda,
   poolPda,
@@ -14,6 +27,7 @@ import {
 } from "../src/pda.ts";
 import {
   accrued,
+  earlyExitPenalty,
   multiplierBps,
   projectSync,
   splitInflow,
@@ -45,14 +59,13 @@ const SOL = BigInt(LAMPORTS_PER_SOL);
 const TOKEN = 1_000_000n; // one whole token at 6 decimals
 
 /*
- * The suite runs on the production economics with two deliberate overrides:
- * the stream is an hour so a full window fits inside a test, and creators may
- * take a share so that mechanism stays under test even though the shipped
- * default disables it. Everything else — curve, tiers, penalty, treasury cut —
- * is exactly what init-config writes on chain.
+ * The suite runs on the production economics with one deliberate override:
+ * creators may take a share so that mechanism stays under test even though
+ * the shipped default disables it. Everything else — curve, tiers, penalty,
+ * lock window, release stream, treasury cut — is exactly what init-config
+ * writes on chain.
  */
 const TEST_OVERRIDES = {
-  rewardStreamSecs: 3_600,
   maxCreatorShareBps: 3_000,
 } as const;
 
@@ -94,7 +107,7 @@ async function initConfigIx(
     .instruction();
 }
 
-const STREAM_SECS = 3_600;
+const STREAM_SECS = ECONOMICS.rewardStreamSecs;
 
 /**
  * Let a pool's whole release window elapse and fold it into the accumulator.
@@ -548,7 +561,7 @@ describe("rewards", () => {
           mint: w.mint,
           index: 0,
           amount: 10_000n * TOKEN,
-          durationSecs: 7 * DAY,
+          durationSecs: ECONOMICS.minLockSecs,
           tokenProgram: w.tokenProgram,
         }),
       ],
@@ -600,7 +613,7 @@ describe("rewards", () => {
     const aliceGain = lamports(w.svm, alice.publicKey) - aliceBefore + 5_000n;
     const bobGain = lamports(w.svm, bob.publicKey) - bobBefore + 5_000n;
 
-    // Bob committed for a year at 4.0x against Alice's 7 days at 1.0x.
+    // Bob committed for a year at 4.0x against Alice's shortest lock at 1.0x.
     const ratio = Number(bobGain) / Number(aliceGain);
     assert.ok(ratio > 3.9 && ratio < 4.1, `weight ratio was ${ratio}`);
     assertSolvent(w.svm, w.mint, [
@@ -745,7 +758,7 @@ describe("positions", () => {
       mint: w.mint,
       index: 5,
       amount: 1_000n * TOKEN,
-      durationSecs: DAY,
+      durationSecs: ECONOMICS.minLockSecs - 1,
       tokenProgram: w.tokenProgram,
     });
     assert.match(sendExpectingError(w.svm, [tooShort], [w.creator]), /InvalidDuration/);
@@ -913,6 +926,47 @@ describe("exits", () => {
     assert.equal(pool.totalWeight, 0n);
   });
 
+  it("pays the shortest lock its share of the stream and returns it at maturity", async () => {
+    const w = await openPool({ initialLockDuration: ECONOMICS.minLockSecs });
+    const trader = fundedKeypair(w.svm);
+    send(
+      w.svm,
+      [
+        await client.depositReward({
+          payer: trader.publicKey,
+          mint: w.mint,
+          lamports: 20n * SOL,
+          kind: FeeKind.Buy,
+        }),
+      ],
+      [trader],
+    );
+    const position = readPosition(w.svm, w.mint, w.creator.publicKey, 0);
+    assert.ok(position);
+    assert.equal(position.multiplierBps >= 10_000, true);
+
+    const solBefore = lamports(w.svm, w.creator.publicKey);
+    warp(w.svm, ECONOMICS.minLockSecs + 1);
+    send(
+      w.svm,
+      [
+        await client.unlock({
+          owner: w.creator.publicKey,
+          mint: w.mint,
+          index: 0,
+          early: false,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [w.creator],
+    );
+    // The only locker, held through the whole release: every lamport of the
+    // lockers' cut (at least 81% of the deposit after treasury and creator)
+    // lands with the principal.
+    assert.ok(lamports(w.svm, w.creator.publicKey) - solBefore > (20n * SOL * 81n) / 100n - SOL / 100n);
+    assert.equal(readPosition(w.svm, w.mint, w.creator.publicKey, 0), null);
+  });
+
   it("refuses to unlock before term", async () => {
     const w = await openPool({ initialLockDuration: 30 * DAY });
     const ix = await client.unlock({
@@ -1016,16 +1070,25 @@ describe("exits", () => {
     );
     assert.equal(readPool(w.svm, w.mint).lifetimeBurned, burned);
 
-    // The stayer's claim strictly grew: the quitter's accrued SOL moved to them.
+    // The quitter's accrued SOL is forfeited into the stream, not handed out
+    // at once; once the window elapses it has reached the stayer.
     const poolAfter = readPool(w.svm, w.mint);
-    const stayerAfter = accrued(
+    assert.ok(poolAfter.undistributed > 0n, "forfeit must join the stream");
+    const stayerAtExit = accrued(
       stayerPos.weight,
       poolAfter.accRewardPerWeight,
       stayerPos.rewardDebt,
     );
+    assert.ok(stayerAtExit > stayerBefore);
+    await settleStream(w, trader);
+    const stayerAfter = accrued(
+      stayerPos.weight,
+      readPool(w.svm, w.mint).accRewardPerWeight,
+      stayerPos.rewardDebt,
+    );
     assert.ok(
-      stayerAfter > stayerBefore,
-      `forfeited rewards must reach stayers (${stayerBefore} -> ${stayerAfter})`,
+      stayerAfter > stayerAtExit,
+      `forfeited rewards must reach stayers (${stayerAtExit} -> ${stayerAfter})`,
     );
     assertSolvent(w.svm, w.mint, [
       { owner: w.creator.publicKey, index: 0 },
@@ -1342,8 +1405,9 @@ describe("audit regressions", () => {
     const before = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
     assert.equal(before.multiplierBps, 40_000);
 
-    // 358 days in, a week of commitment remains: that is what it should buy.
-    warp(w.svm, 358 * DAY);
+    // Five hours before maturity, only five hours of commitment remain: that
+    // is what the top-up should buy, not the year the lock started with.
+    warp(w.svm, 365 * DAY - 5 * 3_600);
     send(
       w.svm,
       [
@@ -1360,7 +1424,7 @@ describe("audit regressions", () => {
     const after = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
     assert.ok(
       after.multiplierBps < 11_000,
-      `expected a near-1x multiplier for the week left, got ${after.multiplierBps}`,
+      `expected a near-1x multiplier for the hours left, got ${after.multiplierBps}`,
     );
     assert.equal(after.weight, weightOf(after.amount, after.multiplierBps));
   });
@@ -1531,6 +1595,279 @@ describe("audit regressions", () => {
     });
     assert.match(sendExpectingError(w.svm, [ix], [keeper]), /NotPositionOwner/);
   });
+
+  it("streams an early exit's forfeit instead of crediting it in one step", async () => {
+    // A lump credit paid whoever held weight at that instant, so a sniper could
+    // lock in the same bundle as a large early exit, claim, and leave.
+    const quitter = Keypair.generate();
+    const stayer = Keypair.generate();
+    const sniper = Keypair.generate();
+    const w = await openPool({
+      extraHolders: [
+        { owner: quitter.publicKey, amount: 100_000n * TOKEN },
+        { owner: stayer.publicKey, amount: 100_000n * TOKEN },
+        { owner: sniper.publicKey, amount: 300_000n * TOKEN },
+      ],
+    });
+    for (const who of [quitter, stayer, sniper]) w.svm.airdrop(who.publicKey, 10n * SOL);
+    for (const who of [quitter, stayer]) {
+      send(
+        w.svm,
+        [
+          await client.lock({
+            owner: who.publicKey,
+            mint: w.mint,
+            index: 0,
+            amount: 50_000n * TOKEN,
+            durationSecs: 100 * DAY,
+            tokenProgram: w.tokenProgram,
+          }),
+        ],
+        [who],
+      );
+    }
+    const trader = fundedKeypair(w.svm, 200);
+    send(
+      w.svm,
+      [
+        await client.depositReward({
+          payer: trader.publicKey,
+          mint: w.mint,
+          lamports: 40n * SOL,
+          kind: FeeKind.Buy,
+        }),
+      ],
+      [trader],
+    );
+    await settleStream(w, trader);
+    send(
+      w.svm,
+      [await client.claim({ owner: stayer.publicKey, mint: w.mint, index: 0 })],
+      [stayer],
+    );
+
+    const settled = readPool(w.svm, w.mint);
+    const quitterPos = readPosition(w.svm, w.mint, quitter.publicKey, 0)!;
+    const forfeited = accrued(
+      quitterPos.weight,
+      settled.accRewardPerWeight,
+      quitterPos.rewardDebt,
+    );
+    assert.ok(forfeited > SOL, "the quitter must have something to forfeit");
+
+    // Same slot: the sniper locks a large bag, the quitter bails.
+    send(
+      w.svm,
+      [
+        await client.lock({
+          owner: sniper.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: 300_000n * TOKEN,
+          durationSecs: 365 * DAY,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [sniper],
+    );
+    send(
+      w.svm,
+      await client.unlockInstructions({
+        owner: quitter.publicKey,
+        mint: w.mint,
+        index: 0,
+        early: true,
+        tokenProgram: w.tokenProgram,
+      }),
+      [quitter],
+    );
+
+    const exited = readPool(w.svm, w.mint);
+    assert.equal(exited.undistributed, settled.undistributed + forfeited);
+    assert.equal(exited.accRewardPerWeight, settled.accRewardPerWeight);
+    assert.equal(exited.streamEnd, now(w.svm) + STREAM_SECS);
+    // The stayer already sent this exact claim; a fresh blockhash keeps it
+    // from being rejected as a duplicate rather than on its merits.
+    w.svm.expireBlockhash();
+    for (const who of [sniper, stayer]) {
+      assert.match(
+        sendExpectingError(
+          w.svm,
+          [await client.claim({ owner: who.publicKey, mint: w.mint, index: 0 })],
+          [who],
+        ),
+        /NothingToClaim/,
+        "a forfeit must not be claimable in the slot it happens",
+      );
+    }
+
+    // It reaches the lockers who hold weight while it streams.
+    const stayerPos = readPosition(w.svm, w.mint, stayer.publicKey, 0)!;
+    const stayerShare = (forfeited * stayerPos.weight) / exited.totalWeight;
+    warp(w.svm, STREAM_SECS / 2);
+    send(w.svm, [await client.sync(w.mint)], [trader]);
+    const halfway = accrued(
+      stayerPos.weight,
+      readPool(w.svm, w.mint).accRewardPerWeight,
+      stayerPos.rewardDebt,
+    );
+    assert.ok(
+      halfway > (stayerShare * 45n) / 100n && halfway < (stayerShare * 55n) / 100n,
+      `expected ~half of ${stayerShare} after half the window, got ${halfway}`,
+    );
+    await settleStream(w, trader);
+    const full = accrued(
+      stayerPos.weight,
+      readPool(w.svm, w.mint).accRewardPerWeight,
+      stayerPos.rewardDebt,
+    );
+    assert.ok(
+      full <= stayerShare + 1n && full + stayerShare / 1_000n >= stayerShare,
+      `expected ~${stayerShare} once the window elapsed, got ${full}`,
+    );
+    assertSolvent(w.svm, w.mint, [
+      { owner: w.creator.publicKey, index: 0 },
+      { owner: stayer.publicKey, index: 0 },
+      { owner: sniper.publicKey, index: 0 },
+    ]);
+  });
+
+  it("charges a top-up the penalty of a fresh lock over the term left", async () => {
+    // Keeping the original lock_start priced the added principal's exit over
+    // the old year-long term: ~0.5% to pull a week-old top-up straight back.
+    const w = await openPool({ initialLockDuration: 365 * DAY });
+    const original = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    warp(w.svm, 358 * DAY);
+    const t = now(w.svm);
+    const added = 100_000n * TOKEN;
+    send(
+      w.svm,
+      [
+        await client.increase({
+          owner: w.creator.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: added,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [w.creator],
+    );
+    const topped = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    assert.ok(topped.lockStart >= original.lockStart && topped.lockStart <= t);
+    assert.equal(topped.lockEnd, original.lockEnd);
+
+    const bps = readPool(w.svm, w.mint).terms.earlyUnlockPenaltyBps;
+    const fresh = earlyExitPenalty(added, t, original.lockEnd, t, bps);
+    const existing = earlyExitPenalty(
+      original.amount,
+      original.lockStart,
+      original.lockEnd,
+      t,
+      bps,
+    );
+    const supplyBefore = mintSupply(w.svm, w.mint);
+    send(
+      w.svm,
+      [
+        await client.unlock({
+          owner: w.creator.publicKey,
+          mint: w.mint,
+          index: 0,
+          early: true,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [w.creator],
+    );
+    const burned = supplyBefore - mintSupply(w.svm, w.mint);
+    assert.ok(
+      burned + 2n >= fresh + existing,
+      `burned ${burned}, a fresh lock of the top-up alone burns ${fresh}`,
+    );
+    // And no more than rounding above it: the old principal is not repriced.
+    assert.ok(burned <= fresh + existing + TOKEN, `burned ${burned}`);
+  });
+
+  it("pays a keeper-closed unlock only into the owner's associated account", async () => {
+    const w = await openPool({ initialLockDuration: 7 * DAY });
+    warp(w.svm, 8 * DAY);
+    const keeper = fundedKeypair(w.svm);
+    const owner = w.creator.publicKey;
+    const ata = getAssociatedTokenAddressSync(w.mint, owner, true, w.tokenProgram);
+
+    // A token account the owner owns but no wallet would ever look in.
+    const decoy = Keypair.generate();
+    send(
+      w.svm,
+      [
+        SystemProgram.createAccount({
+          fromPubkey: keeper.publicKey,
+          newAccountPubkey: decoy.publicKey,
+          space: ACCOUNT_SIZE,
+          lamports: Number(w.svm.minimumBalanceForRentExemption(BigInt(ACCOUNT_SIZE))),
+          programId: w.tokenProgram,
+        }),
+        createInitializeAccount3Instruction(decoy.publicKey, w.mint, owner, w.tokenProgram),
+      ],
+      [keeper, decoy],
+    );
+    const redirected = await client.unlock({
+      owner,
+      mint: w.mint,
+      index: 0,
+      early: false,
+      payer: keeper.publicKey,
+      tokenProgram: w.tokenProgram,
+    });
+    for (const key of redirected.keys) {
+      if (key.pubkey.equals(ata)) key.pubkey = decoy.publicKey;
+    }
+    assert.match(
+      sendExpectingError(w.svm, [redirected], [keeper]),
+      /ConstraintAssociated/,
+    );
+
+    // The owner has since emptied and closed their ATA; the keeper's
+    // idempotent create restores it and the principal lands there.
+    const held = tokenBalance(w.svm, w.mint, owner, w.tokenProgram);
+    send(
+      w.svm,
+      [
+        createTransferCheckedInstruction(
+          ata,
+          w.mint,
+          decoy.publicKey,
+          owner,
+          held,
+          6,
+          [],
+          w.tokenProgram,
+        ),
+        createCloseAccountInstruction(ata, owner, owner, [], w.tokenProgram),
+      ],
+      [w.creator],
+    );
+    assert.equal(w.svm.getAccount(ata)?.data.length ?? 0, 0);
+    send(
+      w.svm,
+      await client.unlockInstructions({
+        owner,
+        mint: w.mint,
+        index: 0,
+        early: false,
+        payer: keeper.publicKey,
+        tokenProgram: w.tokenProgram,
+      }),
+      [keeper],
+    );
+    assert.equal(tokenBalance(w.svm, w.mint, owner, w.tokenProgram), 10_000n * TOKEN);
+    assert.equal(
+      Buffer.from(w.svm.getAccount(decoy.publicKey)!.data).readBigUInt64LE(64),
+      held,
+    );
+    assert.equal(readPosition(w.svm, w.mint, owner, 0), null);
+  });
 });
 
 describe("token vault accounting", () => {
@@ -1572,9 +1909,9 @@ describe("economics", () => {
   it("prices duration on the sqrt curve, front-loaded", async () => {
     const w = await openPool({ initialLockDuration: 30 * DAY });
     const founding = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
-    // A month is worth ~1.76x on the sqrt curve; a straight line would pay 1.19x.
+    // A month is worth ~1.86x on the sqrt curve; a straight line would pay 1.25x.
     assert.ok(
-      founding.multiplierBps >= 17_400 && founding.multiplierBps <= 17_800,
+      founding.multiplierBps >= 18_400 && founding.multiplierBps <= 18_800,
       `30d priced at ${founding.multiplierBps}`,
     );
     assert.equal(
@@ -1669,7 +2006,8 @@ describe("economics", () => {
     assert.equal(config.defaultDurationCurve, 1);
     assert.deepEqual(config.defaultSizeTierBps, [10, 50, 100]);
     assert.deepEqual(config.defaultSizeBonusBps, [1_000, 2_500, 5_000]);
-    assert.equal(config.defaultRewardStreamSecs, 24 * 3_600);
+    assert.equal(config.defaultRewardStreamSecs, 3_600);
+    assert.equal(config.defaultMinLockSecs, 4 * 3_600);
     assert.equal(config.defaultMinLockAmount, 1_000_000n);
 
     const split = splitInflow(10n * SOL, {

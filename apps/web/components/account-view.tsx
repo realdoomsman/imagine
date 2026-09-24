@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type Holding, type WalletPosition, type WalletView } from "@/lib/api";
+import { api, ApiError, googleSignInUrl, type Holding, type WalletPosition, type WalletView } from "@/lib/api";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useAccount } from "./account-provider";
 import { ExtendControl } from "./extend-control";
@@ -37,6 +37,9 @@ export function AccountView() {
   const wallet = useWallet();
   const [view, setView] = useState<WalletView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Withdraw and export want a sign-in from the last few minutes; when the
+  // API asks for one, this holds its message and the page offers the way.
+  const [reauth, setReauth] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -84,17 +87,31 @@ export function AccountView() {
     async (key: string, work: () => Promise<unknown>) => {
       setBusy(key);
       setError(null);
+      setReauth(null);
       try {
         await work();
         await refresh();
+        // The first read can come from an RPC node a slot behind the action;
+        // a second one shortly after shows the result without a manual reload.
+        window.setTimeout(() => void refresh(), 2_500);
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "action failed");
+        if (cause instanceof ApiError && cause.detail.reauth === true) setReauth(cause.message);
+        else setError(cause instanceof Error ? cause.message : "action failed");
       } finally {
         setBusy(null);
       }
     },
     [refresh],
   );
+
+  const signOut = useCallback(async () => {
+    setError(null);
+    try {
+      await logout();
+    } catch (cause) {
+      setError(`Sign-out did not go through, so you are still signed in: ${cause instanceof Error ? cause.message : "try again"}`);
+    }
+  }, [logout]);
 
   if (!ready) return <AccountSkeleton />;
 
@@ -134,6 +151,20 @@ export function AccountView() {
       {error ? (
         <p className="rounded-machined border border-rust/40 bg-rust/10 px-5 py-3 text-[13px] text-rust">{error}</p>
       ) : null}
+      {reauth ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-machined border border-torch/40 bg-torch/10 px-5 py-3 text-[13px] text-steel-100">
+          <span>{reauth}</span>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = googleSignInUrl("/account");
+            }}
+            className="btn btn-primary h-9 text-[13px]"
+          >
+            Sign in again
+          </button>
+        </div>
+      ) : null}
 
       {/* Identity and the address to fund. */}
       <section className="panel p-6">
@@ -152,7 +183,7 @@ export function AccountView() {
               <p className="text-[12.5px] text-steel-500">{account.email} · signed in with Google</p>
             </div>
           </div>
-          <button type="button" onClick={() => void logout()} className="btn btn-ghost h-9 text-[13px]">
+          <button type="button" onClick={() => void signOut()} className="btn btn-ghost h-9 text-[13px]">
             Sign out
           </button>
         </div>
@@ -227,9 +258,9 @@ export function AccountView() {
                     api.act({ kind: "unlock", mint: position.mint, index: position.index, early: !position.matured }),
                   )
                 }
-                onExtend={(days) =>
+                onExtend={(seconds) =>
                   run(`extend-${position.mint}-${position.index}`, () =>
-                    api.act({ kind: "extend", mint: position.mint, index: position.index, durationDays: days }),
+                    api.act({ kind: "extend", mint: position.mint, index: position.index, durationSecs: seconds }),
                   )
                 }
               />
@@ -291,13 +322,16 @@ export function AccountView() {
 }
 
 function describeAction(kind: string, detail: Record<string, unknown>): string {
+  // Rows written before terms moved to seconds carry `durationDays`.
+  const term =
+    typeof detail.durationSecs === "number" ? formatDuration(detail.durationSecs) : `${String(detail.durationDays)}d`;
   switch (kind) {
     case "lock":
-      return `Locked ${String(detail.mint).slice(0, 6)}… for ${String(detail.durationDays)} days`;
+      return `Locked ${String(detail.mint).slice(0, 6)}… for ${term}`;
     case "claim":
       return `Claimed rewards on ${String(detail.mint).slice(0, 6)}…`;
     case "extend":
-      return `Extended the lock on ${String(detail.mint).slice(0, 6)}… to ${String(detail.durationDays)} days`;
+      return `Extended the lock on ${String(detail.mint).slice(0, 6)}… to ${term}`;
     case "increase":
       return `Added to the lock on ${String(detail.mint).slice(0, 6)}…`;
     case "unlock":
@@ -308,6 +342,8 @@ function describeAction(kind: string, detail: Record<string, unknown>): string {
       return `Withdrew to ${String(detail.to).slice(0, 6)}…`;
     case "launch":
       return `Launched ${String(detail.symbol ?? "a coin")}`;
+    case "attach":
+      return `Brought ${String(detail.mint).slice(0, 6)}… to VISE`;
     case "export-key":
       return "Exported the wallet key";
     default:
@@ -326,7 +362,7 @@ function PositionCard({
   busy: string | null;
   onClaim: () => void;
   onUnlock: () => void;
-  onExtend: (days: number) => void;
+  onExtend: (seconds: number) => void;
 }) {
   const term = position.lockEnd - position.lockStart;
   const elapsed = term > 0 ? Math.min(Math.max((term - position.secondsLeft) / term, 0), 1) : 1;
@@ -413,7 +449,13 @@ function PositionCard({
           </>
         ) : (
           <>
-            <ExtendControl lockEnd={position.lockEnd} busy={busy !== null} onExtend={onExtend} />
+            <ExtendControl
+              lockEnd={position.lockEnd}
+              minLockSecs={position.minLockSecs}
+              maxLockSecs={position.maxLockSecs}
+              busy={busy !== null}
+              onExtend={onExtend}
+            />
             <button
               type="button"
               disabled={busy !== null}
@@ -426,7 +468,7 @@ function PositionCard({
         )}
         {!position.matured ? (
           <span className="text-[11.5px] text-steel-500">
-            {confirming ? "This cannot be undone. " : "Breaking it now "}
+            {confirming ? "This cannot be undone. It " : "Breaking it now "}
             burns {formatTokenAmount(burn, position.decimals)} of your{" "}
             {formatTokenAmount(BigInt(position.amount), position.decimals)} and forfeits {formatSol(pending)} SOL to
             the lockers who stayed.

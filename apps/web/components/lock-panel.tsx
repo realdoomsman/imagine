@@ -1,21 +1,21 @@
 "use client";
 
-import { useConnection } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { PublicKey } from "@solana/web3.js";
 import {
+  DAY,
   formatDuration,
   formatMultiplier,
   formatPercent,
+  formatSol,
   formatTokenAmount,
   multiplierBps,
   projectedShare,
   sizeBonusBps,
   type PoolTerms,
 } from "@vise/sdk";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useActor } from "@/lib/signer";
-import { LockDial } from "./lock-dial";
+import { useTokenBalance } from "@/lib/use-token-balance";
+import { durationLabel, LockDial } from "./lock-dial";
 import { ViseMark } from "./vise-mark";
 import { SignInPrompt } from "./sign-in-prompt";
 
@@ -41,6 +41,7 @@ export function LockPanel({
   totalWeight,
   accRewardPerWeight,
   supply,
+  lockersPerDay,
 }: {
   mint: string;
   symbol: string;
@@ -50,12 +51,13 @@ export function LockPanel({
   accRewardPerWeight: string;
   /** Total token supply, base units; sets the size tier. */
   supply: string;
+  /** Lamports a day reaching this pool's lockers at the trailing fee rate. */
+  lockersPerDay: string;
 }) {
-  const { connection } = useConnection();
   const actor = useActor();
-  const [balance, setBalance] = useState<bigint | null>(null);
+  const balance = useTokenBalance(mint, actor.publicKey);
   const [amountInput, setAmountInput] = useState("");
-  const [days, setDays] = useState(30);
+  const [seconds, setSeconds] = useState(Math.min(Math.max(30 * DAY, terms.minLockSecs), terms.maxLockSecs));
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -64,33 +66,6 @@ export function LockPanel({
     minLockAmount: BigInt(terms.minLockAmount),
   };
   const totalSupply = BigInt(supply);
-  const minDays = Math.floor(terms.minLockSecs / 86_400);
-  const maxDays = Math.floor(terms.maxLockSecs / 86_400);
-
-  useEffect(() => {
-    if (!actor.publicKey) {
-      setBalance(null);
-      return;
-    }
-    const ata = getAssociatedTokenAddressSync(
-      new PublicKey(mint),
-      actor.publicKey,
-      true,
-      TOKEN_2022_PROGRAM_ID,
-    );
-    let cancelled = false;
-    void connection
-      .getTokenAccountBalance(ata)
-      .then((result) => {
-        if (!cancelled) setBalance(BigInt(result.value.amount));
-      })
-      .catch(() => {
-        if (!cancelled) setBalance(0n);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [connection, mint, actor.publicKey]);
 
   const amount = (() => {
     const parsed = Number(amountInput);
@@ -100,9 +75,12 @@ export function LockPanel({
 
   const projection =
     amount > 0n
-      ? projectedShare(amount, days * 86_400, poolTerms, BigInt(totalWeight), totalSupply)
+      ? projectedShare(amount, seconds, poolTerms, BigInt(totalWeight), totalSupply)
       : null;
-  const multiplier = multiplierBps(days * 86_400, poolTerms, amount, totalSupply);
+  const multiplier = multiplierBps(seconds, poolTerms, amount, totalSupply);
+  // The coin's own fee flow sets the pay: the same lock earns more on a coin
+  // that trades more. Realised trailing rate times the share this lock takes.
+  const perDay = projection ? BigInt(Math.floor(Number(lockersPerDay) * projection.share)) : null;
   const bonus = sizeBonusBps(amount, totalSupply, poolTerms);
   // The next tier up, so the panel can say what a larger lock would earn.
   const nextTier = poolTerms.sizeTierBps
@@ -122,7 +100,7 @@ export function LockPanel({
         mint,
         index,
         amount: amount.toString(),
-        durationDays: days,
+        durationSecs: seconds,
       });
       setStatus(`Clamped. ${signature.slice(0, 16)}…`);
       setAmountInput("");
@@ -131,7 +109,7 @@ export function LockPanel({
     } finally {
       setBusy(false);
     }
-  }, [actor, amount, days, mint]);
+  }, [actor, amount, seconds, mint]);
 
   const insufficient = balance !== null && amount > balance;
   const belowMinimum = amount > 0n && amount < poolTerms.minLockAmount;
@@ -141,7 +119,10 @@ export function LockPanel({
       <div className="flex items-center justify-between">
         <h2 className="text-[17px]">Clamp {symbol}</h2>
         <span className="text-torch">
-          <ViseMark size={20} grip={(days - minDays) / (maxDays - minDays)} />
+          <ViseMark
+            size={20}
+            grip={(seconds - terms.minLockSecs) / Math.max(1, terms.maxLockSecs - terms.minLockSecs)}
+          />
         </span>
       </div>
 
@@ -173,13 +154,7 @@ export function LockPanel({
       </div>
 
       <div className="mt-5">
-        <LockDial
-          days={days}
-          onChange={setDays}
-          min={minDays}
-          max={maxDays}
-          presets={[7, 30, 90, 180, 365].filter((d) => d >= minDays && d <= maxDays)}
-        />
+        <LockDial seconds={seconds} onChange={setSeconds} min={terms.minLockSecs} max={terms.maxLockSecs} />
       </div>
 
       <dl className="mt-5 grid grid-cols-2 gap-px border border-steel-700 bg-steel-700">
@@ -203,16 +178,28 @@ export function LockPanel({
           </dd>
           <dd className="mt-0.5 text-[11px] text-steel-500">of the lockers&apos; 90%</dd>
         </div>
+        <div className="col-span-2 bg-steel-900 px-4 py-3">
+          <dt className="rule-label">Estimated earnings</dt>
+          <dd className="num mt-1 text-[20px] text-verdi">
+            {perDay === null ? "—" : BigInt(lockersPerDay) === 0n ? "0 SOL / day" : `≈ ${formatSol(perDay, 6)} SOL / day`}
+          </dd>
+          <dd className="mt-0.5 text-[11px] text-steel-500">
+            {BigInt(lockersPerDay) === 0n
+              ? "No fees in the last day. Rewards start when this coin trades."
+              : `At the last day's fee rate, ${formatSol(BigInt(lockersPerDay))} SOL/day to lockers. Tracks volume: more trading, more rewards.`}
+          </dd>
+        </div>
       </dl>
 
       <p className="mt-3 text-[12px] leading-relaxed text-steel-600">
         Fees arriving now stream out over{" "}
         {formatDuration(terms.rewardStreamSecs)}, so a share is earned by staying
         locked rather than by arriving at the right moment. Unlocks{" "}
-        {new Date(Date.now() + days * 86_400_000).toLocaleDateString(undefined, {
+        {new Date(Date.now() + seconds * 1_000).toLocaleString(undefined, {
           month: "short",
           day: "numeric",
           year: "numeric",
+          ...(seconds < DAY ? { hour: "numeric", minute: "2-digit" } : {}),
         })}
         . Leaving early burns up to{" "}
         {formatPercent(terms.earlyUnlockPenaltyBps / 10_000, 0)} of your principal
@@ -232,7 +219,7 @@ export function LockPanel({
               ? "Not enough coins"
               : belowMinimum
                 ? "Below the minimum lock"
-                : `Clamp for ${days} days`}
+                : `Clamp for ${durationLabel(seconds)}`}
         </button>
       ) : (
         <div className="mt-5">

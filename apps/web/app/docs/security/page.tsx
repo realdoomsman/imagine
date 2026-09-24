@@ -129,9 +129,10 @@ export default function SecurityPage() {
           </li>
           <li>
             <strong>The upgrade authority is a real authority.</strong> The
-            program can be upgraded by whoever holds it. It belongs to a
-            multisig, and burning it entirely is the end state — but until that
-            happens, saying otherwise would be a lie.
+            program can be upgraded by whoever holds it. Today that is a single
+            key held by the team, not a multisig. Moving it to a multisig, and
+            eventually burning it, is the end state — until that happens,
+            saying otherwise would be a lie.
           </li>
           <li>
             <strong>The app fee depends on our front-end.</strong> It is enforced

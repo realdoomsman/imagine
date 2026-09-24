@@ -36,8 +36,8 @@ export function isqrt(n: bigint): bigint {
 
 /**
  * Duration multiplier along the pool's curve: `minLock` → 1.0x, `maxLock` →
- * `maxMultiplierBps`. The sqrt curve is front-loaded: thirty days on a 4.0x
- * pool is 1.76x, not the 1.19x a straight line pays.
+ * `maxMultiplierBps`. The sqrt curve is front-loaded: on the shipped 4h–365d,
+ * 4.0x window thirty days is 1.86x, not the 1.25x a straight line pays.
  */
 export function durationMultiplierBps(
   durationSecs: number,

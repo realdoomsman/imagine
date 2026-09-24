@@ -30,7 +30,9 @@ common = {
 }
 
 railway = pathlib.Path.home() / "AppData/Roaming/npm/node_modules/@railway/cli/bin/railway.exe"
-for service in sys.argv[1:] or ["api", "indexer"]:
+# Only the api service reads these; the indexer processes untrusted input and
+# must not hold the wallet master key or the session secret.
+for service in sys.argv[1:] or ["api"]:
     args = [str(railway), "variables", "--service", service, "--skip-deploys"]
     for key, value in common.items():
         args += ["--set", f"{key}={value}"]

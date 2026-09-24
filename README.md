@@ -3,8 +3,8 @@
 **Hold under pressure.** Time-weighted lock-to-earn vaults for pump.fun coins.
 
 Every trade on a VISE coin pays a fee. That fee goes to the people still holding
-it, split by how long each of them committed. Lock for a week and your bag counts
-once; lock for a year and the same bag counts four times.
+it, split by how long each of them committed. Lock for four hours and your bag
+counts once and still earns; lock for a year and the same bag counts four times.
 
 Program: `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb`
 

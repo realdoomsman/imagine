@@ -1,14 +1,17 @@
 /**
- * Initialise (or inspect) the singleton platform config.
+ * Initialise the singleton platform config, or bring an existing one in line
+ * with `ECONOMICS`.
  *
- * Idempotent: if the config already exists it prints it and exits rather than
- * failing, so it is safe to run as part of a deploy pipeline.
+ * Idempotent: a config that already matches is printed and left alone; one
+ * that differs gets a single `update_config` signed by the admin, keeping its
+ * treasury and pause flag. Live pools are untouched either way — their terms
+ * are frozen — so this only changes what pools created afterwards get.
  *
  * Usage: node --env-file=.env.devnet scripts/init-config.ts [path/to/admin.json]
  *
- * The treasury is `TREASURY_PUBKEY` (defaults to the admin: rotate it later
- * with `set_treasury`). This is the one place a treasury is chosen; the API
- * itself reads it back from the chain.
+ * The treasury of a new config is `TREASURY_PUBKEY` (defaults to the admin).
+ * This is the one place a treasury is chosen; the API itself reads it back
+ * from the chain.
  */
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -20,7 +23,7 @@ import {
   PublicKey,
   Transaction,
 } from "@solana/web3.js";
-import { configPda, DAY, ViseClient } from "@vise/sdk";
+import { configPda, ECONOMICS, ViseClient } from "@vise/sdk";
 import { env } from "../src/env.ts";
 
 const keypairPath =
@@ -33,25 +36,57 @@ const connection = new Connection(env.rpcUrl, "confirmed");
 const vise = new ViseClient(connection);
 
 const existing = await vise.fetchConfig();
+const summary = (config: NonNullable<typeof existing>) => ({
+  address: configPda().toBase58(),
+  admin: config.admin.toBase58(),
+  treasury: config.treasury.toBase58(),
+  tradeFeeBps: config.tradeFeeBps,
+  treasuryShareBps: config.defaultTreasuryShareBps,
+  maxCreatorShareBps: config.maxCreatorShareBps,
+  lockWindowHours: [config.defaultMinLockSecs / 3_600, config.defaultMaxLockSecs / 3_600],
+  rewardStreamSecs: config.defaultRewardStreamSecs,
+  maxMultiplier: `${config.defaultMaxMultiplierBps / 10_000}x`,
+  penaltyBps: config.defaultEarlyUnlockPenaltyBps,
+  poolCreationFee: `${Number(config.poolCreationFee) / LAMPORTS_PER_SOL} SOL`,
+  paused: config.paused,
+  poolCount: config.poolCount.toString(),
+});
+
 if (existing) {
-  console.log("config already initialised:");
-  console.log({
-    address: configPda().toBase58(),
-    admin: existing.admin.toBase58(),
-    treasury: existing.treasury.toBase58(),
-    tradeFeeBps: existing.tradeFeeBps,
-    treasuryShareBps: existing.defaultTreasuryShareBps,
-    maxCreatorShareBps: existing.maxCreatorShareBps,
-    lockWindowDays: [
-      existing.defaultMinLockSecs / DAY,
-      existing.defaultMaxLockSecs / DAY,
-    ],
-    maxMultiplier: `${existing.defaultMaxMultiplierBps / 10_000}x`,
-    penaltyBps: existing.defaultEarlyUnlockPenaltyBps,
-    poolCreationFee: `${Number(existing.poolCreationFee) / LAMPORTS_PER_SOL} SOL`,
-    paused: existing.paused,
-    poolCount: existing.poolCount.toString(),
-  });
+  const drift =
+    existing.tradeFeeBps !== ECONOMICS.tradeFeeBps ||
+    existing.defaultTreasuryShareBps !== ECONOMICS.treasuryShareBps ||
+    existing.maxCreatorShareBps !== ECONOMICS.maxCreatorShareBps ||
+    existing.defaultMinLockSecs !== ECONOMICS.minLockSecs ||
+    existing.defaultMaxLockSecs !== ECONOMICS.maxLockSecs ||
+    existing.defaultMaxMultiplierBps !== ECONOMICS.maxMultiplierBps ||
+    existing.defaultEarlyUnlockPenaltyBps !== ECONOMICS.earlyUnlockPenaltyBps ||
+    existing.defaultMinLockAmount !== ECONOMICS.minLockAmount ||
+    existing.defaultRewardStreamSecs !== ECONOMICS.rewardStreamSecs ||
+    existing.defaultDurationCurve !== ECONOMICS.durationCurve ||
+    existing.defaultSizeTierBps.some((v, i) => v !== ECONOMICS.sizeTierBps[i]) ||
+    existing.defaultSizeBonusBps.some((v, i) => v !== ECONOMICS.sizeBonusBps[i]) ||
+    existing.poolCreationFee !== ECONOMICS.poolCreationFeeLamports;
+  if (!drift) {
+    console.log("config already matches ECONOMICS:", summary(existing));
+    process.exit(0);
+  }
+  if (!existing.admin.equals(admin.publicKey)) {
+    console.error(`config differs from ECONOMICS but ${admin.publicKey.toBase58()} is not its admin (${existing.admin.toBase58()})`);
+    process.exit(1);
+  }
+  console.log("before:", summary(existing));
+  const update = await vise.program.methods
+    .updateConfig(ViseClient.configArgs({ treasury: existing.treasury, paused: existing.paused }))
+    .accountsPartial({ admin: admin.publicKey, config: configPda() })
+    .instruction();
+  const latest = await connection.getLatestBlockhash();
+  const tx = new Transaction({ feePayer: admin.publicKey, ...latest }).add(update);
+  const signature = await connection.sendTransaction(tx, [admin]);
+  await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+  const after = await vise.fetchConfig();
+  console.log("updated", signature);
+  console.log("after:", after ? summary(after) : null);
   process.exit(0);
 }
 

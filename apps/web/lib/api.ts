@@ -70,6 +70,15 @@ export interface PoolDetail {
     openPositions: number;
     createdAt: number;
   };
+  /** Realised fee flow over the last 24 hours, lamports; rewards track the coin's own volume. */
+  rewardRate: {
+    lockersPerDay: string;
+    feesPerDay: string;
+    releasingPerDay: string;
+    waitingAtPump: string;
+    siteVolume: string;
+    trades: number;
+  };
   curve: {
     complete: boolean;
     progress: number;
@@ -107,6 +116,22 @@ export interface PortfolioPosition {
   claimed: string;
   pending: string;
   share: number;
+  /** The pool's frozen lock window, so an extend offers only legal terms. */
+  minLockSecs: number | null;
+  maxLockSecs: number | null;
+}
+
+/**
+ * Server-rendered pages all reach the API from this container's one egress
+ * address, so they would share a single rate-limit bucket that one busy
+ * visitor could exhaust for everyone. The server identifies itself with a
+ * key only it holds (never NEXT_PUBLIC, so never in a bundle); the browser
+ * sends nothing and is limited per visitor as usual.
+ */
+function serverHeaders(): Record<string, string> {
+  if (typeof window !== "undefined") return {};
+  const key = process.env.VISE_INTERNAL_KEY;
+  return key ? { "x-vise-internal": key } : {};
 }
 
 /**
@@ -121,6 +146,7 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
     credentials: "include",
     ...init,
+    headers: { ...serverHeaders(), ...init?.headers },
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
@@ -158,6 +184,11 @@ export async function post<T>(path: string, body: unknown): Promise<T> {
     );
   }
   return (await response.json()) as T;
+}
+
+/** The API's Google sign-in start; after Google it returns the browser to `returnTo`. */
+export function googleSignInUrl(returnTo: string): string {
+  return `${BASE}/api/auth/google/start?return_to=${encodeURIComponent(returnTo)}`;
 }
 
 export interface AccountInfo {
@@ -248,7 +279,7 @@ export const api = {
       trades_24h: number;
     }>("/api/stats"),
   config: () =>
-    get<{ cluster: string; rpcUrl: string; treasury: string; tradeFeeBps: number; googleClientId: string }>(
+    get<{ cluster: string; treasury: string; tradeFeeBps: number; googleClientId: string }>(
       "/config",
     ),
 
@@ -268,6 +299,12 @@ export const api = {
   launchFromAccount: (body: Record<string, unknown>) =>
     post<{ mint: string; pool: string; lockAmount: string; signatures: Array<{ label: string; signature: string }> }>(
       "/api/me/launch",
+      body,
+    ),
+  /** Bring a coin this account launched on pump.fun onto VISE. */
+  attachFromAccount: (body: { mint: string; lockPercent: number; lockDurationSecs: number }) =>
+    post<{ mint: string; pool: string; lockAmount: string; signatures: Array<{ label: string; signature: string }> }>(
+      "/api/me/attach",
       body,
     ),
 };

@@ -1,20 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { DAY, ECONOMICS, durationMultiplierBps, combinedMultiplierBps } from "@vise/sdk";
+import { DAY, ECONOMICS, HOUR, durationMultiplierBps, combinedMultiplierBps } from "@vise/sdk";
 import { useEffect, useState } from "react";
+import { durationLabel, durationStops } from "./lock-dial";
 import { ViseShader } from "./vise-shader";
 import { Magnetic, Ticker } from "./motion";
 
-const MIN_DAYS = ECONOMICS.minLockSecs / DAY;
-const MAX_DAYS = ECONOMICS.maxLockSecs / DAY;
+const STOPS = durationStops(ECONOMICS.minLockSecs, ECONOMICS.maxLockSecs);
 
 const PRESETS = [
-  { days: 7, label: "1W" },
-  { days: 30, label: "1M" },
-  { days: 90, label: "3M" },
-  { days: 180, label: "6M" },
-  { days: 365, label: "1Y" },
+  { seconds: 4 * HOUR, label: "4H" },
+  { seconds: 7 * DAY, label: "1W" },
+  { seconds: 30 * DAY, label: "1M" },
+  { seconds: 90 * DAY, label: "3M" },
+  { seconds: 365 * DAY, label: "1Y" },
 ];
 
 /** Size tiers, as the pool defaults stamp them: share of supply → bonus. */
@@ -24,12 +24,15 @@ const TIERS = ECONOMICS.sizeTierBps.map((tier, index) => ({
 }));
 
 export function Hero() {
-  const [days, setDays] = useState(90);
-  const [tier, setTier] = useState(0);
+  // Open on the best case — a year at the top size tier — so the first number
+  // a visitor sees is the ceiling (6.00×), not the floor.
+  const [stop, setStop] = useState(STOPS.length - 1);
+  const [tier, setTier] = useState(TIERS.length);
   const [entered, setEntered] = useState(false);
-  const grip = (days - MIN_DAYS) / (MAX_DAYS - MIN_DAYS);
+  const seconds = STOPS[stop];
+  const grip = stop / (STOPS.length - 1);
   // The same arithmetic the program runs, from the SDK mirror it is pinned to.
-  const durationBps = durationMultiplierBps(days * DAY, ECONOMICS);
+  const durationBps = durationMultiplierBps(seconds, ECONOMICS);
   const bonusBps = tier === 0 ? 0 : TIERS[tier - 1].bonusBps;
   const multiplier = combinedMultiplierBps(durationBps, bonusBps) / 10_000;
 
@@ -40,7 +43,7 @@ export function Hero() {
 
   // Only after mount: Date.now() on the server would not match the client.
   const unlockDate = entered
-    ? new Date(Date.now() + days * 86_400_000).toLocaleDateString("en-US", {
+    ? new Date(Date.now() + seconds * 1_000).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "2-digit",
@@ -134,18 +137,17 @@ export function Hero() {
             <div className="w-full max-w-xl">
               <div className="mb-3 flex items-baseline justify-between">
                 <span className="rule-label">Lock duration</span>
-                <span className="num text-[13px] text-steel-400">
-                  {days} {days === 1 ? "day" : "days"}
-                </span>
+                <span className="num text-[13px] text-steel-400">{durationLabel(seconds)}</span>
               </div>
 
               <input
                 type="range"
-                min={MIN_DAYS}
-                max={MAX_DAYS}
-                value={days}
-                onChange={(event) => setDays(Number(event.target.value))}
-                aria-label="Lock duration in days"
+                min={0}
+                max={STOPS.length - 1}
+                value={stop}
+                onChange={(event) => setStop(Number(event.target.value))}
+                aria-label="Lock duration"
+                aria-valuetext={durationLabel(seconds)}
                 className="vise-range w-full"
                 style={fillStyle}
               />
@@ -153,12 +155,12 @@ export function Hero() {
               <div className="mt-3 flex gap-1.5">
                 {PRESETS.map((preset) => (
                   <button
-                    key={preset.days}
+                    key={preset.seconds}
                     type="button"
-                    onClick={() => setDays(preset.days)}
-                    aria-pressed={days === preset.days}
+                    onClick={() => setStop(Math.max(0, STOPS.indexOf(preset.seconds)))}
+                    aria-pressed={seconds === preset.seconds}
                     className={`num h-7 flex-1 rounded-[2px] border text-[11px] transition-colors duration-200 ${
-                      days === preset.days
+                      seconds === preset.seconds
                         ? "border-torch/60 bg-torch/12 text-torch-pale"
                         : "border-steel-700 text-steel-500 hover:border-steel-600/50 hover:text-steel-300"
                     }`}

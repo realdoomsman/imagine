@@ -20,7 +20,7 @@ const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: "How is my share worked out?",
-    a: "Your weight is amount times a multiplier. The multiplier runs on a square-root curve from 1.00× at seven days to 4.00× at a year: thirty days is 1.76×, ninety is 2.44×. Locking at least 0.1%, 0.5% or 1% of the supply adds 10%, 25% or 50% on top. Your share of each SOL that arrives is your weight over the pool's total weight.",
+    a: "Your weight is amount times a multiplier. The multiplier runs on a square-root curve from 1.00× at four hours to 4.00× at a year: a week is 1.41×, thirty days 1.86×, ninety 2.49×. Even a four-hour lock earns its share. Locking at least 0.1%, 0.5% or 1% of the supply adds 10%, 25% or 50% on top. Your share of each SOL that arrives is your weight over the pool's total weight.",
   },
   {
     q: "Can I get out early?",

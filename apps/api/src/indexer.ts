@@ -1,17 +1,19 @@
 import { pathToFileURL } from "node:url";
+import { EventParser } from "@coral-xyz/anchor";
 import { getTokenMetadata, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { z } from "zod";
 import {
   bondingCurvePda,
+  coder,
   curveProgress,
   curveSpotPrice,
-  decodeEvent,
   decodePool,
   decodePosition,
   DISCRIMINATOR,
   poolPda,
+  positionPda,
   VISE_PROGRAM_ID,
 } from "@vise/sdk";
 import { sql } from "./db.ts";
@@ -29,7 +31,8 @@ import { startKeeper } from "./keeper.ts";
  *    websocket frame can never leave the database permanently wrong.
  *
  * The chain stays authoritative: every number a user acts on is read from an
- * account, not from here.
+ * account, not from here. Events are only accepted when VISE itself emitted
+ * them, and are stamped with the transaction's time, never their own.
  */
 
 type EventPayload = Record<string, { toString(): string } & PublicKey & number>;
@@ -44,17 +47,88 @@ function asDate(unixSeconds: unknown): Date {
   return new Date(Number(asBigint(unixSeconds)) * 1000);
 }
 
+/**
+ * Anchor's parser follows the `invoke` / `success` stack in the logs and only
+ * yields `Program data:` lines written while VISE is the executing frame. A
+ * `sol_log_data` from another program, or a Memo that happens to contain an
+ * encoded event, in the same transaction never gets through.
+ */
+const eventParser = new EventParser(VISE_PROGRAM_ID, coder);
+
+function parseViseEvents(logs: string[]): Array<{ name: string; data: EventPayload }> {
+  try {
+    return [...eventParser.parseLogs(logs)].map((event) => ({
+      name: event.name,
+      data: event.data as EventPayload,
+    }));
+  } catch (error) {
+    // An unbalanced invoke stack means attribution cannot be trusted.
+    console.error("unparseable program logs", error);
+    return [];
+  }
+}
+
+/** A transaction's time: its block time when known, never later than now. */
+function txTime(blockTime: number | null | undefined): Date {
+  const now = Date.now();
+  return new Date(blockTime ? Math.min(blockTime * 1000, now) : now);
+}
+
+/**
+ * Transactions are handled a few at a time: each one costs RPC reads, and a
+ * burst of program activity must not fan out into hundreds of concurrent
+ * requests against the same endpoint the keeper and the API depend on.
+ */
+const HANDLER_CONCURRENCY = 4;
+const MAX_QUEUED = 20_000;
+const queue: Array<() => Promise<void>> = [];
+let active = 0;
+
+function enqueue(job: () => Promise<void>) {
+  if (queue.length >= MAX_QUEUED) {
+    console.error("indexer queue full; dropping a transaction (reconcile will converge pools)");
+    return;
+  }
+  queue.push(job);
+  drain();
+}
+
+function drain() {
+  while (active < HANDLER_CONCURRENCY && queue.length > 0) {
+    const job = queue.shift()!;
+    active += 1;
+    void job().finally(() => {
+      active -= 1;
+      drain();
+    });
+  }
+}
+
+/** New-pool work in flight, per mint, so a replayed event never doubles it. */
+const poolWork = new Map<string, Promise<void>>();
+
+function indexNewPool(mint: string): Promise<void> {
+  const pending = poolWork.get(mint);
+  if (pending) return pending;
+  const work = (async () => {
+    await upsertPoolFromChain(new PublicKey(mint));
+    const [row] = await sql`SELECT name FROM pools WHERE mint = ${mint}`;
+    if (row && row.name === null) await backfillMetadata(mint);
+  })().finally(() => poolWork.delete(mint));
+  poolWork.set(mint, work);
+  return work;
+}
+
 async function handleEvent(
   name: string,
   data: EventPayload,
   signature: string,
   slot: number,
+  at: Date,
 ) {
   switch (name) {
     case "PoolCreated": {
-      const mint = data.mint.toBase58();
-      await upsertPoolFromChain(new PublicKey(mint));
-      await backfillMetadata(mint);
+      await indexNewPool(data.mint.toBase58());
       break;
     }
 
@@ -71,7 +145,7 @@ async function handleEvent(
         VALUES (${signature}, ${row.mint as string}, 4,
                 ${asBigint(data.inflow).toString()}::BIGINT,
                 ${asBigint(data.to_lockers).toString()}::BIGINT,
-                ${slot}, ${asDate(data.timestamp)})
+                ${slot}, ${at})
         ON CONFLICT DO NOTHING
       `;
       break;
@@ -85,7 +159,7 @@ async function handleEvent(
         INSERT INTO fee_events (signature, mint, kind, payer, amount, slot, at)
         VALUES (${signature}, ${row.mint as string}, ${Number(data.kind)},
                 ${data.payer.toBase58()}, ${asBigint(data.amount).toString()}::BIGINT,
-                ${slot}, ${asDate(data.timestamp)})
+                ${slot}, ${at})
         ON CONFLICT DO NOTHING
       `;
       break;
@@ -98,14 +172,14 @@ async function handleEvent(
       const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
       if (!row) break;
       const mint = row.mint as string;
-      await syncPosition(new PublicKey(mint), data.position.toBase58());
+      await syncPosition(new PublicKey(mint), data.position);
       await sql`
         INSERT INTO lock_events (signature, mint, owner, kind, amount, weight, lock_end, slot, at)
         VALUES (${signature}, ${mint}, ${data.owner.toBase58()}, ${name},
                 ${asBigint(data.amount ?? data.added ?? 0).toString()}::NUMERIC,
                 ${asBigint(data.weight ?? 0).toString()}::NUMERIC,
                 ${data.lock_end ? asDate(data.lock_end) : null},
-                ${slot}, ${asDate(data.timestamp)})
+                ${slot}, ${at})
         ON CONFLICT DO NOTHING
       `;
       break;
@@ -115,37 +189,33 @@ async function handleEvent(
       const pool = data.pool.toBase58();
       const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
       if (!row) break;
+      // The lifetime figure comes from the account, not the event.
+      await syncPosition(new PublicKey(row.mint as string), data.position);
       await sql`
         INSERT INTO claim_events (signature, mint, owner, amount, slot, at)
         VALUES (${signature}, ${row.mint as string}, ${data.owner.toBase58()},
-                ${asBigint(data.amount).toString()}::BIGINT, ${slot}, ${asDate(data.timestamp)})
+                ${asBigint(data.amount).toString()}::BIGINT, ${slot}, ${at})
         ON CONFLICT DO NOTHING
-      `;
-      await sql`
-        UPDATE positions SET claimed = ${asBigint(data.lifetime_claimed).toString()}::BIGINT,
-                             updated_at = NOW()
-        WHERE address = ${data.position.toBase58()}
       `;
       break;
     }
 
     case "Unlocked": {
       const pool = data.pool.toBase58();
-      await sql`
-        UPDATE positions SET closed = TRUE, updated_at = NOW()
-        WHERE address = ${data.position.toBase58()}
-      `;
       const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
-      if (row) {
-        await upsertPoolFromChain(new PublicKey(row.mint as string));
-        await sql`
-          INSERT INTO lock_events (signature, mint, owner, kind, amount, slot, at)
-          VALUES (${signature}, ${row.mint as string}, ${data.owner.toBase58()},
-                  ${data.early ? "EarlyUnlocked" : "Unlocked"},
-                  ${asBigint(data.returned).toString()}::NUMERIC, ${slot}, ${asDate(data.timestamp)})
-          ON CONFLICT DO NOTHING
-        `;
-      }
+      if (!row) break;
+      const mint = new PublicKey(row.mint as string);
+      // Closed only once the account is really gone; if the same index was
+      // opened again in the meantime this re-syncs it instead.
+      await syncPosition(mint, data.position);
+      await upsertPoolFromChain(mint);
+      await sql`
+        INSERT INTO lock_events (signature, mint, owner, kind, amount, slot, at)
+        VALUES (${signature}, ${row.mint as string}, ${data.owner.toBase58()},
+                ${data.early ? "EarlyUnlocked" : "Unlocked"},
+                ${asBigint(data.returned).toString()}::NUMERIC, ${slot}, ${at})
+        ON CONFLICT DO NOTHING
+      `;
       break;
     }
 
@@ -154,17 +224,32 @@ async function handleEvent(
   }
 }
 
-async function syncPosition(mint: PublicKey, address: string) {
-  const info = await connection.getAccountInfo(new PublicKey(address));
+/**
+ * Mirror one position account into the read model. Only an account VISE owns,
+ * at the address its own contents derive to, in the pool for `mint`, is
+ * written; a missing account closes the row.
+ */
+async function syncPosition(mint: PublicKey, address: PublicKey) {
+  const info = await connection.getAccountInfo(address);
   if (!info) {
-    await sql`UPDATE positions SET closed = TRUE WHERE address = ${address}`;
+    await sql`
+      UPDATE positions SET closed = TRUE, updated_at = NOW()
+      WHERE address = ${address.toBase58()} AND mint = ${mint.toBase58()}
+    `;
     return;
   }
+  if (!info.owner.equals(VISE_PROGRAM_ID)) return;
   const position = decodePosition(info.data);
+  if (
+    !position.pool.equals(poolPda(mint)) ||
+    !address.equals(positionPda(mint, position.owner, position.index))
+  ) {
+    return;
+  }
   await sql`
     INSERT INTO positions (address, mint, owner, idx, amount, weight, multiplier_bps,
                            lock_start, lock_end, claimed, closed, updated_at)
-    VALUES (${address}, ${mint.toBase58()}, ${position.owner.toBase58()}, ${position.index},
+    VALUES (${address.toBase58()}, ${mint.toBase58()}, ${position.owner.toBase58()}, ${position.index},
             ${position.amount.toString()}::NUMERIC, ${position.weight.toString()}::NUMERIC,
             ${position.multiplierBps}, ${new Date(position.lockStart * 1000)},
             ${new Date(position.lockEnd * 1000)}, ${position.claimed.toString()}::BIGINT,
@@ -252,7 +337,7 @@ const TokenMetadata = z
   .object({
     name: z.string().max(200).optional(),
     symbol: z.string().max(50).optional(),
-    image: z.string().url().max(500).optional(),
+    image: z.string().max(500).optional(),
     description: z.string().max(2_000).optional(),
     twitter: z.string().max(300).optional(),
     telegram: z.string().max(300).optional(),
@@ -261,27 +346,105 @@ const TokenMetadata = z
   .catchall(z.unknown());
 
 /**
- * pump.fun pins to Pinata and writes `ipfs.io` URLs into the document. That
- * public gateway is slow and often unreachable; pump's own gateway serves the
- * same CIDs reliably, so it is tried first and `ipfs.io` only as a fallback.
- * Image URLs are rewritten the same way so browsers load them from the
- * gateway that actually answers.
+ * The only places a metadata document or image is ever fetched from.
+ *
+ * A coin's metadata URI is whatever its creator wrote, so fetching it as-is
+ * would let anyone point the indexer at an internal address or an endless
+ * response. Instead only IPFS content is accepted — `ipfs://<cid>` or a
+ * `/ipfs/<cid>` path on a known public gateway — and it is always fetched from
+ * pump's own Pinata gateway (`ipfs.io` as the fallback), which serves pump's
+ * pins reliably. Image URLs are rewritten the same way so browsers load them
+ * from the gateway that actually answers.
  */
-const IPFS_IO = "https://ipfs.io/ipfs/";
 const PUMP_GATEWAY = "https://pump.mypinata.cloud/ipfs/";
+const IPFS_IO = "https://ipfs.io/ipfs/";
+const IPFS_HOSTS: Record<string, true> = {
+  "ipfs.io": true,
+  "gateway.pinata.cloud": true,
+  "cf-ipfs.com": true,
+};
+/** Any Pinata dedicated gateway, pump's own among them. */
+const PINATA_SUBDOMAIN = /^[a-z0-9-]+\.mypinata\.cloud$/;
+/** A CID and an optional plain path inside it: nothing to escape or traverse. */
+const IPFS_PATH = /^[A-Za-z0-9]{32,128}(?:\/[A-Za-z0-9_-][A-Za-z0-9._-]{0,127})*$/;
+const METADATA_MAX_BYTES = 64 * 1024;
 
-export function gatewayUrl(url: string): string {
-  return url.startsWith(IPFS_IO) ? PUMP_GATEWAY + url.slice(IPFS_IO.length) : url;
+/** The `<cid>[/path]` an IPFS URL names, or null for anything else. */
+function ipfsPath(raw: string): string | null {
+  let path: string;
+  if (raw.startsWith("ipfs://")) {
+    path = raw.slice("ipfs://".length).replace(/^ipfs\//, "");
+  } else {
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      return null;
+    }
+    if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
+    if (IPFS_HOSTS[url.hostname] !== true && !PINATA_SUBDOMAIN.test(url.hostname)) return null;
+    if (!url.pathname.startsWith("/ipfs/")) return null;
+    path = url.pathname.slice("/ipfs/".length);
+  }
+  path = path.replace(/\/+$/, "");
+  return IPFS_PATH.test(path) ? path : null;
 }
 
-async function fetchJson(url: string): Promise<unknown> {
-  const candidates = url.startsWith(IPFS_IO) ? [gatewayUrl(url), url] : [url];
+/** An IPFS URL on pump's gateway, or null if `raw` is not IPFS content. */
+export function gatewayUrl(raw: string): string | null {
+  const path = ipfsPath(raw);
+  return path ? PUMP_GATEWAY + path : null;
+}
+
+/** A social link worth showing: an absolute http(s) URL, or nothing. */
+function webLink(raw: string | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+/** GET with no redirects and a hard size cap, however the server behaves. */
+async function fetchCappedJson(url: string): Promise<unknown> {
+  const response = await fetch(url, {
+    redirect: "error",
+    signal: AbortSignal.timeout(8_000),
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok || !response.body) {
+    await response.body?.cancel();
+    throw new Error(`${url} → ${response.status}`);
+  }
+  if (Number(response.headers.get("content-length") ?? 0) > METADATA_MAX_BYTES) {
+    await response.body.cancel();
+    throw new Error(`${url}: metadata larger than ${METADATA_MAX_BYTES} bytes`);
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > METADATA_MAX_BYTES) {
+      await reader.cancel();
+      throw new Error(`${url}: metadata larger than ${METADATA_MAX_BYTES} bytes`);
+    }
+    chunks.push(value);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+async function fetchMetadataDocument(uri: string): Promise<unknown> {
+  const path = ipfsPath(uri);
+  if (!path) throw new Error(`metadata URI is not IPFS content on a known gateway: ${uri}`);
   let lastError: unknown = new Error("no gateway answered");
-  for (const candidate of candidates) {
+  for (const gateway of [PUMP_GATEWAY, IPFS_IO]) {
     try {
-      const response = await fetch(candidate, { signal: AbortSignal.timeout(8_000) });
-      if (response.ok) return await response.json();
-      lastError = new Error(`${candidate} → ${response.status}`);
+      return await fetchCappedJson(gateway + path);
     } catch (error) {
       lastError = error;
     }
@@ -295,9 +458,11 @@ async function fetchJson(url: string): Promise<unknown> {
  * pump.fun's `create_v2` writes name/symbol/uri into the Token-2022 metadata
  * extension on the mint itself (no Metaplex account), so the on-chain part is
  * one account read; the image, description and socials are in the document
- * the URI points at.
+ * the URI points at. Only for coins that already have a pool row.
  */
 export async function backfillMetadata(mint: string) {
+  const [pool] = await sql`SELECT 1 FROM pools WHERE mint = ${mint}`;
+  if (!pool) return;
   let onChain;
   try {
     onChain = await getTokenMetadata(connection, new PublicKey(mint), "confirmed", TOKEN_2022_PROGRAM_ID);
@@ -311,35 +476,18 @@ export async function backfillMetadata(mint: string) {
     WHERE mint = ${mint}
   `;
   try {
-    const meta = TokenMetadata.parse(await fetchJson(onChain.uri));
+    const meta = TokenMetadata.parse(await fetchMetadataDocument(onChain.uri));
     await sql`
       UPDATE pools SET
-        image_url = ${meta.image ? gatewayUrl(meta.image) : null}, description = ${meta.description ?? null},
-        twitter = ${meta.twitter ?? null}, telegram = ${meta.telegram ?? null},
-        website = ${meta.website ?? null}, updated_at = NOW()
+        image_url = ${meta.image ? gatewayUrl(meta.image) : null},
+        description = ${meta.description ?? null},
+        twitter = ${webLink(meta.twitter)}, telegram = ${webLink(meta.telegram)},
+        website = ${webLink(meta.website)}, updated_at = NOW()
       WHERE mint = ${mint}
     `;
   } catch {
-    // The document is cosmetic; a dead IPFS gateway must not stall indexing.
+    // The document is cosmetic; a dead or refused gateway must not stall indexing.
   }
-}
-
-function decodeLogs(logs: string[]): Array<{ name: string; data: EventPayload }> {
-  const events: Array<{ name: string; data: EventPayload }> = [];
-  for (const line of logs) {
-    const marker = "Program data: ";
-    const at = line.indexOf(marker);
-    if (at === -1) continue;
-    try {
-      const decoded = decodeEvent(line.slice(at + marker.length).trim());
-      if (decoded) {
-        events.push({ name: decoded.name, data: decoded.data as EventPayload });
-      }
-    } catch {
-      // Not one of ours, or a log line from another program in the same tx.
-    }
-  }
-  return events;
 }
 
 async function subscribe() {
@@ -356,17 +504,21 @@ async function subscribe() {
         }
       }
 
-      void (async () => {
+      // The notification carries no block time; it arrives within moments of
+      // confirmation, so the receipt time stands in for it.
+      const at = txTime(null);
+      enqueue(async () => {
         try {
-          for (const event of decodeLogs(log.logs)) {
-            await handleEvent(event.name, event.data, log.signature, context.slot);
+          for (const event of parseViseEvents(log.logs)) {
+            await handleEvent(event.name, event.data, log.signature, context.slot, at);
           }
           await sql`UPDATE indexer_cursor SET slot = ${context.slot},
-                    signature = ${log.signature}, updated_at = NOW() WHERE id = 1`;
+                    signature = ${log.signature}, updated_at = NOW()
+                    WHERE id = 1 AND slot <= ${context.slot}`;
         } catch (error) {
           console.error("event handling failed", log.signature, error);
         }
-      })();
+      });
     },
     "confirmed",
   );
@@ -451,8 +603,9 @@ async function backfill() {
     const logs = tx?.meta?.logMessages;
     if (!logs) continue;
     seenSignatures.add(signature);
-    for (const event of decodeLogs(logs)) {
-      await handleEvent(event.name, event.data, signature, slot);
+    const at = txTime(tx.blockTime);
+    for (const event of parseViseEvents(logs)) {
+      await handleEvent(event.name, event.data, signature, slot, at);
     }
     await sql`UPDATE indexer_cursor SET slot = ${slot}, signature = ${signature},
               updated_at = NOW() WHERE id = 1`;
@@ -470,4 +623,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   console.log("indexer running");
 }
 
-export { bondingCurvePda, decodeLogs, handleEvent, reconcile };
+export { bondingCurvePda, handleEvent, parseViseEvents, reconcile };

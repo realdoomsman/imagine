@@ -18,6 +18,12 @@ use anchor_spl::token_interface::{
 /// people still committed. Letting a keeper sweep them is a service to the
 /// owner, who receives everything either way.
 ///
+/// Principal only ever lands in the owner's canonical associated token
+/// account. Any account the owner merely *owns* is not enough: a third party
+/// closing a matured lock could otherwise park the tokens in a stray account
+/// the owner's wallet never displays. The ATA is not created here; a caller
+/// that cannot be sure it exists prepends an idempotent create.
+///
 /// `early_unlock` checks that `payer` is the owner, since only they may choose
 /// to burn their own principal.
 #[derive(Accounts)]
@@ -59,8 +65,9 @@ pub struct Unlock<'info> {
 
     #[account(
         mut,
-        constraint = owner_token_account.mint == pool.mint,
-        constraint = owner_token_account.owner == owner.key(),
+        associated_token::mint = mint,
+        associated_token::authority = owner,
+        associated_token::token_program = token_program,
     )]
     pub owner_token_account: InterfaceAccount<'info, TokenAccount>,
 
@@ -215,8 +222,8 @@ pub fn unlock(mut ctx: Context<Unlock>) -> Result<()> {
 /// Break a lock before term.
 ///
 /// Two costs, both flowing to the people who stayed: accrued SOL rewards are
-/// forfeited back into the pool, and a slice of principal — linear in the
-/// fraction of the term left unserved — is burned.
+/// forfeited back into the pool's release stream, and a slice of principal —
+/// linear in the fraction of the term left unserved — is burned.
 ///
 /// Owner-only, unlike the matured path: burning someone else's principal is not
 /// a decision a third party gets to make for them.
@@ -251,7 +258,8 @@ pub fn early_unlock(mut ctx: Context<Unlock>) -> Result<()> {
         .ok_or(ViseError::MathOverflow)?;
 
     // Drop this position's weight first so the forfeited rewards land only on
-    // the lockers who stayed.
+    // the lockers who stayed. They stream out rather than landing at once, so
+    // weight added in the same slot as the exit cannot capture them.
     {
         let pool = &mut ctx.accounts.pool;
         pool.total_weight = pool
@@ -260,7 +268,7 @@ pub fn early_unlock(mut ctx: Context<Unlock>) -> Result<()> {
             .ok_or(ViseError::MathOverflow)?;
         // The lamports never left the vault, so `last_vault_balance` is
         // deliberately untouched: only their owner changes.
-        pool.redistribute(forfeited)?;
+        pool.forfeit(forfeited, now)?;
     }
 
     let mint_key = ctx.accounts.pool.mint;

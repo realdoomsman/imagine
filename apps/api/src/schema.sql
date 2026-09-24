@@ -41,6 +41,11 @@ CREATE TABLE IF NOT EXISTS pools (
   updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Unlisted pools: still indexed and reachable by direct link (so their lockers
+-- can manage positions), but left out of lists, leaderboards and stats. Set by
+-- hand, e.g. for the mainnet smoke-test coin.
+ALTER TABLE pools ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE;
+
 CREATE INDEX IF NOT EXISTS pools_created_at_idx ON pools (created_at DESC);
 CREATE INDEX IF NOT EXISTS pools_lifetime_rewards_idx ON pools (lifetime_rewards DESC);
 
@@ -148,6 +153,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_login_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Bumped by logout; a session token carries the epoch it was issued under and
+-- is refused once they differ, so one sign-out ends every session.
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS session_epoch INTEGER NOT NULL DEFAULT 0;
 
 -- What each account asked the API to sign, and the signature that resulted.
 CREATE TABLE IF NOT EXISTS account_actions (

@@ -12,7 +12,8 @@ before mainnet** — see `docs/RUNBOOK.md`.
 
 Fourteen findings: one critical, three high, one medium, four low, five
 informational. No solvency break, no custody break, no missing signer or owner
-check, no PDA collision, and no admin path to pool funds was found.
+check, no PDA collision, and no admin path to pool funds was found. A
+post-deployment pass added R02–R04, below.
 
 Every finding at low severity and above is fixed. Each fix carries a regression
 test that fails against the old code — see `describe("audit regressions")` in
@@ -37,9 +38,11 @@ principal can never buy more weight than the time it is actually committed for.
 A second, deeper problem the finding exposed: a matured position keeps full
 weight indefinitely, diluting people who are still committed. `unlock` is now
 permissionless for matured positions — principal, rewards and rent all go to the
-position's recorded owner — so a keeper can close them out. `early_unlock`
-remains owner-only, because burning someone else's principal is not a third
-party's decision.
+position's recorded owner — so a third party *can* close them out. Nothing does
+so yet: the program only makes the crank possible, and the keeper that closes
+matured positions is being added to the API separately. Until it ships,
+matured-but-open positions keep diluting. `early_unlock` remains owner-only,
+because burning someone else's principal is not a third party's decision.
 
 ### VISE-02 — High — reward inflow was recognised at an attacker-chosen moment
 
@@ -124,6 +127,7 @@ fails with `VaultAccountingMismatch` otherwise.
 ### VISE-10 to VISE-14 — Informational
 
 - `redistribute` no longer re-counts forfeited lamports into `lifetime_rewards`.
+  (Since replaced by `Pool::forfeit`; see R02.)
 - The `reward_debt` doc comment now states it is `SCALE`-scaled, not lamports —
   it is load-bearing, and "cleaning it up" would reintroduce a solvency bug.
 - The dead `PositionIndexInUse` error was removed; `VaultReserveMissing` was
@@ -132,6 +136,69 @@ fails with `VaultAccountingMismatch` otherwise.
 - No `mint_authority` check: deliberate. A live mint authority can dilute a coin
   but cannot touch locked principal, and requiring a revoked one would exclude
   every coin still on its bonding curve.
+
+## Post-deployment review — 2026-09-24
+
+A second pass over the live program found three economic issues. All are fixed
+in the upgrade without any account-layout change: `Pool`, `Position` and
+`Config` keep every field, in order, at the same size, so existing mainnet
+accounts deserialise unchanged. Each fix has a regression test in
+`describe("audit regressions")`.
+
+### R02 — Medium — forfeited rewards bypassed the stream
+
+`early_unlock` handed the exiting position's unclaimed rewards to the remaining
+lockers through `credit_lockers`, jumping `acc_reward_per_weight` in one step.
+That reopened the timing attack VISE-02 closed for inflow: a sniper locking a
+large bag in the same bundle as a big early exit took a pro-rata slice of the
+forfeit for one slot of exposure.
+
+*Fixed:* `Pool::forfeit` adds the forfeited lamports to `undistributed` and
+restarts the stream, so they are released over `reward_stream_secs` like any
+inflow. `last_vault_balance` is untouched (the lamports never move) and
+`lifetime_inflow` is untouched (nothing arrived). `lifetime_rewards` gives the
+forfeit back when it enters the stream and counts it again when the stream
+releases it, so `lifetime_rewards + reward_remainder + undistributed` stays equal
+to every lamport ever routed to lockers; it can dip by the forfeit for up to one
+window. With no weight left, the forfeit still goes to the treasury.
+
+### R03 — Medium — `increase()` kept the original penalty basis
+
+`increase` left `lock_start` alone, so the early-exit penalty on added principal
+was computed over the position's original term. Topping up a year-long lock a
+week before it ends and exiting at once burned ~0.5% instead of the 25% a fresh
+week-long lock pays — a cheap way to buy multiplier weight with an exit option.
+
+*Fixed:* `increase` moves `lock_start` to `math::blended_lock_start`. With old
+principal `A` over term `T`, top-up `B` and time left `R`, the new term `T'`
+satisfies
+
+    (A + B) / T' = A / T + B / R
+    lock_start' = lock_end - floor((A + B) * T * R / (A * R + B * T))
+
+Because the penalty is linear in time remaining, the combined penalty at every
+later moment equals the old position's penalty plus that of a fresh lock of `B`
+over `R` — the existing principal's basis is exactly preserved. The plain
+amount-weighted average of the two start times was rejected: it under-charges
+the top-up whenever `T > R`: with a 1:1 top-up a week before the end of a
+year-long lock, exiting at once would burn ~1.1% of the position instead of
+~12.7% (25% of the top-up plus ~0.5% of the old principal). `T'` rounds down,
+so rounding only ever raises the penalty, and
+`lock_start <= lock_start' <= now < lock_end` holds.
+
+### R04 — Low — matured unlock could pay principal into a stray account
+
+The permissionless matured `unlock` accepted any token account whose owner field
+was the position's owner. A third party could create such an account at an
+address of their choosing and close the victim's lock into it; the tokens were
+still the owner's, but in an account no wallet or the app ever displays.
+
+*Fixed:* the `Unlock` accounts (shared by `unlock` and `early_unlock`) require
+`owner_token_account` to be the owner's canonical associated token account for
+`(mint, owner, token_program)`. The program does not create it —
+`init_if_needed` would have added an account and a crate feature to a live
+instruction — so it must exist; the SDK's `unlockInstructions` prepends an
+idempotent ATA create paid by `payer`, which keepers and the API use.
 
 ## Verified correct
 
@@ -148,8 +215,7 @@ Confirmed by reading the source and, where noted, asserted by tests:
 - Pause blocks only `create_pool`; claiming and unlocking are unpausable.
 - Pool terms are written once at creation and never rewritten.
 - Sync ordering is correct in every instruction, including `early_unlock`, which
-  drops the exiting position's weight before redistributing its forfeited
-  rewards.
+  drops the exiting position's weight before streaming its forfeited rewards.
 - Closed positions cannot be revived or double-claimed; a re-created position at
   the same seeds starts with a fresh credit line.
 - Every arithmetic site is checked and returns an error rather than panicking;

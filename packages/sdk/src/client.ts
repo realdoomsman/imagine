@@ -1,5 +1,6 @@
 import { AnchorProvider, BN, Program, type Idl } from "@coral-xyz/anchor";
 import {
+  createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
@@ -324,6 +325,10 @@ export class ViseClient {
    * all go to `owner` regardless — so `payer` defaults to the owner but a
    * keeper can pass its own key. An early exit is owner-only; the program
    * rejects anyone else.
+   *
+   * Principal is only ever paid into the owner's associated token account,
+   * which must already exist. Use `unlockInstructions` unless the caller knows
+   * it does.
    */
   async unlock(params: {
     owner: PublicKey;
@@ -355,6 +360,33 @@ export class ViseClient {
       ? this.program.methods.earlyUnlock()
       : this.program.methods.unlock();
     return builder.accountsPartial(accounts).instruction();
+  }
+
+  /**
+   * `unlock`, preceded by an idempotent create of the owner's associated token
+   * account paid by `payer`. The owner may have closed that account since
+   * locking; without it the principal has nowhere the program will send it.
+   */
+  async unlockInstructions(params: {
+    owner: PublicKey;
+    mint: PublicKey;
+    index: number;
+    early: boolean;
+    payer?: PublicKey;
+    tokenProgram?: PublicKey;
+  }): Promise<TransactionInstruction[]> {
+    const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
+    const payer = params.payer ?? params.owner;
+    return [
+      createAssociatedTokenAccountIdempotentInstruction(
+        payer,
+        getAssociatedTokenAddressSync(params.mint, params.owner, true, tokenProgram),
+        params.owner,
+        params.mint,
+        tokenProgram,
+      ),
+      await this.unlock({ ...params, payer, tokenProgram }),
+    ];
   }
 
   /** App-fee leg appended to routed swaps; also usable as a plain donation. */

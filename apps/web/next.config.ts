@@ -1,5 +1,33 @@
 import type { NextConfig } from "next";
 
+/**
+ * Content-Security-Policy. The site shows creator-chosen coin metadata and,
+ * for signed-in accounts, can reveal a wallet's secret key, so the policy's
+ * job is containment: no script from anywhere but this origin, no network
+ * request to anywhere but the API and the RPC, no image from a host we do not
+ * pin metadata to. Inline scripts stay allowed because the App Router
+ * hydrates through them on statically prerendered pages; exfiltration is
+ * what connect-src/img-src/form-action close off.
+ */
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+const RPC = process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
+const RPC_WS = RPC.replace(/^http/, "ws");
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://pump.mypinata.cloud https://*.pinata.cloud https://ipfs.io https://*.arweave.net https://lh3.googleusercontent.com",
+  "media-src 'self'",
+  "font-src 'self' data:",
+  `connect-src 'self' ${API} ${RPC} ${RPC_WS}`,
+  `form-action 'self' ${API}`,
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  // Only where the API is https: the local rig talks to http://localhost.
+  ...(API.startsWith("https:") ? ["upgrade-insecure-requests"] : []),
+].join("; ");
+
 const config: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ["@vise/sdk"],
@@ -35,6 +63,7 @@ const config: NextConfig = {
       {
         source: "/:path*",
         headers: [
+          { key: "Content-Security-Policy", value: CSP },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },

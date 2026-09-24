@@ -1,6 +1,6 @@
 "use client";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+import { googleSignInUrl } from "@/lib/api";
 
 /**
  * Sign in with Google, by redirect.
@@ -13,8 +13,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
  */
 export function GoogleSignIn({ className = "" }: { className?: string }) {
   const start = () => {
-    const back = `${window.location.pathname}${window.location.search}`;
-    window.location.href = `${API}/api/auth/google/start?return_to=${encodeURIComponent(back)}`;
+    window.location.href = googleSignInUrl(`${window.location.pathname}${window.location.search}`);
   };
   return (
     <button type="button" onClick={start} className={`btn btn-ghost h-[46px] w-full gap-3 ${className}`}>
