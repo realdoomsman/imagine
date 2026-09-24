@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { VISE_MINT } from "@/lib/official";
 import { ViseMark } from "./vise-mark";
 import { ConnectButton } from "./connect-button";
 
@@ -76,6 +77,12 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <Link
+            href={`/coins/${VISE_MINT}`}
+            className="num rounded-full border border-torch/50 bg-torch/10 px-3 py-1.5 text-[12.5px] font-semibold text-torch transition-colors duration-200 hover:bg-torch/20"
+          >
+            $VISE
+          </Link>
           <a
             href="https://x.com/visedotfun"
             target="_blank"

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { api, type PoolSummary } from "@/lib/api";
+import { VISE_MINT } from "@/lib/official";
 import { CoinCard } from "@/components/coin-card";
 import { ViseMark } from "@/components/vise-mark";
 
@@ -29,6 +30,13 @@ export default async function CoinsPage({
   let error: string | null = null;
   try {
     ({ pools } = await api.pools({ sort, search: params.q, limit: 60 }));
+    // The official coin always comes first on the unfiltered list.
+    if (!params.q) {
+      const official =
+        pools.find((pool) => pool.mint === VISE_MINT) ??
+        (await api.pools({ search: VISE_MINT, limit: 1 }).then((r) => r.pools[0]).catch(() => undefined));
+      if (official) pools = [official, ...pools.filter((pool) => pool.mint !== VISE_MINT)];
+    }
   } catch (cause) {
     error = cause instanceof Error ? cause.message : "could not reach the indexer";
   }

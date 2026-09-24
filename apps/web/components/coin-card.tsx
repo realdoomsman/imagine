@@ -1,6 +1,7 @@
 import { formatPercent, formatSol, shortAddress } from "@vise/sdk";
 import Link from "next/link";
 import type { PoolSummary } from "@/lib/api";
+import { VISE_MINT } from "@/lib/official";
 
 export function CoinCard({ pool }: { pool: PoolSummary }) {
   const locked = pool.lockedFraction;
@@ -35,8 +36,11 @@ export function CoinCard({ pool }: { pool: PoolSummary }) {
         )}
 
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-[16px] font-semibold tracking-[-0.02em] text-steel-50">
+          <h3 className="flex items-center gap-2 truncate text-[16px] font-semibold tracking-[-0.02em] text-steel-50">
             {pool.symbol ?? shortAddress(pool.mint)}
+            {pool.mint === VISE_MINT ? (
+              <span className="rule-label rounded-full border border-torch/50 px-1.5 py-0.5 text-torch">Official</span>
+            ) : null}
           </h3>
           <p className="truncate text-[12.5px] text-steel-500">
             {pool.name ?? "unnamed"}

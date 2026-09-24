@@ -150,6 +150,17 @@ export interface LaunchStep {
 const CREATE_AND_BUY_UNITS = 400_000;
 
 /**
+ * Nobody but VISE launches a coin called VISE: fakes have used the site to
+ * pass as the official coin. Catches the ticker inside a longer one and
+ * common letter swaps (1/l/|/! for i, 0 for o, a leading $).
+ */
+function impersonatesVise(name: string, symbol: string): boolean {
+  const fold = (text: string) =>
+    text.toLowerCase().replace(/[1l|!]/g, "i").replace(/0/g, "o").replace(/[^a-z]/g, "");
+  return fold(symbol).includes("vise") || name.split(/\s+/).some((word) => fold(word).startsWith("vise"));
+}
+
+/**
  * Launch, as an ordered set of transactions signed back to back.
  *
  * The order is load-bearing:
@@ -187,6 +198,9 @@ export async function buildLaunch(
   }
 
   if (body.stage === "create") {
+    if (impersonatesVise(body.name, body.symbol)) {
+      throw new ActionError(403, "the VISE name and ticker are reserved for the official $VISE coin");
+    }
     // Only coins created by this flow may ever get a VISE pool. The mint is
     // registered before the create is built, and never for a coin that
     // already exists: that is what stops a finish stage from adopting a coin

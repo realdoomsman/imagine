@@ -9,6 +9,7 @@ import {
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api, type PoolDetail } from "@/lib/api";
+import { VISE_MINT } from "@/lib/official";
 import { LockPanel } from "@/components/lock-panel";
 import { SwapPanel } from "@/components/swap-panel";
 import { LockerTable } from "@/components/locker-table";
@@ -110,8 +111,11 @@ export default async function CoinPage({
         )}
 
         <div className="min-w-0 flex-1">
-          <h1 className="text-[30px] leading-none">
+          <h1 className="flex items-center gap-3 text-[30px] leading-none">
             {metadata?.symbol ?? shortAddress(mint)}
+            {mint === VISE_MINT ? (
+              <span className="rule-label rounded-full border border-torch/50 px-2 py-1 text-torch">Official</span>
+            ) : null}
           </h1>
           <p className="mt-1.5 text-[14px] text-steel-500">
             {metadata?.name ?? "unnamed coin"}

@@ -6,11 +6,13 @@ import { StatMarquee } from "@/components/stat-marquee";
 import { FlowDiagram } from "@/components/flow-diagram";
 import { Film } from "@/components/film";
 import { Faq } from "@/components/faq";
+import { OfficialCoinBanner } from "@/components/official-coin";
 
 export default function HomePage() {
   return (
     <>
       <Hero />
+      <OfficialCoinBanner />
       <StatMarquee />
       <Film />
       <HowItWorks />

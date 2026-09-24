@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { OfficialCa } from "./official-coin";
 import { ViseMark } from "./vise-mark";
 
 export function SiteFooter() {
@@ -20,6 +21,8 @@ export function SiteFooter() {
             larger share.
           </p>
           <p className="rule-label mt-6">Hold under pressure</p>
+          <p className="rule-label mt-6">Official $VISE contract</p>
+          <OfficialCa className="mt-2" />
         </div>
 
         <FooterColumn
