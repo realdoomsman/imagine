@@ -5,7 +5,16 @@ Handle: `@ViseDotFun` · Site: `vise.fun`
 ## Live (2026-09-23)
 
 - **Pinned**: the 60-second film (`video/out/vise-promo.mp4`, scored) quoting
-  the Article: https://x.com/ViseDotFun/status/2102923741994869019
+  the Article: https://x.com/ViseDotFun/status/2102929605917032625
+- Highlights: the film, the Article, the thread.
+- Scheduled (X native scheduler, account local time): Sep 24 9:21 AM vertical
+  cut · Sep 24 6 PM explainer · Sep 25 10 AM creator card · Sep 25 7 PM
+  penalty card · Sep 26 11 AM flow card · Sep 26 8 PM close card · Sep 27
+  12 PM cannot-do card · Sep 28 10 AM Google card. Manage at
+  x.com/compose/post/unsent/scheduled.
+- The Article cannot be edited once published without unpublishing (which
+  changes its URL and breaks the pinned quote), so it stays as is; the film
+  is on the site at vise.fun (home) instead.
 - Thread (14 posts, teaser on the first; no longer pinned):
   https://x.com/ViseDotFun/status/2102748079682195471
 - X Article "Selling is free. Holding is not.":
