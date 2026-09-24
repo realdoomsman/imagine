@@ -68,7 +68,7 @@ export default async function CoinPage({
 
   const [lockers, rewards] = await Promise.all([
     api.lockers(mint).catch(() => ({ lockers: [], totalWeight: "0" })),
-    api.rewards(mint).catch(() => ({ buckets: [] })),
+    api.rewards(mint).catch(() => ({ since: Math.floor(Date.now() / 1000) - 21_600, bucketSecs: 900, createdAt: null, buckets: [] })),
   ]);
 
   const { pool, metadata, curve, rewardRate } = detail;
@@ -186,7 +186,7 @@ export default async function CoinPage({
             </p>
           </section>
 
-          <RewardChart buckets={rewards.buckets} />
+          <RewardChart history={rewards} />
 
           <section className="panel p-6">
             <h2 className="text-[17px]">Terms, frozen at launch</h2>

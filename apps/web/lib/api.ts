@@ -107,6 +107,15 @@ export interface Locker {
   renounced: boolean;
 }
 
+/** Fee history for the reward chart: slots of `bucketSecs` from `since` (unix seconds) to now. */
+export interface RewardHistory {
+  since: number;
+  bucketSecs: number;
+  /** The pool's creation, unix seconds; null if unknown. */
+  createdAt: number | null;
+  buckets: Array<{ bucket: string; inflow: string | null; to_lockers: string | null }>;
+}
+
 export interface PortfolioPosition {
   address: string;
   mint: string | null;
@@ -257,10 +266,7 @@ export const api = {
   pool: (mint: string) => get<PoolDetail>(`/api/pools/${mint}`),
   lockers: (mint: string) =>
     get<{ lockers: Locker[]; totalWeight: string }>(`/api/pools/${mint}/lockers`),
-  rewards: (mint: string) =>
-    get<{ buckets: Array<{ bucket: string; inflow: string; to_lockers: string }> }>(
-      `/api/pools/${mint}/rewards`,
-    ),
+  rewards: (mint: string) => get<RewardHistory>(`/api/pools/${mint}/rewards`),
   activity: (mint: string) =>
     get<{
       activity: Array<{

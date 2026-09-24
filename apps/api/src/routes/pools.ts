@@ -10,6 +10,11 @@ import { chainConfig, connection, vise } from "../solana.ts";
 /** `fee_events.kind` for a `RewardsSynced` row: what the pool actually took in. */
 const SYNCED = 4;
 
+const HISTORY_MIN_SECS = 3600;
+const HISTORY_MAX_SECS = 7 * 86_400;
+const HISTORY_MAX_BARS = 48;
+const HISTORY_BUCKETS = [300, 900, 1800, 3600, 3 * 3600, 6 * 3600];
+
 const SORTS = {
   new: sql`created_at DESC`,
   rewards: sql`lifetime_rewards DESC`,
@@ -246,20 +251,31 @@ export async function poolRoutes(app: FastifyInstance) {
     return { lockers: rows, totalWeight: pool.totalWeight.toString() };
   });
 
-  /** Fee inflow history, bucketed for the reward chart. */
+  /**
+   * Lockers' share of fee inflow, bucketed for the reward chart. The window
+   * runs from the pool's creation (at least 1 hour, at most 7 days) and the
+   * bucket width is picked so it holds at most 48 bars: a coin a few hours old
+   * gets a readable chart rather than one sliver at the edge of a week.
+   */
   app.get("/pools/:mint/rewards", async (request) => {
     const { mint } = z.object({ mint: z.string() }).parse(request.params);
+    const [pool] = await sql`SELECT created_at FROM pools WHERE mint = ${mint}`;
+    const now = Math.floor(Date.now() / 1000);
+    const created = pool ? Math.floor(new Date(pool.created_at as string).getTime() / 1000) : now - HISTORY_MAX_SECS;
+    const span = Math.min(Math.max(now - created, HISTORY_MIN_SECS), HISTORY_MAX_SECS);
+    const bucketSecs = HISTORY_BUCKETS.find((secs) => span / secs <= HISTORY_MAX_BARS) ?? HISTORY_BUCKETS.at(-1)!;
+    const since = Math.floor((now - span) / bucketSecs) * bucketSecs;
     const rows = await sql`
-      SELECT date_trunc('hour', at) AS bucket,
+      SELECT to_timestamp(FLOOR(EXTRACT(EPOCH FROM at) / ${bucketSecs}) * ${bucketSecs}) AS bucket,
              SUM(amount) FILTER (WHERE kind = ${SYNCED})::NUMERIC::TEXT AS inflow,
              SUM(to_lockers)::NUMERIC::TEXT AS to_lockers,
              COUNT(*) FILTER (WHERE kind = ${SYNCED})::INT AS events
       FROM fee_events
-      WHERE mint = ${mint} AND at > NOW() - INTERVAL '7 days'
+      WHERE mint = ${mint} AND at >= to_timestamp(${since})
       GROUP BY bucket
       ORDER BY bucket
     `;
-    return { buckets: rows };
+    return { since, bucketSecs, createdAt: pool ? created : null, buckets: rows };
   });
 
   app.get("/pools/:mint/activity", async (request) => {
