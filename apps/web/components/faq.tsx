@@ -31,6 +31,10 @@ const FAQ: Array<{ q: string; a: string }> = [
     a: "Always. Breaking a lock forfeits your unclaimed rewards to the lockers who stayed and burns a slice of your principal, scaled by how much of the term you did not serve. Leave on day one of a hundred and it hurts; on day ninety-nine it barely registers. Claiming, on the other hand, never touches the lock.",
   },
   {
+    q: "Can a lock earn nothing on purpose?",
+    a: "Yes. \"Give up earnings\" on a lock keeps its tokens locked to the same date but removes it from the payout for good: what it had built up and everything it would have earned goes to the other lockers. Coin creators use it to lock supply for their holders without taking a cut. The lockers table marks these locks \"Earns nothing\", and anyone can check it on-chain.",
+  },
+  {
     q: "What does the creator get?",
     a: "Nothing by default. Pools split 90% to lockers and 10% to VISE, and the split is frozen on the pool when it is created. A creator earns the way everyone else does, by locking, and their founding lock is public on the coin's page from block one.",
   },

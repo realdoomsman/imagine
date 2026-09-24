@@ -135,6 +135,8 @@ export interface PositionAccount {
   bump: number;
   /** Capped pools: the most this lock may ever be paid, in lamports. */
   rewardCap: bigint;
+  /** The owner gave up this lock's earnings for good; it holds no weight. */
+  renounced: boolean;
 }
 
 export interface ConfigAccount {
@@ -227,6 +229,7 @@ export function decodePosition(data: Buffer | Uint8Array): PositionAccount {
     claimed: big(raw.claimed),
     bump: num(raw.bump),
     rewardCap: big(raw.reward_cap),
+    renounced: Boolean(raw.renounced),
   };
 }
 

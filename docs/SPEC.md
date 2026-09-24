@@ -148,6 +148,7 @@ Program: `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb`
 | `lock` / `increase` / `extend` | owner | `increase` reprices on remaining term; all three read the coin's price on a capped pool |
 | `claim` | owner | Never pausable; pays up to the cap |
 | `harvest` | anyone | `claim` paid to the owner; retires a capped-out lock |
+| `renounce` | owner | Gives up the lock's earnings for good: weight leaves the pool, accrued rewards rejoin the stream for the other lockers, tokens stay locked to the same end date. Irreversible; the lock can no longer be grown or extended |
 | `unlock` | anyone | Matured only; pays the owner |
 | `early_unlock` | owner | Forfeit + burn |
 | `deposit_reward` | anyone | App fee leg or donation |

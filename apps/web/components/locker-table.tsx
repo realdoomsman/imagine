@@ -53,18 +53,26 @@ export function LockerTable({
                 >
                   <td className="num px-6 py-2.5 text-steel-300">
                     {shortAddress(locker.owner)}
+                    {locker.renounced ? (
+                      <span
+                        className="ml-2 rounded-sm border border-verdi/40 px-1.5 py-px text-[10px] uppercase tracking-[0.12em] text-verdi"
+                        title="This lock gave up its earnings for good. Its tokens stay locked; everything it would have earned goes to the other lockers."
+                      >
+                        Earns nothing
+                      </span>
+                    ) : null}
                   </td>
                   <td className="num px-6 py-2.5 text-right text-steel-200">
                     {formatTokenAmount(BigInt(locker.amount), decimals)}
                   </td>
                   <td className="num px-6 py-2.5 text-right text-torch">
-                    {formatMultiplier(locker.multiplierBps)}
+                    {locker.renounced ? <span className="text-steel-500">—</span> : formatMultiplier(locker.multiplierBps)}
                   </td>
                   <td className="num px-6 py-2.5 text-right text-steel-200">
                     {formatPercent(locker.share, 2)}
                   </td>
                   <td className="num px-6 py-2.5 text-right text-verdi">
-                    {formatSol(BigInt(locker.pending))}
+                    {locker.renounced ? <span className="text-steel-500">—</span> : formatSol(BigInt(locker.pending))}
                   </td>
                   <td className="num px-6 py-2.5 text-right text-steel-400">
                     {formatDuration(locker.lockEnd - now)}

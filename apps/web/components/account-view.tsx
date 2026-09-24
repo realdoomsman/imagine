@@ -263,6 +263,11 @@ export function AccountView() {
                     api.act({ kind: "extend", mint: position.mint, index: position.index, durationSecs: seconds }),
                   )
                 }
+                onRenounce={() =>
+                  run(`renounce-${position.mint}-${position.index}`, () =>
+                    api.act({ kind: "renounce", mint: position.mint, index: position.index }),
+                  )
+                }
               />
             ))}
           </div>
@@ -330,6 +335,8 @@ function describeAction(kind: string, detail: Record<string, unknown>): string {
       return `Locked ${String(detail.mint).slice(0, 6)}… for ${term}`;
     case "claim":
       return `Claimed rewards on ${String(detail.mint).slice(0, 6)}…`;
+    case "renounce":
+      return `Gave up earnings on ${String(detail.mint).slice(0, 6)}…`;
     case "extend":
       return `Extended the lock on ${String(detail.mint).slice(0, 6)}… to ${term}`;
     case "increase":
@@ -355,12 +362,14 @@ function PositionCard({
   onClaim,
   onUnlock,
   onExtend,
+  onRenounce,
 }: {
   position: WalletPosition;
   busy: string | null;
   onClaim: () => void;
   onUnlock: () => void;
   onExtend: (seconds: number) => void;
+  onRenounce: () => void;
 }) {
   const term = position.lockEnd - position.lockStart;
   const elapsed = term > 0 ? Math.min(Math.max((term - position.secondsLeft) / term, 0), 1) : 1;
@@ -384,7 +393,9 @@ function PositionCard({
           </Link>
           <p className="num text-[12px] text-steel-500">
             {formatTokenAmount(BigInt(position.amount), position.decimals)} locked ·{" "}
-            {formatMultiplier(position.multiplierBps)} · {formatPercent(position.share, 2)} of the pool
+            {position.renounced
+              ? "earnings given up, locked for the other holders"
+              : `${formatMultiplier(position.multiplierBps)} · ${formatPercent(position.share, 2)} of the pool`}
           </p>
         </div>
         <div className="text-right">
@@ -450,13 +461,29 @@ function PositionCard({
           </>
         ) : (
           <>
-            <ExtendControl
-              lockEnd={position.lockEnd}
-              minLockSecs={position.minLockSecs}
-              maxLockSecs={position.maxLockSecs}
-              busy={busy !== null}
-              onExtend={onExtend}
-            />
+            {position.renounced ? null : (
+              <>
+                <ExtendControl
+                  lockEnd={position.lockEnd}
+                  minLockSecs={position.minLockSecs}
+                  maxLockSecs={position.maxLockSecs}
+                  busy={busy !== null}
+                  onExtend={onExtend}
+                />
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    if (!window.confirm("Give up this lock's earnings for good? Your tokens stay locked until the same date, but it will never earn again: what it has built up and everything it would earn goes to the other lockers. Claim first if you want what is unclaimed. This cannot be undone.")) return;
+                    onRenounce();
+                  }}
+                  className="btn btn-ghost h-9 text-[13px]"
+                  title="Keep the tokens locked but hand every lamport this lock would earn to the other lockers"
+                >
+                  {busy === `renounce-${key}` ? "Working…" : "Give up earnings"}
+                </button>
+              </>
+            )}
             <button
               type="button"
               disabled={busy !== null}

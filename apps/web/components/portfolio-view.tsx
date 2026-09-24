@@ -158,9 +158,10 @@ export function PortfolioView() {
                       {position.symbol ?? position.mint?.slice(0, 8)}
                     </Link>
                     <p className="num text-[12px] text-steel-500">
-                      {formatTokenAmount(BigInt(position.amount), position.decimals)}{" "}
-                      clamped · {formatMultiplier(position.multiplierBps)} ·{" "}
-                      {formatPercent(position.share, 2)} of the pool
+                      {formatTokenAmount(BigInt(position.amount), position.decimals)} clamped ·{" "}
+                      {position.renounced
+                        ? "earnings given up, locked for the other holders"
+                        : `${formatMultiplier(position.multiplierBps)} · ${formatPercent(position.share, 2)} of the pool`}
                     </p>
                   </div>
 
@@ -206,7 +207,7 @@ export function PortfolioView() {
                     Claim
                   </button>
 
-                  {!matured ? (
+                  {!matured && !position.renounced ? (
                     <ExtendControl
                       lockEnd={position.lockEnd}
                       minLockSecs={position.minLockSecs}
@@ -216,6 +217,20 @@ export function PortfolioView() {
                         void act({ kind: "extend", mint: position.mint, index: position.index, durationSecs: seconds }, key)
                       }
                     />
+                  ) : null}
+                  {!matured && !position.renounced ? (
+                    <button
+                      type="button"
+                      disabled={busy === key}
+                      onClick={() => {
+                        if (!window.confirm("Give up this lock's earnings for good? Your tokens stay locked until the same date, but it will never earn again: what it has built up and everything it would earn goes to the other lockers. Claim first if you want what is unclaimed. This cannot be undone.")) return;
+                        void act({ kind: "renounce", mint: position.mint, index: position.index }, key);
+                      }}
+                      className="btn btn-ghost h-9 text-[13px]"
+                      title="Keep the tokens locked but hand every lamport this lock would earn to the other lockers"
+                    >
+                      Give up earnings
+                    </button>
                   ) : null}
                   <button
                     type="button"

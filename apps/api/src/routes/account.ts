@@ -283,6 +283,8 @@ export async function accountRoutes(app: FastifyInstance) {
         maxLockSecs: pool?.terms.maxLockSecs ?? null,
         /** Capped pools: the most this lock may ever be paid, in lamports. */
         rewardCap: pool?.capped ? position.rewardCap.toString() : null,
+        /** Gave up its earnings for good: tokens locked, earns nothing. */
+        renounced: position.renounced,
         /** What breaking the lock right now would burn. */
         earlyExitBurn: earlyExitPenalty(position.amount, position.lockStart, position.lockEnd, now, penaltyBps).toString(),
       };

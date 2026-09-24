@@ -231,12 +231,16 @@ export async function poolRoutes(app: FastifyInstance) {
         pending: claimableFor(position, pool).toString(),
         /** Capped pools: the most this lock may ever be paid. */
         rewardCap: pool.capped ? position.rewardCap.toString() : null,
+        /** Gave up its earnings for good: tokens locked, earns nothing. */
+        renounced: position.renounced,
         share:
           pool.totalWeight > 0n
             ? Number(position.weight) / Number(pool.totalWeight)
             : 0,
       }))
-      .sort((a, b) => Number(BigInt(b.weight) - BigInt(a.weight)))
+      // By tokens locked, so a lock that renounced its earnings still shows
+      // where its size puts it.
+      .sort((a, b) => Number(BigInt(b.amount) - BigInt(a.amount)))
       .slice(0, query.limit);
 
     return { lockers: rows, totalWeight: pool.totalWeight.toString() };

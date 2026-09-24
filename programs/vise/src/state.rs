@@ -562,5 +562,9 @@ pub struct Position {
     /// its tokens' SOL value when locked (and when grown or extended) times
     /// its multiplier. Compared against `claimed`.
     pub reward_cap: u64,
-    pub _reserved: [u8; 32],
+    /// The owner gave up this lock's earnings for good: it keeps its tokens
+    /// locked to its end date but holds no weight, so every lamport it would
+    /// have earned goes to the other lockers. Irreversible.
+    pub renounced: bool,
+    pub _reserved: [u8; 31],
 }

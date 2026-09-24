@@ -1105,6 +1105,94 @@ describe("exits", () => {
     ]);
   });
 
+  it("renounce hands a lock's earnings to the others and keeps its tokens locked", async () => {
+    const stayer = Keypair.generate();
+    const w = await openPool({
+      initialLockAmount: 50_000n * TOKEN,
+      initialLockDuration: 100 * DAY,
+      extraHolders: [{ owner: stayer.publicKey, amount: 100_000n * TOKEN }],
+    });
+    w.svm.airdrop(stayer.publicKey, 10n * SOL);
+    send(
+      w.svm,
+      [
+        await client.lock({
+          owner: stayer.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: 50_000n * TOKEN,
+          durationSecs: 7 * DAY,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [stayer],
+    );
+    const trader = fundedKeypair(w.svm);
+    const deposit = async () =>
+      send(
+        w.svm,
+        [await client.depositReward({ payer: trader.publicKey, mint: w.mint, lamports: 10n * SOL, kind: FeeKind.Buy })],
+        [trader],
+      );
+    await deposit();
+    warp(w.svm, ECONOMICS.rewardStreamSecs / 2);
+
+    const creator = w.creator.publicKey;
+    const stayerPos = readPosition(w.svm, w.mint, stayer.publicKey, 0)!;
+    const lockedBefore = readPool(w.svm, w.mint).totalLocked;
+    send(w.svm, [await client.renounce({ owner: creator, mint: w.mint, index: 0 })], [w.creator]);
+
+    const renounced = readPosition(w.svm, w.mint, creator, 0)!;
+    assert.equal(renounced.renounced, true);
+    assert.equal(renounced.weight, 0n);
+    assert.equal(renounced.amount, 50_000n * TOKEN);
+    const pool = readPool(w.svm, w.mint);
+    assert.equal(pool.totalLocked, lockedBefore, "tokens stay locked");
+    assert.equal(pool.totalWeight, stayerPos.weight, "only the stayer earns");
+    assert.ok(pool.undistributed > 0n, "what it had accrued rejoins the stream");
+
+    // It earns nothing more, and cannot be made to earn again.
+    const creatorSol = lamports(w.svm, creator);
+    await deposit();
+    await settleStream(w, trader);
+    assert.match(
+      sendExpectingError(w.svm, [await client.claim({ owner: creator, mint: w.mint, index: 0 })], [w.creator]),
+      /NothingToClaim/,
+    );
+    for (const ix of [
+      await client.renounce({ owner: creator, mint: w.mint, index: 0 }),
+      await client.increase({ owner: creator, mint: w.mint, index: 0, amount: TOKEN, tokenProgram: w.tokenProgram }),
+      await client.extend({ owner: creator, mint: w.mint, index: 0, durationSecs: 200 * DAY, tokenProgram: w.tokenProgram }),
+    ]) {
+      assert.match(sendExpectingError(w.svm, [ix], [w.creator]), /PositionRenounced/);
+    }
+    assert.ok(lamports(w.svm, creator) <= creatorSol);
+
+    // Everything the lockers were owed — the renounced lock's accrual included
+    // — is now the stayer's alone.
+    const after = readPool(w.svm, w.mint);
+    assert.ok(after.undistributed <= 1n, "stream has run out, bar rounding dust");
+    const owedStayer = claimableFor(readPosition(w.svm, w.mint, stayer.publicKey, 0)!, after);
+    assert.ok(
+      owedStayer + after.rewardRemainder >= after.lifetimeRewards - 1_000n,
+      `stayer owed ${owedStayer} of ${after.lifetimeRewards}`,
+    );
+    assertSolvent(w.svm, w.mint, [
+      { owner: creator, index: 0 },
+      { owner: stayer.publicKey, index: 0 },
+    ]);
+
+    // At term the tokens come back in full.
+    const tokensBefore = tokenBalance(w.svm, w.mint, creator, w.tokenProgram);
+    warp(w.svm, 101 * DAY);
+    send(
+      w.svm,
+      [await client.unlock({ owner: creator, mint: w.mint, index: 0, early: false, tokenProgram: w.tokenProgram })],
+      [w.creator],
+    );
+    assert.equal(tokenBalance(w.svm, w.mint, creator, w.tokenProgram) - tokensBefore, 50_000n * TOKEN);
+  });
+
   it("charges no penalty for an early exit at the very end of term", async () => {
     const w = await openPool({ initialLockDuration: 7 * DAY });
     const supplyBefore = mintSupply(w.svm, w.mint);

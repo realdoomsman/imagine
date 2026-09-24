@@ -44,4 +44,6 @@ pub enum ViseError {
     InvalidBondingCurve,
     #[msg("Coin price unavailable: pass the pump AMM pool vaults for a graduated coin")]
     PriceUnavailable,
+    #[msg("This lock gave up its earnings; it cannot earn again")]
+    PositionRenounced,
 }

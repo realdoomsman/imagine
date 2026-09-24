@@ -100,6 +100,19 @@ pub struct RewardCapped {
     pub timestamp: i64,
 }
 
+/// A lock gave up its earnings for good: its weight left the pool and what it
+/// had accrued went back to the stream for the other lockers.
+#[event]
+pub struct Renounced {
+    pub pool: Pubkey,
+    pub position: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub forfeited_rewards: u64,
+    pub total_weight: u128,
+    pub timestamp: i64,
+}
+
 #[event]
 pub struct Unlocked {
     pub pool: Pubkey,

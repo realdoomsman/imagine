@@ -103,6 +103,8 @@ export interface Locker {
   share: number;
   /** Capped pools: the most this lock may ever be paid, lamports. */
   rewardCap: string | null;
+  /** Gave up its earnings for good: tokens locked, earns nothing. */
+  renounced: boolean;
 }
 
 export interface PortfolioPosition {
@@ -126,6 +128,8 @@ export interface PortfolioPosition {
   maxLockSecs: number | null;
   /** Capped pools: the most this lock may ever be paid, lamports. */
   rewardCap: string | null;
+  /** Gave up its earnings for good: tokens locked, earns nothing. */
+  renounced: boolean;
 }
 
 /**

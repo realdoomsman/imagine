@@ -84,6 +84,7 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     priorityFeeMicroLamports: priority.default(100_000),
   }),
   z.object({ kind: z.literal("claim"), mint: pubkey, index }),
+  z.object({ kind: z.literal("renounce"), mint: pubkey, index }),
   z.object({
     kind: z.literal("unlock"),
     mint: pubkey,
@@ -200,6 +201,14 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
 
     case "claim": {
       const ix = await vise.claim({ owner, mint, index: action.index });
+      return { instructions: [...budgetInstructions(100_000, 120_000), ix], meta: {} };
+    }
+
+    case "renounce": {
+      const position = await vise.fetchPosition(mint, owner, action.index);
+      if (!position) throw new ActionError(404, "no such lock");
+      if (position.renounced) throw new ActionError(409, "this lock already gave up its earnings");
+      const ix = await vise.renounce({ owner, mint, index: action.index });
       return { instructions: [...budgetInstructions(100_000, 120_000), ix], meta: {} };
     }
 

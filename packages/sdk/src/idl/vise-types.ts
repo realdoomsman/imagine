@@ -1645,6 +1645,115 @@ export type Vise = {
       "args": []
     },
     {
+      "name": "renounce",
+      "discriminator": [
+        241,
+        157,
+        138,
+        210,
+        8,
+        235,
+        187,
+        123
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ]
+          },
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "rewardVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "sync",
       "discriminator": [
         4,
@@ -2133,6 +2242,19 @@ export type Vise = {
       ]
     },
     {
+      "name": "renounced",
+      "discriminator": [
+        76,
+        252,
+        249,
+        226,
+        216,
+        83,
+        173,
+        85
+      ]
+    },
+    {
       "name": "rewardCapped",
       "discriminator": [
         190,
@@ -2290,6 +2412,11 @@ export type Vise = {
       "code": 6020,
       "name": "priceUnavailable",
       "msg": "Coin price unavailable: pass the pump AMM pool vaults for a graduated coin"
+    },
+    {
+      "code": 6021,
+      "name": "positionRenounced",
+      "msg": "This lock gave up its earnings; it cannot earn again"
     }
   ],
   "types": [
@@ -3059,11 +3186,20 @@ export type Vise = {
             "type": "u64"
           },
           {
+            "name": "renounced",
+            "docs": [
+              "The owner gave up this lock's earnings for good: it keeps its tokens",
+              "locked to its end date but holds no weight, so every lamport it would",
+              "have earned goes to the other lockers. Irreversible."
+            ],
+            "type": "bool"
+          },
+          {
             "name": "reserved",
             "type": {
               "array": [
                 "u8",
-                32
+                31
               ]
             }
           }
@@ -3138,6 +3274,46 @@ export type Vise = {
           {
             "name": "weight",
             "type": "u128"
+          },
+          {
+            "name": "totalWeight",
+            "type": "u128"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "renounced",
+      "docs": [
+        "A lock gave up its earnings for good: its weight left the pool and what it",
+        "had accrued went back to the stream for the other lockers."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "forfeitedRewards",
+            "type": "u64"
           },
           {
             "name": "totalWeight",

@@ -79,6 +79,8 @@ export async function portfolioRoutes(app: FastifyInstance) {
         maxLockSecs: pool?.terms.maxLockSecs ?? null,
         /** Capped pools: the most this lock may ever be paid, in lamports. */
         rewardCap: pool?.capped ? position.rewardCap.toString() : null,
+        /** Gave up its earnings for good: tokens locked, earns nothing. */
+        renounced: position.renounced,
       };
     });
 

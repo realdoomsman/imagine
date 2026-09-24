@@ -88,6 +88,11 @@ export class ViseClient {
     return info ? decodePool(info.data) : null;
   }
 
+  async fetchPosition(mint: PublicKey, owner: PublicKey, index: number): Promise<PositionAccount | null> {
+    const info = await this.connection.getAccountInfo(positionPda(mint, owner, index, this.programId));
+    return info ? decodePosition(info.data) : null;
+  }
+
   /**
    * The pool as `sync` would leave it right now.
    *
@@ -366,6 +371,27 @@ export class ViseClient {
   }): Promise<TransactionInstruction> {
     return this.program.methods
       .claim()
+      .accountsPartial({
+        owner: params.owner,
+        pool: poolPda(params.mint, this.programId),
+        rewardVault: rewardVaultPda(params.mint, this.programId),
+        position: positionPda(params.mint, params.owner, params.index, this.programId),
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+  }
+
+  /**
+   * Give up a lock's earnings for good. Tokens stay locked to the same end
+   * date; what it had accrued and would earn goes to the other lockers.
+   */
+  async renounce(params: {
+    owner: PublicKey;
+    mint: PublicKey;
+    index: number;
+  }): Promise<TransactionInstruction> {
+    return this.program.methods
+      .renounce()
       .accountsPartial({
         owner: params.owner,
         pool: poolPda(params.mint, this.programId),

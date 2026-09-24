@@ -101,6 +101,10 @@ pub mod vise {
         instructions::claim::harvest(ctx)
     }
 
+    pub fn renounce(ctx: Context<Claim>) -> Result<()> {
+        instructions::claim::renounce(ctx)
+    }
+
     pub fn claim_creator(ctx: Context<ClaimCreator>) -> Result<()> {
         instructions::claim::claim_creator(ctx)
     }

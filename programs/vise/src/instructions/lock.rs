@@ -155,7 +155,7 @@ pub fn settle(pool: &Pool, position: &mut Position) -> Result<u64> {
     Ok(pending)
 }
 
-fn emit_sync(pool: &Pool, pool_key: Pubkey, result: crate::state::SyncResult, now: i64) {
+pub(crate) fn emit_sync(pool: &Pool, pool_key: Pubkey, result: crate::state::SyncResult, now: i64) {
     if result.inflow > 0 || result.released > 0 {
         emit!(RewardsSynced {
             pool: pool_key,
@@ -371,6 +371,10 @@ pub fn increase<'info>(
     amount: u64,
 ) -> Result<()> {
     require!(amount > 0, ViseError::AmountTooSmall);
+    require!(
+        !ctx.accounts.position.renounced,
+        ViseError::PositionRenounced
+    );
     let now = Clock::get()?.unix_timestamp;
     require!(
         now < ctx.accounts.position.lock_end,
@@ -496,6 +500,10 @@ pub fn extend<'info>(
     duration_secs: u32,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
+    require!(
+        !ctx.accounts.position.renounced,
+        ViseError::PositionRenounced
+    );
     let pool_key = ctx.accounts.pool.key();
     let vault_lamports = ctx.accounts.reward_vault.lamports();
 

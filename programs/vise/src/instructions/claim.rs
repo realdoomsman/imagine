@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::errors::ViseError;
-use crate::events::{CreatorClaimed, RewardsSynced, TreasuryClaimed};
-use crate::instructions::lock::{pay_accrued, pay_from_vault, settle};
+use crate::events::{CreatorClaimed, Renounced, RewardsSynced, TreasuryClaimed};
+use crate::instructions::lock::{emit_sync, pay_accrued, pay_from_vault, settle};
 use crate::math::settle_debt;
 use crate::state::{Pool, Position};
 use anchor_lang::prelude::*;
@@ -126,6 +126,51 @@ fn harvest_into<'info>(
     pay_accrued(pool, position, reward_vault, owner, system_program, pool_key, pending, now)?;
     position.reward_debt = settle_debt(position.reward_debt, pending)?;
     pool.retire_if_capped(position)
+}
+
+/// Give up this lock's earnings for good. The tokens stay locked to the same
+/// end date and can still be unlocked then (or broken early, with the usual
+/// burn), but the lock holds no weight from here on: what it had accrued and
+/// everything it would have earned goes to the other lockers instead.
+///
+/// Accrued rewards return to the stream rather than landing at once, exactly
+/// like an early exit's forfeit, so nobody can lock in the same slot and take
+/// a lump of them. Irreversible: a renounced lock cannot be grown or extended.
+pub fn renounce(ctx: Context<Claim>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let pool_key = ctx.accounts.pool.key();
+    let position_key = ctx.accounts.position.key();
+    let vault_lamports = ctx.accounts.reward_vault.lamports();
+    let pool = &mut ctx.accounts.pool;
+    let position = &mut ctx.accounts.position;
+    require!(!position.renounced, ViseError::PositionRenounced);
+
+    let result = pool.sync(vault_lamports, now)?;
+    emit_sync(pool, pool_key, result, now);
+
+    // Weight leaves first so the forfeit lands only on the lockers who remain.
+    let forfeited = settle(pool, position)?;
+    pool.total_weight = pool
+        .total_weight
+        .checked_sub(position.weight)
+        .ok_or(ViseError::MathOverflow)?;
+    pool.close_capacity(position, forfeited);
+    position.reward_cap = position.claimed.min(position.reward_cap);
+    position.weight = 0;
+    position.reward_debt = 0;
+    position.renounced = true;
+    pool.forfeit(forfeited, now)?;
+
+    emit!(Renounced {
+        pool: pool_key,
+        position: position_key,
+        owner: position.owner,
+        amount: position.amount,
+        forfeited_rewards: forfeited,
+        total_weight: pool.total_weight,
+        timestamp: now,
+    });
+    Ok(())
 }
 
 #[derive(Accounts)]
