@@ -18,6 +18,16 @@ const SORTS = {
 } as const;
 
 export async function poolRoutes(app: FastifyInstance) {
+  // A hidden (unlisted) pool is off the site entirely: its page and every read
+  // of it answer 404. Its lockers still claim and unlock from their portfolio,
+  // and nothing on chain changes.
+  app.addHook("preHandler", async (request, reply) => {
+    const { mint } = request.params as { mint?: string };
+    if (!mint) return;
+    const [row] = await sql`SELECT 1 FROM pools WHERE mint = ${mint} AND hidden`;
+    if (row) return reply.code(404).send({ error: "pool not found" });
+  });
+
   app.get("/pools", async (request) => {
     const query = z
       .object({

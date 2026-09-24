@@ -357,8 +357,9 @@ chain wins; if they disagree, the indexer has a bug and the fix belongs there.
 
 **Unlisting a pool.** `UPDATE pools SET hidden = TRUE WHERE mint = '<mint>'`
 (run it through `railway ssh --service indexer`). The pool leaves the coin list,
-leaderboards, stats and sitemap; its page still loads by direct link so its
-lockers can claim and unlock. Nothing on chain changes — the pool keeps working.
+leaderboards, stats and sitemap, and its page and every `/pools/<mint>` read
+answer 404. Its lockers still claim and unlock from their portfolio. Nothing on
+chain changes — the pool keeps working.
 The mainnet smoke-test coin VTEST (`9Vfo4Gx1EVAPdar6MVytzxjvsMykhDdSThCDF7V7g9rv`)
 is unlisted this way.
 
