@@ -57,12 +57,12 @@ export function Film() {
                 className="group absolute inset-0 flex items-center justify-center bg-steel-990/30 transition-colors hover:bg-steel-990/20"
                 aria-label="Play the film"
               >
-                <span className="flex size-20 items-center justify-center rounded-full border border-torch/60 bg-torch/15 text-torch backdrop-blur-sm transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110">
+                <span className="flex size-14 items-center justify-center rounded-full border border-torch/60 bg-torch/15 text-torch backdrop-blur-sm transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-110 sm:size-20">
                   <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true">
                     <path d="M8 5.5v13l11-6.5z" />
                   </svg>
                 </span>
-                <span className="absolute bottom-5 left-6 rounded-machined border border-white/10 bg-steel-990/70 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-steel-300">
+                <span className="absolute bottom-5 left-6 hidden rounded-machined border border-white/10 bg-steel-990/70 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-steel-300 sm:block">
                   1:00 · sound on
                 </span>
               </button>
