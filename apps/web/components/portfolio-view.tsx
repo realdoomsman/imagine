@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, type PortfolioPosition } from "@/lib/api";
 import { useActor } from "@/lib/signer";
+import { ExtendControl } from "./extend-control";
 import { SignInPrompt } from "./sign-in-prompt";
 import { ViseMark } from "./vise-mark";
 import { Shimmer } from "./skeleton";
@@ -200,15 +201,23 @@ export function PortfolioView() {
                     Claim
                   </button>
 
+                  {!matured ? (
+                    <ExtendControl
+                      lockEnd={position.lockEnd}
+                      busy={busy === key}
+                      onExtend={(days) =>
+                        void act({ kind: "extend", mint: position.mint, index: position.index, durationDays: days }, key)
+                      }
+                    />
+                  ) : null}
                   <button
                     type="button"
                     disabled={busy === key}
-                    onClick={() =>
-                      void act(
-                        { kind: "unlock", mint: position.mint, index: position.index, early: !matured },
-                        key,
-                      )
-                    }
+                    onClick={() => {
+                      // Breaking early is irreversible and burns principal: ask once, plainly.
+                      if (!matured && !window.confirm("Break this lock now? Part of your principal is burned and unclaimed rewards go to the lockers who stayed. This cannot be undone.")) return;
+                      void act({ kind: "unlock", mint: position.mint, index: position.index, early: !matured }, key);
+                    }}
                     className="btn btn-ghost h-9 text-[13px]"
                     title={
                       matured

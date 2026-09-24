@@ -12,9 +12,10 @@ import {
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";
-import { api, type Holding, type WalletPosition, type WalletView } from "@/lib/api";
+import { api, ApiError, type Holding, type WalletPosition, type WalletView } from "@/lib/api";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useAccount } from "./account-provider";
+import { ExtendControl } from "./extend-control";
 import { PortfolioView } from "./portfolio-view";
 import { Shimmer } from "./skeleton";
 import { SignInPrompt } from "./sign-in-prompt";
@@ -32,7 +33,7 @@ const explorerTx = (sig: string) => `https://solscan.io/tx/${sig}${EXPLORER}`;
  * leave. All figures are read from chain on every load.
  */
 export function AccountView() {
-  const { ready, account, logout } = useAccount();
+  const { ready, account, logout, refresh: refreshAccount } = useAccount();
   const wallet = useWallet();
   const [view, setView] = useState<WalletView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,9 +63,16 @@ export function AccountView() {
       setView(await api.wallet());
       setError(null);
     } catch (cause) {
+      // A session that expired or was signed out elsewhere: fall back to the
+      // sign-in prompt rather than showing a stale wallet with an error.
+      if (cause instanceof ApiError && cause.status === 401) {
+        setView(null);
+        await refreshAccount();
+        return;
+      }
       setError(cause instanceof Error ? cause.message : "could not load your wallet");
     }
-  }, [account]);
+  }, [account, refreshAccount]);
 
   useEffect(() => {
     void refresh();
@@ -219,6 +227,11 @@ export function AccountView() {
                     api.act({ kind: "unlock", mint: position.mint, index: position.index, early: !position.matured }),
                   )
                 }
+                onExtend={(days) =>
+                  run(`extend-${position.mint}-${position.index}`, () =>
+                    api.act({ kind: "extend", mint: position.mint, index: position.index, durationDays: days }),
+                  )
+                }
               />
             ))}
           </div>
@@ -283,6 +296,10 @@ function describeAction(kind: string, detail: Record<string, unknown>): string {
       return `Locked ${String(detail.mint).slice(0, 6)}… for ${String(detail.durationDays)} days`;
     case "claim":
       return `Claimed rewards on ${String(detail.mint).slice(0, 6)}…`;
+    case "extend":
+      return `Extended the lock on ${String(detail.mint).slice(0, 6)}… to ${String(detail.durationDays)} days`;
+    case "increase":
+      return `Added to the lock on ${String(detail.mint).slice(0, 6)}…`;
     case "unlock":
       return `${detail.early ? "Broke the lock" : "Unlocked"} on ${String(detail.mint).slice(0, 6)}…`;
     case "swap":
@@ -303,11 +320,13 @@ function PositionCard({
   busy,
   onClaim,
   onUnlock,
+  onExtend,
 }: {
   position: WalletPosition;
   busy: string | null;
   onClaim: () => void;
   onUnlock: () => void;
+  onExtend: (days: number) => void;
 }) {
   const term = position.lockEnd - position.lockStart;
   const elapsed = term > 0 ? Math.min(Math.max((term - position.secondsLeft) / term, 0), 1) : 1;
@@ -393,14 +412,17 @@ function PositionCard({
             </button>
           </>
         ) : (
-          <button
-            type="button"
-            disabled={busy !== null}
-            onClick={() => setConfirming(true)}
-            className="btn btn-ghost h-9 text-[13px]"
-          >
-            Break the lock
-          </button>
+          <>
+            <ExtendControl lockEnd={position.lockEnd} busy={busy !== null} onExtend={onExtend} />
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => setConfirming(true)}
+              className="btn btn-ghost h-9 text-[13px]"
+            >
+              {busy === `extend-${key}` ? "Extending…" : "Break the lock"}
+            </button>
+          </>
         )}
         {!position.matured ? (
           <span className="text-[11.5px] text-steel-500">

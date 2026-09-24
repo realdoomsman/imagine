@@ -41,6 +41,9 @@ export async function verifyGoogleIdToken(credential: string): Promise<GoogleIde
     issuer: GOOGLE_ISSUERS,
     audience: env.googleClientId,
     maxTokenAge: "10 minutes",
+    // Google mints the token on its clock; a minute of skew on ours must not
+    // turn a fresh token into "issued in the future".
+    clockTolerance: "60s",
   });
   if (typeof payload.sub !== "string" || typeof payload.email !== "string") {
     throw new Error("google token lacks a subject or email");

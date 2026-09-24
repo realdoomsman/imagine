@@ -1,8 +1,10 @@
 "use client";
 
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { ECONOMICS, appFeeLamports, formatSol } from "@vise/sdk";
-import { useCallback, useState } from "react";
+import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import { useConnection } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { ECONOMICS, appFeeLamports, exactAmount, formatSol, formatTokenAmount } from "@vise/sdk";
+import { useCallback, useEffect, useState } from "react";
 import { useActor } from "@/lib/signer";
 import { SignInPrompt } from "./sign-in-prompt";
 
@@ -26,10 +28,33 @@ export function SwapPanel({
   graduated: boolean;
 }) {
   const actor = useActor();
+  const { connection } = useConnection();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [input, setInput] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [held, setHeld] = useState<bigint | null>(null);
+
+  // What the signer holds of this coin, for the sell side's "available".
+  useEffect(() => {
+    if (!actor.publicKey) {
+      setHeld(null);
+      return;
+    }
+    const ata = getAssociatedTokenAddressSync(new PublicKey(mint), actor.publicKey, true, TOKEN_2022_PROGRAM_ID);
+    let cancelled = false;
+    void connection
+      .getTokenAccountBalance(ata)
+      .then((result) => {
+        if (!cancelled) setHeld(BigInt(result.value.amount));
+      })
+      .catch(() => {
+        if (!cancelled) setHeld(0n);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [connection, mint, actor.publicKey, status]);
 
   const amount = (() => {
     const parsed = Number(input);
@@ -80,7 +105,10 @@ export function SwapPanel({
     );
   }
 
-  const estimatedFee = (amount * 200n) / 10_000n;
+  // The fee is 2% of the SOL leg: what is spent on a buy, what comes back on
+  // a sell (estimated from the spot price; the chain settles the exact figure).
+  const solLeg = side === "buy" ? amount : BigInt(Math.round((Number(amount) / 1_000_000) * priceLamports));
+  const estimatedFee = appFeeLamports(solLeg, ECONOMICS.tradeFeeBps);
 
   return (
     <section className="panel p-6">
@@ -131,6 +159,21 @@ export function SwapPanel({
             </button>
           ))}
         </div>
+      ) : held !== null ? (
+        <div className="mt-3 flex items-center gap-1.5">
+          {[25, 50, 100].map((pct) => (
+            <button
+              key={pct}
+              type="button"
+              disabled={held === 0n}
+              onClick={() => setInput(exactAmount((held * BigInt(pct)) / 100n, 6))}
+              className="num flex-1 rounded-machined border border-steel-700 py-1 text-[12px] text-steel-400 hover:border-steel-600/50 hover:text-steel-200 disabled:opacity-40"
+            >
+              {pct === 100 ? "MAX" : `${pct}%`}
+            </button>
+          ))}
+          <span className="num ml-2 text-[11.5px] text-steel-500">{formatTokenAmount(held, 6)} held</span>
+        </div>
       ) : null}
 
       <div className="mt-4 flex items-center justify-between border-t border-steel-860 pt-3 text-[12px]">
@@ -148,7 +191,7 @@ export function SwapPanel({
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={busy || amount <= 0n}
+          disabled={busy || amount <= 0n || (side === "sell" && held !== null && amount > held)}
           className="btn btn-primary mt-4 w-full"
         >
           {busy ? "Submitting…" : side === "buy" ? `Buy ${symbol}` : `Sell ${symbol}`}
