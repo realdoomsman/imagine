@@ -124,9 +124,6 @@ export async function poolRoutes(app: FastifyInstance) {
     // is realised, never projected: what actually arrived in the last 24
     // hours. A younger pool shows what it has taken so far rather than an
     // extrapolation of its launch burst.
-    const streamLeft = onChain.streamEnd - Math.floor(Date.now() / 1000);
-    const releasingPerDay =
-      streamLeft > 0 ? ((onChain.undistributed * 86_400n) / BigInt(streamLeft)).toString() : "0";
 
     const row = meta[0];
     return {
@@ -178,8 +175,6 @@ export async function poolRoutes(app: FastifyInstance) {
         lockersPerDay: day.to_lockers as string,
         /** Everything the pool took in over the last 24 hours, before the treasury cut. */
         feesPerDay: day.inflow as string,
-        /** The stream in progress, per day: what is being paid out right now. */
-        releasingPerDay,
         /** Creator fees accrued at pump.fun, not yet swept into the pool. */
         waitingAtPump: (waiting.pump + waiting.amm).toString(),
         /** SOL traded through VISE in the window, from the app fee it paid. */

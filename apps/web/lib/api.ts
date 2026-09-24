@@ -78,7 +78,6 @@ export interface PoolDetail {
   rewardRate: {
     lockersPerDay: string;
     feesPerDay: string;
-    releasingPerDay: string;
     waitingAtPump: string;
     siteVolume: string;
     trades: number;

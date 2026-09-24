@@ -169,10 +169,9 @@ export default async function CoinPage({
               and falls with how much {metadata?.symbol ?? "the coin"} trades.
               Realised over the last 24 hours, not projected.
             </p>
-            <dl className="mt-5 grid grid-cols-2 gap-px border border-steel-700 bg-steel-700 sm:grid-cols-4">
+            <dl className="mt-5 grid grid-cols-2 gap-px border border-steel-700 bg-steel-700 sm:grid-cols-3">
               <Term label="Fees, 24h" value={`${formatSol(BigInt(rewardRate.feesPerDay))} SOL`} />
               <Term label="To lockers, 24h" value={`${formatSol(BigInt(rewardRate.lockersPerDay))} SOL`} />
-              <Term label="Paying out now" value={`${formatSol(BigInt(rewardRate.releasingPerDay))} SOL/day`} />
               <Term label="Waiting at pump" value={`${formatSol(BigInt(rewardRate.waitingAtPump))} SOL`} />
             </dl>
             <p className="mt-4 text-[12px] leading-relaxed text-steel-600">
