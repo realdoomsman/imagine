@@ -8,7 +8,6 @@ import {
   bondingCurvePda,
   coder,
   curveProgress,
-  curveSpotPrice,
   decodePool,
   decodePosition,
   DISCRIMINATOR,
@@ -17,7 +16,7 @@ import {
   VISE_PROGRAM_ID,
 } from "@vise/sdk";
 import { sql } from "./db.ts";
-import { fetchCurve, onlinePump } from "./pump.ts";
+import { fetchCurve, onlinePump, spotPriceLamports } from "./pump.ts";
 import { connection, vise } from "./solana.ts";
 import { startKeeper } from "./keeper.ts";
 
@@ -278,7 +277,7 @@ export async function upsertPoolFromChain(mint: PublicKey) {
     connection.getTokenSupply(mint).catch(() => null),
     onlinePump.fetchGlobal(),
   ]);
-  const price = curve ? curveSpotPrice(curve.state) : null;
+  const price = await spotPriceLamports(mint, curve, pool.tokenProgram);
   const progress = curve
     ? curveProgress(curve.state, BigInt(global.initialRealTokenReserves.toString()))
     : null;

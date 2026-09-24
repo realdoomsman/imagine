@@ -9,6 +9,7 @@ import {
   type SharingConfig,
 } from "@pump-fun/pump-sdk";
 import {
+  AccountLayout,
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
   NATIVE_MINT,
@@ -26,6 +27,8 @@ import {
   ammVaultsFor,
   appFeeLamports,
   bondingCurvePda,
+  curveSpotPrice,
+  PUMP_CURVE,
   PUMP_PROGRAM_ID,
   FeeKind,
   rewardVaultPda,
@@ -72,6 +75,26 @@ export async function priceAccounts(
 ): Promise<[PublicKey, PublicKey] | undefined> {
   const curve = await fetchCurve(mint);
   return curve?.state.complete ? ammVaultsFor(mint, tokenProgram) : undefined;
+}
+
+/**
+ * Spot price of one whole token in lamports, wherever the coin trades now:
+ * its bonding curve, or once graduated the canonical pump AMM pool, where the
+ * curve's own reserves read zero. Null when neither can be read.
+ */
+export async function spotPriceLamports(
+  mint: PublicKey,
+  curve: { state: BondingCurveState } | null,
+  tokenProgram: PublicKey = TOKEN_2022_PROGRAM_ID,
+): Promise<number | null> {
+  if (!curve) return null;
+  if (!curve.state.complete) return curveSpotPrice(curve.state);
+  const [base, quote] = await connection.getMultipleAccountsInfo(ammVaultsFor(mint, tokenProgram));
+  if (!base || !quote) return null;
+  const baseAmount = AccountLayout.decode(base.data.subarray(0, AccountLayout.span)).amount;
+  const quoteAmount = AccountLayout.decode(quote.data.subarray(0, AccountLayout.span)).amount;
+  if (baseAmount === 0n) return null;
+  return (Number(quoteAmount) / Number(baseAmount)) * 10 ** PUMP_CURVE.tokenDecimals;
 }
 
 /**

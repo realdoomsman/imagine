@@ -1,10 +1,10 @@
 import { PublicKey } from "@solana/web3.js";
-import { claimableFor, curveProgress, curveSpotPrice, estimateApr, FeeKind } from "@vise/sdk";
+import { claimableFor, curveProgress, estimateApr, FeeKind } from "@vise/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";
 import { distributable } from "../keeper.ts";
-import { fetchCurve, onlinePump } from "../pump.ts";
+import { fetchCurve, onlinePump, spotPriceLamports } from "../pump.ts";
 import { chainConfig, connection, vise } from "../solana.ts";
 
 /** `fee_events.kind` for a `RewardsSynced` row: what the pool actually took in. */
@@ -118,6 +118,7 @@ export async function poolRoutes(app: FastifyInstance) {
       chainConfig(),
     ]);
     if (!onChain) return reply.code(404).send({ error: "pool not found" });
+    const price = await spotPriceLamports(key, curve, onChain.tokenProgram);
 
     // Rewards are the coin's own fees, so they move with its volume. The rate
     // is realised, never projected: what actually arrived in the last 24
@@ -195,7 +196,7 @@ export async function poolRoutes(app: FastifyInstance) {
               curve.state,
               BigInt(global.initialRealTokenReserves.toString()),
             ),
-            priceLamports: curveSpotPrice(curve.state),
+            priceLamports: price ?? 0,
             virtualSolReserves: curve.state.virtualSolReserves.toString(),
             realSolReserves: curve.state.realSolReserves.toString(),
           }
