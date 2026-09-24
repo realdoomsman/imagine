@@ -115,6 +115,10 @@ export interface PoolAccount {
   createdAt: number;
   bump: number;
   vaultBump: number;
+  /** Each lock may earn at most its `rewardCap`; false on pools made before limits. */
+  capped: boolean;
+  /** Lamports the open locks can still earn in total. */
+  rewardCapacity: bigint;
 }
 
 export interface PositionAccount {
@@ -129,6 +133,8 @@ export interface PositionAccount {
   rewardDebt: bigint;
   claimed: bigint;
   bump: number;
+  /** Capped pools: the most this lock may ever be paid, in lamports. */
+  rewardCap: bigint;
 }
 
 export interface ConfigAccount {
@@ -198,6 +204,8 @@ export function decodePool(data: Buffer | Uint8Array): PoolAccount {
     createdAt: num(raw.created_at),
     bump: num(raw.bump),
     vaultBump: num(raw.vault_bump),
+    capped: Boolean(raw.capped),
+    rewardCapacity: big(raw.reward_capacity),
   };
 }
 
@@ -218,6 +226,7 @@ export function decodePosition(data: Buffer | Uint8Array): PositionAccount {
     rewardDebt: big(raw.reward_debt),
     claimed: big(raw.claimed),
     bump: num(raw.bump),
+    rewardCap: big(raw.reward_cap),
   };
 }
 

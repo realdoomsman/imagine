@@ -87,6 +87,19 @@ pub struct Claimed {
     pub timestamp: i64,
 }
 
+/// A lock was paid up to its cap and the rest of what it had accrued went to
+/// the treasury.
+#[event]
+pub struct RewardCapped {
+    pub pool: Pubkey,
+    pub position: Pubkey,
+    pub owner: Pubkey,
+    pub to_treasury: u64,
+    pub claimed: u64,
+    pub reward_cap: u64,
+    pub timestamp: i64,
+}
+
 #[event]
 pub struct Unlocked {
     pub pool: Pubkey,

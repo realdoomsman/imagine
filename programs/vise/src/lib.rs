@@ -13,6 +13,9 @@
 //! * A pool's economic terms are copied in at creation and can never change.
 //! * No instruction lets an admin move a pool's SOL or tokens. Payouts only ever
 //!   reach the locker, creator, or treasury that earned them.
+//! * On pools created with earnings limits, a lock is paid at most its tokens'
+//!   SOL value when locked times its multiplier; fees beyond what open locks
+//!   can still earn go to the treasury as they arrive.
 //! * Claiming and unlocking can never be paused.
 //! * The creator must lock at creation, so every pool has weight from its first
 //!   slot and no one can scoop an unassigned remainder.
@@ -25,6 +28,7 @@ pub mod events;
 pub mod instructions;
 pub mod math;
 pub mod mint_guard;
+pub mod price;
 pub mod state;
 
 use instructions::*;
@@ -51,7 +55,10 @@ pub mod vise {
         instructions::admin::accept_admin(ctx)
     }
 
-    pub fn create_pool(ctx: Context<CreatePool>, args: CreatePoolArgs) -> Result<()> {
+    pub fn create_pool<'info>(
+        ctx: Context<'_, '_, 'info, 'info, CreatePool<'info>>,
+        args: CreatePoolArgs,
+    ) -> Result<()> {
         instructions::pool::create_pool(ctx, args)
     }
 
@@ -63,20 +70,35 @@ pub mod vise {
         instructions::deposit::deposit_reward(ctx, amount, kind)
     }
 
-    pub fn lock(ctx: Context<Lock>, index: u32, amount: u64, duration_secs: u32) -> Result<()> {
+    pub fn lock<'info>(
+        ctx: Context<'_, '_, 'info, 'info, Lock<'info>>,
+        index: u32,
+        amount: u64,
+        duration_secs: u32,
+    ) -> Result<()> {
         instructions::lock::lock(ctx, index, amount, duration_secs)
     }
 
-    pub fn increase(ctx: Context<ModifyPosition>, amount: u64) -> Result<()> {
+    pub fn increase<'info>(
+        ctx: Context<'_, '_, 'info, 'info, ModifyPosition<'info>>,
+        amount: u64,
+    ) -> Result<()> {
         instructions::lock::increase(ctx, amount)
     }
 
-    pub fn extend(ctx: Context<ModifyPosition>, duration_secs: u32) -> Result<()> {
+    pub fn extend<'info>(
+        ctx: Context<'_, '_, 'info, 'info, ModifyPosition<'info>>,
+        duration_secs: u32,
+    ) -> Result<()> {
         instructions::lock::extend(ctx, duration_secs)
     }
 
     pub fn claim(ctx: Context<Claim>) -> Result<()> {
         instructions::claim::claim(ctx)
+    }
+
+    pub fn harvest(ctx: Context<Harvest>) -> Result<()> {
+        instructions::claim::harvest(ctx)
     }
 
     pub fn claim_creator(ctx: Context<ClaimCreator>) -> Result<()> {
@@ -93,5 +115,9 @@ pub mod vise {
 
     pub fn early_unlock(ctx: Context<Unlock>) -> Result<()> {
         instructions::unlock::early_unlock(ctx)
+    }
+
+    pub fn migrate(ctx: Context<Migrate>) -> Result<()> {
+        instructions::migrate::migrate(ctx)
     }
 }

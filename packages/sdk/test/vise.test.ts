@@ -1,10 +1,13 @@
 import { BN } from "@coral-xyz/anchor";
 import {
   ACCOUNT_SIZE,
+  AccountLayout,
   createCloseAccountInstruction,
   createInitializeAccount3Instruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
+  NATIVE_MINT,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
   Connection,
@@ -19,6 +22,7 @@ import { decodeConfig, decodePool, decodePosition } from "../src/accounts.ts";
 import { ViseClient } from "../src/client.ts";
 import { ECONOMICS, FeeKind } from "../src/constants.ts";
 import {
+  ammVaultsFor,
   configPda,
   poolPda,
   positionPda,
@@ -27,9 +31,11 @@ import {
 } from "../src/pda.ts";
 import {
   accrued,
+  claimableFor,
   earlyExitPenalty,
   multiplierBps,
   projectSync,
+  rewardCapFor,
   splitInflow,
   weightOf,
   type PoolTerms,
@@ -178,6 +184,8 @@ async function openPool(
     initialLockDuration?: number;
     extraHolders?: Array<{ owner: PublicKey; amount: bigint }>;
     config?: Record<string, unknown>;
+    /** Curve virtual SOL reserves; low values make earnings caps bind. */
+    virtualSolReserves?: bigint;
   } = {},
 ): Promise<World> {
   const ctx = setup();
@@ -192,7 +200,7 @@ async function openPool(
     ],
     { metadataPointer: true },
   );
-  setPumpCurve(ctx.svm, mint, creator.publicKey);
+  setPumpCurve(ctx.svm, mint, creator.publicKey, { virtualSolReserves: opts.virtualSolReserves });
   const ix = await client.createPool({
     creator: creator.publicKey,
     mint,
@@ -526,6 +534,7 @@ describe("rewards", () => {
     assert.equal(projected.creatorClaimable, after.creatorClaimable, "creator claimable");
     assert.equal(projected.lifetimeTreasury, after.lifetimeTreasury, "lifetime treasury");
     assert.equal(projected.lifetimeCreator, after.lifetimeCreator, "lifetime creator");
+    assert.equal(projected.rewardCapacity, after.rewardCapacity, "reward capacity");
     assert.equal(projected.inflow, untouched, "the unsynced inflow is the airdrop");
 
     // And the number a locker sees is the number a claim pays.
@@ -1232,7 +1241,12 @@ describe("payouts", () => {
 });
 
 describe("solvency under churn", () => {
-  it("never owes more than it holds across a long random sequence", async () => {
+  // Twice: with caps far out of reach, and at a price where locks hit them.
+  for (const [label, virtualSolReserves] of [
+    ["", undefined],
+    [" with earnings caps binding", 1_073_000_000_000n],
+  ] as const) {
+  it(`never owes more than it holds across a long random sequence${label}`, async () => {
     const actors = Array.from({ length: 6 }, () => Keypair.generate());
     const w = await openPool({
       initialLockAmount: 5_000n * TOKEN,
@@ -1241,6 +1255,7 @@ describe("solvency under churn", () => {
         owner: a.publicKey,
         amount: 200_000n * TOKEN,
       })),
+      virtualSolReserves,
     });
     for (const a of actors) w.svm.airdrop(a.publicKey, 200n * SOL);
     const trader = fundedKeypair(w.svm, 500);
@@ -1377,7 +1392,15 @@ describe("solvency under churn", () => {
       final.held - final.owed < BigInt(tracked.length + 60) * 2n,
       `unexpected residue ${final.held - final.owed} lamports`,
     );
+    if (virtualSolReserves) {
+      const pool = readPool(w.svm, w.mint);
+      assert.ok(
+        pool.lifetimeTreasury > pool.lifetimeInflow / 10n + SOL,
+        "caps must have bound, sending surplus beyond the 10% cut to the treasury",
+      );
+    }
   });
+  }
 });
 
 /**
@@ -2017,5 +2040,367 @@ describe("economics", () => {
     assert.equal(split.toTreasury, 1n * SOL);
     assert.equal(split.toCreator, 0n);
     assert.equal(split.toLockers, 9n * SOL);
+  });
+});
+
+/*
+ * Earnings limits. A lock may be paid at most its tokens' SOL value when
+ * locked times its multiplier; fees beyond what open locks can still earn go
+ * to the treasury as they arrive. Priced off pump's curve, so these tests set
+ * a realistic price: 0.1 lamport per base unit, i.e. 10,000 tokens = 1 SOL.
+ */
+const CHEAP = 107_300_000_000_000n;
+const VIRTUAL_TOKENS = 1_073_000_000_000_000n;
+const valueAt = (amount: bigint, virtualSol: bigint) => (amount * virtualSol) / VIRTUAL_TOKENS;
+
+async function deposit(w: World, lamportsIn: bigint) {
+  const trader = fundedKeypair(w.svm, Number(lamportsIn / SOL) + 10);
+  send(
+    w.svm,
+    [await client.depositReward({ payer: trader.publicKey, mint: w.mint, lamports: lamportsIn, kind: FeeKind.Buy })],
+    [trader],
+  );
+  return trader;
+}
+
+describe("earnings limits", () => {
+  it("caps a lock at its SOL value times its multiplier and hands the surplus to the treasury at once", async () => {
+    const w = await openPool({ virtualSolReserves: CHEAP, creatorShareBps: 0, initialLockDuration: 30 * DAY });
+    const founding = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    const value = valueAt(10_000n * TOKEN, CHEAP);
+    assert.equal(value, 1n * SOL, "10,000 tokens at this price are worth 1 SOL");
+    const cap = rewardCapFor(value, founding.multiplierBps);
+    assert.equal(founding.rewardCap, cap);
+    assert.ok(readPool(w.svm, w.mint).capped);
+    assert.equal(readPool(w.svm, w.mint).rewardCapacity, cap);
+
+    // 50 SOL of fees against a lock that may earn ~2.8 SOL: everything but the
+    // cap is the treasury's the moment it lands, not after the lock ends.
+    const trader = await deposit(w, 50n * SOL);
+    const pool = readPool(w.svm, w.mint);
+    assert.equal(pool.undistributed, cap);
+    assert.equal(pool.treasuryClaimable, 50n * SOL - cap);
+    const treasuryBefore = lamports(w.svm, w.treasury.publicKey);
+    send(
+      w.svm,
+      [await client.claimTreasury({ payer: trader.publicKey, mint: w.mint, treasury: w.treasury.publicKey })],
+      [trader],
+    );
+    assert.equal(lamports(w.svm, w.treasury.publicKey) - treasuryBefore, 50n * SOL - cap);
+
+    await settleStream(w, trader);
+    const before = lamports(w.svm, w.creator.publicKey);
+    send(w.svm, [await client.claim({ owner: w.creator.publicKey, mint: w.mint, index: 0 })], [w.creator]);
+    const paid = lamports(w.svm, w.creator.publicKey) - before + 5_000n;
+    assert.ok(paid <= cap && cap - paid < 10n, `paid ${paid} against a cap of ${cap}`);
+
+    // Paid out, the lock stops earning: the next fees have nobody to go to.
+    const retired = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    assert.equal(retired.weight, 0n);
+    assert.equal(readPool(w.svm, w.mint).totalWeight, 0n);
+    await deposit(w, 10n * SOL);
+    assert.equal(readPool(w.svm, w.mint).treasuryClaimable, 10n * SOL);
+    assertSolvent(w.svm, w.mint, [{ owner: w.creator.publicKey, index: 0 }]);
+  });
+
+  it("lets anyone retire a capped lock so the locks still earning split the rest", async () => {
+    const alice = Keypair.generate();
+    const w = await openPool({
+      virtualSolReserves: CHEAP,
+      creatorShareBps: 0,
+      initialLockDuration: 30 * DAY,
+      extraHolders: [{ owner: alice.publicKey, amount: 400_000n * TOKEN }],
+    });
+    // Alice locks the same bag for the same term after the price rose 100x:
+    // same weight, a cap 100x higher.
+    setPumpCurve(w.svm, w.mint, w.creator.publicKey, { virtualSolReserves: CHEAP * 100n });
+    w.svm.airdrop(alice.publicKey, 10n * SOL);
+    send(
+      w.svm,
+      [
+        await client.lock({
+          owner: alice.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: 10_000n * TOKEN,
+          durationSecs: 30 * DAY,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [alice],
+    );
+    const creatorPos = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    const alicePos = readPosition(w.svm, w.mint, alice.publicKey, 0)!;
+    assert.equal(alicePos.weight, creatorPos.weight, "same bag, same term, same weight");
+    assert.equal(alicePos.rewardCap, creatorPos.rewardCap * 100n);
+
+    const trader = await deposit(w, 20n * SOL);
+    await settleStream(w, trader);
+    // Each has accrued ~9 SOL; the creator may keep only its cap.
+    const keeper = fundedKeypair(w.svm);
+    const creatorBefore = lamports(w.svm, w.creator.publicKey);
+    const treasuryBefore = readPool(w.svm, w.mint).treasuryClaimable;
+    send(
+      w.svm,
+      [await client.harvest({ payer: keeper.publicKey, owner: w.creator.publicKey, mint: w.mint, index: 0 })],
+      [keeper],
+    );
+    assert.equal(lamports(w.svm, w.creator.publicKey) - creatorBefore, creatorPos.rewardCap);
+    const retired = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    assert.equal(retired.weight, 0n);
+    assert.equal(retired.claimed, retired.rewardCap);
+    const excess = readPool(w.svm, w.mint).treasuryClaimable - treasuryBefore;
+    assert.ok(excess > 6n * SOL, `the creator's excess (${excess}) goes to the treasury`);
+
+    // From here Alice is the only lock earning.
+    await deposit(w, 20n * SOL);
+    await settleStream(w, trader);
+    const aliceNow = readPosition(w.svm, w.mint, alice.publicKey, 0)!;
+    const due = claimableFor(aliceNow, readPool(w.svm, w.mint));
+    assert.ok(due > 26n * SOL && due <= 27n * SOL, `alice has earned both her halves (${due})`);
+    assertSolvent(w.svm, w.mint, [
+      { owner: w.creator.publicKey, index: 0 },
+      { owner: alice.publicKey, index: 0 },
+    ]);
+  });
+
+  it("raises the cap on a top-up and an extension, at the price of the day", async () => {
+    const w = await openPool({ virtualSolReserves: CHEAP, creatorShareBps: 0, initialLockDuration: 30 * DAY });
+    const start = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+
+    setPumpCurve(w.svm, w.mint, w.creator.publicKey, { virtualSolReserves: CHEAP * 3n });
+    send(
+      w.svm,
+      [
+        await client.increase({
+          owner: w.creator.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: 10_000n * TOKEN,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [w.creator],
+    );
+    const grown = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    assert.equal(
+      grown.rewardCap,
+      start.rewardCap + rewardCapFor(valueAt(10_000n * TOKEN, CHEAP * 3n), grown.multiplierBps),
+    );
+
+    send(
+      w.svm,
+      [
+        await client.extend({
+          owner: w.creator.publicKey,
+          mint: w.mint,
+          index: 0,
+          durationSecs: 365 * DAY,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [w.creator],
+    );
+    const extended = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!;
+    assert.ok(extended.multiplierBps > grown.multiplierBps);
+    assert.equal(
+      extended.rewardCap,
+      grown.rewardCap +
+        rewardCapFor(valueAt(extended.amount, CHEAP * 3n), extended.multiplierBps - grown.multiplierBps),
+    );
+    assert.equal(readPool(w.svm, w.mint).rewardCapacity, extended.rewardCap);
+  });
+
+  it("returns an early leaver's unused cap and keeps its forfeit as room", async () => {
+    const quitter = Keypair.generate();
+    const w = await openPool({
+      virtualSolReserves: CHEAP,
+      creatorShareBps: 0,
+      initialLockDuration: 30 * DAY,
+      extraHolders: [{ owner: quitter.publicKey, amount: 100_000n * TOKEN }],
+    });
+    w.svm.airdrop(quitter.publicKey, 10n * SOL);
+    send(
+      w.svm,
+      [
+        await client.lock({
+          owner: quitter.publicKey,
+          mint: w.mint,
+          index: 0,
+          amount: 10_000n * TOKEN,
+          durationSecs: 90 * DAY,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [quitter],
+    );
+    const trader = await deposit(w, 1n * SOL);
+    await settleStream(w, trader);
+    const pool = readPool(w.svm, w.mint);
+    const q = readPosition(w.svm, w.mint, quitter.publicKey, 0)!;
+    const forfeit = accrued(q.weight, pool.accRewardPerWeight, q.rewardDebt);
+    assert.ok(forfeit > 0n);
+
+    send(
+      w.svm,
+      [
+        await client.unlock({
+          owner: quitter.publicKey,
+          mint: w.mint,
+          index: 0,
+          early: true,
+          tokenProgram: w.tokenProgram,
+        }),
+      ],
+      [quitter],
+    );
+    const after = readPool(w.svm, w.mint);
+    assert.equal(after.rewardCapacity, pool.rewardCapacity - (q.rewardCap - q.claimed) + forfeit);
+    assertSolvent(w.svm, w.mint, [{ owner: w.creator.publicKey, index: 0 }]);
+  });
+
+  it("prices a graduated coin from its pump AMM pool and refuses without it", async () => {
+    const alice = Keypair.generate();
+    const w = await openPool({
+      virtualSolReserves: CHEAP,
+      extraHolders: [{ owner: alice.publicKey, amount: 100_000n * TOKEN }],
+    });
+    w.svm.airdrop(alice.publicKey, 10n * SOL);
+    setPumpCurve(w.svm, w.mint, w.creator.publicKey, { complete: true, virtualSolReserves: CHEAP });
+    const lockIx = (ammVaults?: [PublicKey, PublicKey]) =>
+      client.lock({
+        owner: alice.publicKey,
+        mint: w.mint,
+        index: 0,
+        amount: 10_000n * TOKEN,
+        durationSecs: 30 * DAY,
+        tokenProgram: w.tokenProgram,
+        ammVaults,
+      });
+    assert.match(sendExpectingError(w.svm, [await lockIx()], [alice]), /PriceUnavailable/);
+
+    // 1B tokens against 500 SOL: 0.5 lamport per base unit, 5x the curve.
+    const [baseVault, quoteVault] = ammVaultsFor(w.mint, w.tokenProgram);
+    const [ammPool] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("pool"),
+        Buffer.alloc(2),
+        PublicKey.findProgramAddressSync(
+          [Buffer.from("pool-authority"), w.mint.toBuffer()],
+          new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"),
+        )[0].toBuffer(),
+        w.mint.toBuffer(),
+        NATIVE_MINT.toBuffer(),
+      ],
+      new PublicKey("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"),
+    );
+    const tokenAccount = (mint: PublicKey, amount: bigint) => {
+      const data = Buffer.alloc(AccountLayout.span);
+      AccountLayout.encode(
+        {
+          mint,
+          owner: ammPool,
+          amount,
+          delegateOption: 0,
+          delegate: PublicKey.default,
+          state: 1,
+          isNativeOption: 0,
+          isNative: 0n,
+          delegatedAmount: 0n,
+          closeAuthorityOption: 0,
+          closeAuthority: PublicKey.default,
+        },
+        data,
+      );
+      return data;
+    };
+    const rent = Number(w.svm.minimumBalanceForRentExemption(BigInt(AccountLayout.span)));
+    w.svm.setAccount(baseVault, {
+      lamports: rent,
+      data: tokenAccount(w.mint, 1_000_000_000n * TOKEN),
+      owner: w.tokenProgram,
+      executable: false,
+    });
+    w.svm.setAccount(quoteVault, {
+      lamports: rent,
+      data: tokenAccount(NATIVE_MINT, 500n * SOL),
+      owner: TOKEN_PROGRAM_ID,
+      executable: false,
+    });
+
+    // The right accounts in the wrong order are refused.
+    assert.match(sendExpectingError(w.svm, [await lockIx([quoteVault, baseVault])], [alice]), /PriceUnavailable/);
+
+    send(w.svm, [await lockIx([baseVault, quoteVault])], [alice]);
+    const locked = readPosition(w.svm, w.mint, alice.publicKey, 0)!;
+    const value = (10_000n * TOKEN * 500n * SOL) / (1_000_000_000n * TOKEN);
+    assert.equal(locked.rewardCap, rewardCapFor(value, locked.multiplierBps));
+  });
+
+  it("migrates a pool and position written before limits, which stay uncapped", async () => {
+    const w = await openPool({ creatorShareBps: 0 });
+    const trader = fundedKeypair(w.svm, 100);
+    // Rewrite both accounts at their pre-limit length, as they sit on mainnet.
+    const truncate = (address: PublicKey, drop: number) => {
+      const account = w.svm.getAccount(address)!;
+      w.svm.setAccount(address, { ...account, data: account.data.slice(0, account.data.length - drop) });
+    };
+    const poolAddress = poolPda(w.mint);
+    const positionAddress = positionPda(w.mint, w.creator.publicKey, 0);
+    const poolLength = w.svm.getAccount(poolAddress)!.data.length;
+    const positionLength = w.svm.getAccount(positionAddress)!.data.length;
+    truncate(poolAddress, 1 + 8 + 64);
+    truncate(positionAddress, 8 + 32);
+
+    const claim = await client.claim({ owner: w.creator.publicKey, mint: w.mint, index: 0 });
+    assert.match(sendExpectingError(w.svm, [claim], [w.creator]), /AccountDidNotDeserialize|deserialize/i);
+
+    // Idempotent: the second pass over the pool changes nothing.
+    for (const target of [poolAddress, positionAddress, poolAddress]) {
+      w.svm.expireBlockhash();
+      send(w.svm, [await client.migrate({ payer: trader.publicKey, target })], [trader]);
+    }
+    assert.equal(w.svm.getAccount(poolAddress)!.data.length, poolLength);
+    assert.equal(w.svm.getAccount(positionAddress)!.data.length, positionLength);
+    assert.equal(readPool(w.svm, w.mint).capped, false);
+
+    // Uncapped: 50 SOL of fees go 10% to the treasury and 90% to the lock,
+    // exactly the deal the pool was created with.
+    await deposit(w, 50n * SOL);
+    const after = readPool(w.svm, w.mint);
+    assert.equal(after.treasuryClaimable, 5n * SOL);
+    assert.equal(after.undistributed, 45n * SOL);
+    await settleStream(w, trader);
+    send(w.svm, [await client.claim({ owner: w.creator.publicKey, mint: w.mint, index: 0 })], [w.creator]);
+    assertSolvent(w.svm, w.mint, [{ owner: w.creator.publicKey, index: 0 }]);
+  });
+
+  it("projects a capped pool's sync exactly as the program performs it", async () => {
+    const w = await openPool({ virtualSolReserves: CHEAP, creatorShareBps: 0 });
+    const trader = await deposit(w, 2n * SOL);
+    warp(w.svm, Math.floor(STREAM_SECS / 2));
+    // More than the lock can still earn lands unsynced: the projection must
+    // clamp the stream and the release exactly as `sync` does.
+    const vault = rewardVaultPda(w.mint);
+    w.svm.airdrop(vault, 9n * SOL);
+    warp(w.svm, 23);
+
+    const before = readPool(w.svm, w.mint);
+    const projected = projectSync(before, lamports(w.svm, vault), now(w.svm));
+    send(w.svm, [await client.sync(w.mint)], [trader]);
+    const after = readPool(w.svm, w.mint);
+    for (const field of [
+      "accRewardPerWeight",
+      "rewardRemainder",
+      "undistributed",
+      "streamRate",
+      "treasuryClaimable",
+      "lifetimeTreasury",
+      "lifetimeRewards",
+      "rewardCapacity",
+    ] as const) {
+      assert.equal(projected[field], after[field], field);
+    }
+    assert.ok(after.treasuryClaimable > 8n * SOL, "the surplus went to the treasury");
   });
 });

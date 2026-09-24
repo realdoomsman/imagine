@@ -31,6 +31,18 @@ import {
   tokenVaultPda,
 } from "./pda.ts";
 
+/** Byte length of a `Position` account, discriminator included. */
+export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 4 + 8 + 16 + 4 + 8 + 8 + 16 + 8 + 1 + 8 + 32;
+
+/**
+ * Remaining accounts that price a lock on a capped pool whose coin has
+ * graduated: the canonical pump AMM pool's base and quote vaults
+ * (`ammVaultsFor`). Omit while the coin is on its bonding curve.
+ */
+function ammRemaining(vaults: [PublicKey, PublicKey] | undefined) {
+  return (vaults ?? []).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
+}
+
 export type { ConfigAccount, PoolAccount, PositionAccount };
 
 
@@ -103,7 +115,7 @@ export class ViseClient {
   ): Promise<Array<PositionAccount & { address: PublicKey }>> {
     const accounts = await this.connection.getProgramAccounts(this.programId, {
       filters: [
-        { dataSize: 8 + 32 + 32 + 4 + 8 + 16 + 4 + 8 + 8 + 16 + 8 + 1 },
+        { dataSize: POSITION_ACCOUNT_SIZE },
         { memcmp: { offset: 8, bytes: owner.toBase58() } },
       ],
     });
@@ -182,6 +194,7 @@ export class ViseClient {
     creatorShareBps: number;
     initialLockAmount: bigint;
     initialLockDuration: number;
+    ammVaults?: [PublicKey, PublicKey];
   }): Promise<TransactionInstruction> {
     const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
     return this.program.methods
@@ -195,8 +208,8 @@ export class ViseClient {
         config: configPda(this.programId),
         treasury: params.treasury,
         mint: params.mint,
-        // Proves the signer is the coin's creator on pump.fun; the program
-        // reads `BondingCurve::creator` out of it.
+        // Proves the signer is the coin's creator on pump.fun (the program
+        // reads `BondingCurve::creator`) and prices the founding lock.
         bondingCurve: bondingCurvePda(params.mint),
         tokenVault: tokenVaultPda(params.mint, this.programId),
         rewardVault: rewardVaultPda(params.mint, this.programId),
@@ -210,6 +223,7 @@ export class ViseClient {
         tokenProgram,
         systemProgram: SystemProgram.programId,
       })
+      .remainingAccounts(ammRemaining(params.ammVaults))
       .instruction();
   }
 
@@ -220,6 +234,7 @@ export class ViseClient {
     amount: bigint;
     durationSecs: number;
     tokenProgram?: PublicKey;
+    ammVaults?: [PublicKey, PublicKey];
   }): Promise<TransactionInstruction> {
     const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
     return this.program.methods
@@ -230,6 +245,7 @@ export class ViseClient {
         mint: params.mint,
         tokenVault: tokenVaultPda(params.mint, this.programId),
         rewardVault: rewardVaultPda(params.mint, this.programId),
+        bondingCurve: bondingCurvePda(params.mint),
         position: positionPda(params.mint, params.owner, params.index, this.programId),
         ownerTokenAccount: getAssociatedTokenAddressSync(
           params.mint,
@@ -240,6 +256,7 @@ export class ViseClient {
         tokenProgram,
         systemProgram: SystemProgram.programId,
       })
+      .remainingAccounts(ammRemaining(params.ammVaults))
       .instruction();
   }
 
@@ -256,6 +273,7 @@ export class ViseClient {
       mint: params.mint,
       tokenVault: tokenVaultPda(params.mint, this.programId),
       rewardVault: rewardVaultPda(params.mint, this.programId),
+      bondingCurve: bondingCurvePda(params.mint),
       position: positionPda(params.mint, params.owner, params.index, this.programId),
       ownerTokenAccount: getAssociatedTokenAddressSync(
         params.mint,
@@ -275,11 +293,13 @@ export class ViseClient {
     index: number;
     amount: bigint;
     tokenProgram?: PublicKey;
+    ammVaults?: [PublicKey, PublicKey];
   }): Promise<TransactionInstruction> {
     const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
     return this.program.methods
       .increase(new BN(params.amount.toString()))
       .accountsPartial(this.modifyAccounts({ ...params, tokenProgram }))
+      .remainingAccounts(ammRemaining(params.ammVaults))
       .instruction();
   }
 
@@ -293,11 +313,49 @@ export class ViseClient {
     index: number;
     durationSecs: number;
     tokenProgram?: PublicKey;
+    ammVaults?: [PublicKey, PublicKey];
   }): Promise<TransactionInstruction> {
     const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
     return this.program.methods
       .extend(params.durationSecs)
       .accountsPartial(this.modifyAccounts({ ...params, tokenProgram }))
+      .remainingAccounts(ammRemaining(params.ammVaults))
+      .instruction();
+  }
+
+  /**
+   * `claim` on someone else's behalf: pays the position's owner. On a capped
+   * pool this retires a lock that has reached its cap, sending the excess to
+   * the treasury.
+   */
+  async harvest(params: {
+    payer: PublicKey;
+    owner: PublicKey;
+    mint: PublicKey;
+    index: number;
+  }): Promise<TransactionInstruction> {
+    return this.program.methods
+      .harvest()
+      .accountsPartial({
+        payer: params.payer,
+        owner: params.owner,
+        pool: poolPda(params.mint, this.programId),
+        rewardVault: rewardVaultPda(params.mint, this.programId),
+        position: positionPda(params.mint, params.owner, params.index, this.programId),
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+  }
+
+  /** Grow a pool or position written before earnings limits to the current layout. */
+  async migrate(params: { payer: PublicKey; target: PublicKey }): Promise<TransactionInstruction> {
+    return this.program.methods
+      .migrate()
+      .accountsPartial({
+        payer: params.payer,
+        target: params.target,
+        systemProgram: SystemProgram.programId,
+      })
       .instruction();
   }
 

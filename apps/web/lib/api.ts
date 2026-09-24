@@ -69,6 +69,10 @@ export interface PoolDetail {
     streamEnd: number;
     openPositions: number;
     createdAt: number;
+    /** Each lock earns at most its SOL value when locked × its multiplier. */
+    capped: boolean;
+    /** Lamports the open locks can still earn in total. */
+    rewardCapacity: string;
   };
   /** Realised fee flow over the last 24 hours, lamports; rewards track the coin's own volume. */
   rewardRate: {
@@ -98,6 +102,8 @@ export interface Locker {
   claimed: string;
   pending: string;
   share: number;
+  /** Capped pools: the most this lock may ever be paid, lamports. */
+  rewardCap: string | null;
 }
 
 export interface PortfolioPosition {
@@ -119,6 +125,8 @@ export interface PortfolioPosition {
   /** The pool's frozen lock window, so an extend offers only legal terms. */
   minLockSecs: number | null;
   maxLockSecs: number | null;
+  /** Capped pools: the most this lock may ever be paid, lamports. */
+  rewardCap: string | null;
 }
 
 /**

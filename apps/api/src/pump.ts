@@ -23,6 +23,7 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
+  ammVaultsFor,
   appFeeLamports,
   bondingCurvePda,
   PUMP_PROGRAM_ID,
@@ -58,6 +59,19 @@ export async function fetchCurve(
       complete: curve.complete,
     },
   };
+}
+
+/**
+ * Remaining accounts VISE needs to price a lock on `mint`: nothing while the
+ * coin is on its bonding curve (the program reads the curve), the canonical
+ * pump AMM pool's vaults once it has graduated.
+ */
+export async function priceAccounts(
+  mint: PublicKey,
+  tokenProgram: PublicKey = TOKEN_2022_PROGRAM_ID,
+): Promise<[PublicKey, PublicKey] | undefined> {
+  const curve = await fetchCurve(mint);
+  return curve?.state.complete ? ammVaultsFor(mint, tokenProgram) : undefined;
 }
 
 /**

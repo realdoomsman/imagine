@@ -42,4 +42,6 @@ pub enum ViseError {
     NotCoinCreator,
     #[msg("Bonding curve account is not a readable pump.fun curve")]
     InvalidBondingCurve,
+    #[msg("Coin price unavailable: pass the pump AMM pool vaults for a graduated coin")]
+    PriceUnavailable,
 }

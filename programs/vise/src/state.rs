@@ -192,6 +192,15 @@ pub struct Pool {
     pub created_at: i64,
     pub bump: u8,
     pub vault_bump: u8,
+
+    /// Each lock may earn at most its `Position::reward_cap`. Set on pools
+    /// created after limits shipped; older pools stay uncapped forever.
+    pub capped: bool,
+    /// Lamports the open locks can still earn in total: the sum of every cap,
+    /// less what has been paid and what is already credited to them. Fees
+    /// beyond it go to the treasury the moment they arrive or release.
+    pub reward_capacity: u64,
+    pub _reserved: [u8; 64],
 }
 
 /// Outcome of a sync, for event emission.
@@ -269,7 +278,22 @@ impl Pool {
                 .checked_add(to_creator)
                 .ok_or(ViseError::MathOverflow)?;
 
-            out.to_treasury = to_treasury;
+            // On a capped pool, the lockers' share can only fill what the open
+            // locks are still allowed to earn. The rest is nobody's but the
+            // treasury's, and lands there now rather than after a stream.
+            let overflow = if self.capped {
+                let room = self
+                    .reward_capacity
+                    .saturating_sub(self.undistributed)
+                    .saturating_sub(self.reward_remainder);
+                to_lockers.saturating_sub(room)
+            } else {
+                0
+            };
+            let to_lockers = to_lockers - overflow;
+            self.pay_treasury(overflow)?;
+
+            out.to_treasury = to_treasury + overflow;
             out.to_creator = to_creator;
             out.to_lockers = to_lockers;
 
@@ -337,14 +361,20 @@ impl Pool {
             return Ok(());
         }
         if self.total_weight == 0 {
-            self.treasury_claimable = self
-                .treasury_claimable
-                .checked_add(lamports)
-                .ok_or(ViseError::MathOverflow)?;
-            self.lifetime_treasury = self
-                .lifetime_treasury
-                .checked_add(lamports)
-                .ok_or(ViseError::MathOverflow)?;
+            return self.pay_treasury(lamports);
+        }
+
+        // A capped pool credits only what open locks may still earn; locks
+        // that left while this was streaming take their room with them.
+        let lamports = if self.capped {
+            let room = self.reward_capacity.saturating_sub(self.reward_remainder);
+            let credit = lamports.min(room);
+            self.pay_treasury(lamports - credit)?;
+            credit
+        } else {
+            lamports
+        };
+        if lamports == 0 {
             return Ok(());
         }
 
@@ -361,7 +391,100 @@ impl Pool {
             .lifetime_rewards
             .checked_add(committed)
             .ok_or(ViseError::MathOverflow)?;
+        if self.capped {
+            self.reward_capacity = self.reward_capacity.saturating_sub(committed);
+        }
         Ok(())
+    }
+
+    /// Credit lamports already in the vault to the treasury.
+    fn pay_treasury(&mut self, lamports: u64) -> Result<()> {
+        if lamports == 0 {
+            return Ok(());
+        }
+        self.treasury_claimable = self
+            .treasury_claimable
+            .checked_add(lamports)
+            .ok_or(ViseError::MathOverflow)?;
+        self.lifetime_treasury = self
+            .lifetime_treasury
+            .checked_add(lamports)
+            .ok_or(ViseError::MathOverflow)?;
+        Ok(())
+    }
+
+    /// Raise what open locks may earn by `lamports` (a lock opened, grew or
+    /// extended).
+    pub fn add_capacity(&mut self, lamports: u64) -> Result<()> {
+        if self.capped {
+            self.reward_capacity = self
+                .reward_capacity
+                .checked_add(lamports)
+                .ok_or(ViseError::MathOverflow)?;
+        }
+        Ok(())
+    }
+
+    /// Split a position's accrued rewards into what it may be paid and what
+    /// is over its cap. The excess is already in the vault and becomes the
+    /// treasury's; the caller pays `paid` and advances the position's debt
+    /// by the full `pending`.
+    pub fn apply_cap(&mut self, position: &Position, pending: u64) -> Result<(u64, u64)> {
+        if !self.capped || pending == 0 {
+            return Ok((pending, 0));
+        }
+        let room = position.reward_cap.saturating_sub(position.claimed);
+        let paid = pending.min(room);
+        let excess = pending - paid;
+        if excess > 0 {
+            self.pay_treasury(excess)?;
+            self.lifetime_rewards = self.lifetime_rewards.saturating_sub(excess);
+            // Capacity was spent crediting this excess to a lock that could not
+            // use it; give it back to the locks that can.
+            self.add_capacity(excess)?;
+        }
+        Ok((paid, excess))
+    }
+
+    /// A lock that has been paid its cap stops earning: its weight leaves the
+    /// pool so the locks still earning split what arrives. Call after its
+    /// debt is settled; principal stays locked until its end date.
+    ///
+    /// Accumulator rounding can leave a paid-out lock a few lamports short of
+    /// its cap. Within `CAP_DUST_LAMPORTS` it counts as paid: the cap is
+    /// lowered to what was paid and the dust leaves the pool's room, so a lock
+    /// cannot keep full weight to chase a rounding error.
+    pub fn retire_if_capped(&mut self, position: &mut Position) -> Result<()> {
+        if !self.capped || position.weight == 0 {
+            return Ok(());
+        }
+        let room = position.reward_cap.saturating_sub(position.claimed);
+        if room > CAP_DUST_LAMPORTS {
+            return Ok(());
+        }
+        self.reward_capacity = self.reward_capacity.saturating_sub(room);
+        position.reward_cap = position.claimed.min(position.reward_cap);
+        self.total_weight = self
+            .total_weight
+            .checked_sub(position.weight)
+            .ok_or(ViseError::MathOverflow)?;
+        position.weight = 0;
+        position.reward_debt = 0;
+        Ok(())
+    }
+
+    /// A lock is closing: whatever it could still have earned is no longer
+    /// room for anyone. `unsettled` is accrual it leaves behind without being
+    /// paid (an early exit's forfeit), which returns to the stream and so back
+    /// into room.
+    pub fn close_capacity(&mut self, position: &Position, unsettled: u64) {
+        if self.capped {
+            let unused = position.reward_cap.saturating_sub(position.claimed);
+            self.reward_capacity = self
+                .reward_capacity
+                .saturating_add(unsettled)
+                .saturating_sub(unused);
+        }
     }
 
     /// Return lamports already sitting in the vault to the remaining lockers.
@@ -435,4 +558,9 @@ pub struct Position {
     pub reward_debt: u128,
     pub claimed: u64,
     pub bump: u8,
+    /// On a capped pool: the most this lock may ever be paid, in lamports —
+    /// its tokens' SOL value when locked (and when grown or extended) times
+    /// its multiplier. Compared against `claimed`.
+    pub reward_cap: u64,
+    pub _reserved: [u8; 32],
 }

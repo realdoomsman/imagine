@@ -99,10 +99,11 @@ export function weightOf(amount: bigint, multiplier: number): bigint {
 }
 
 /**
- * Lamports a position can claim right now.
+ * Lamports a position has accrued on the accumulator.
  *
  * `rewardDebt` is in scaled units and keeps the unpaid sub-lamport residue,
- * which is what stops the pool from ever owing more than it holds.
+ * which is what stops the pool from ever owing more than it holds. On a
+ * capped pool a claim pays at most `claimableFor`; use that for display.
  */
 export function accrued(
   weight: bigint,
@@ -111,6 +112,25 @@ export function accrued(
 ): bigint {
   const credit = weight * accRewardPerWeight;
   return credit > rewardDebt ? (credit - rewardDebt) / SCALE : 0n;
+}
+
+/**
+ * What a claim would pay a position right now: its accrual, limited on a
+ * capped pool to what is left of its cap (`Pool::apply_cap`).
+ */
+export function claimableFor(
+  position: { weight: bigint; rewardDebt: bigint; rewardCap: bigint; claimed: bigint },
+  pool: { capped: boolean; accRewardPerWeight: bigint },
+): bigint {
+  const pending = accrued(position.weight, pool.accRewardPerWeight, position.rewardDebt);
+  if (!pool.capped) return pending;
+  const room = position.rewardCap > position.claimed ? position.rewardCap - position.claimed : 0n;
+  return pending < room ? pending : room;
+}
+
+/** A lock's earnings cap: SOL value when locked × multiplier (`reward_cap_for`). */
+export function rewardCapFor(valueLamports: bigint, multiplierBps: number): bigint {
+  return (valueLamports * BigInt(multiplierBps)) / BPS;
 }
 
 /** Scaled credit line used when a position opens or changes weight. */
@@ -176,6 +196,8 @@ export interface StreamState {
   lifetimeRewards: bigint;
   lifetimeCreator: bigint;
   lifetimeTreasury: bigint;
+  capped: boolean;
+  rewardCapacity: bigint;
   terms: Pick<PoolTerms, "treasuryShareBps" | "creatorShareBps"> & {
     rewardStreamSecs: number;
   };
@@ -200,19 +222,33 @@ export function projectSync<T extends StreamState>(
 ): T & { released: bigint; inflow: bigint } {
   const next = { ...pool, released: 0n, inflow: 0n };
 
-  // credit_lockers: with nothing locked the share goes to the treasury.
+  const payTreasury = (lamports: bigint) => {
+    next.treasuryClaimable += lamports;
+    next.lifetimeTreasury += lamports;
+  };
+  const sub = (a: bigint, b: bigint) => (a > b ? a - b : 0n);
+
+  // credit_lockers: with nothing locked the share goes to the treasury; on a
+  // capped pool only what open locks may still earn is credited.
   const credit = (lamports: bigint) => {
     if (lamports === 0n) return;
     if (next.totalWeight === 0n) {
-      next.treasuryClaimable += lamports;
-      next.lifetimeTreasury += lamports;
+      payTreasury(lamports);
       return;
+    }
+    if (next.capped) {
+      const room = sub(next.rewardCapacity, next.rewardRemainder);
+      const take = lamports < room ? lamports : room;
+      payTreasury(lamports - take);
+      lamports = take;
+      if (lamports === 0n) return;
     }
     const pot = lamports + next.rewardRemainder;
     const { increment, committed, remainder } = distribute(pot, next.totalWeight);
     next.accRewardPerWeight += increment;
     next.rewardRemainder = remainder;
     next.lifetimeRewards += committed;
+    if (next.capped) next.rewardCapacity = sub(next.rewardCapacity, committed);
   };
 
   // release(now)
@@ -232,11 +268,14 @@ export function projectSync<T extends StreamState>(
     next.inflow = balance - pool.lastVaultBalance;
     next.lifetimeInflow += next.inflow;
     const { toTreasury, toCreator, toLockers } = splitInflow(next.inflow, pool.terms);
-    next.treasuryClaimable += toTreasury;
+    const overflow = next.capped
+      ? sub(toLockers, sub(sub(next.rewardCapacity, next.undistributed), next.rewardRemainder))
+      : 0n;
+    next.treasuryClaimable += toTreasury + overflow;
     next.creatorClaimable += toCreator;
-    next.lifetimeTreasury += toTreasury;
+    next.lifetimeTreasury += toTreasury + overflow;
     next.lifetimeCreator += toCreator;
-    next.undistributed += toLockers;
+    next.undistributed += toLockers - overflow;
     // restart_stream(now)
     next.streamRate = (next.undistributed * SCALE) / BigInt(pool.terms.rewardStreamSecs);
     next.streamEnd = now + pool.terms.rewardStreamSecs;

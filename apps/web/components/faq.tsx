@@ -23,6 +23,10 @@ const FAQ: Array<{ q: string; a: string }> = [
     a: "Your weight is amount times a multiplier. The multiplier runs on a square-root curve from 1.00× at four hours to 4.00× at a year: a week is 1.41×, thirty days 1.86×, ninety 2.49×. Even a four-hour lock earns its share. Locking at least 0.1%, 0.5% or 1% of the supply adds 10%, 25% or 50% on top. Your share of each SOL that arrives is your weight over the pool's total weight.",
   },
   {
+    q: "Is there a limit to what a lock can earn?",
+    a: "Yes, on coins launched from now on. A lock can earn at most the SOL value of its tokens when you locked them, times its multiplier: lock 1 SOL worth for a year at 6.00× and it can earn up to 6 SOL. Once it has, it stops earning and the locks still earning split what comes in. Fees beyond what the open locks can still earn go to the treasury as they arrive. Your tokens stay yours and unlock on their date either way.",
+  },
+  {
     q: "Can I get out early?",
     a: "Always. Breaking a lock forfeits your unclaimed rewards to the lockers who stayed and burns a slice of your principal, scaled by how much of the term you did not serve. Leave on day one of a hundred and it hurts; on day ninety-nine it barely registers. Claiming, on the other hand, never touches the lock.",
   },

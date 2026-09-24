@@ -169,6 +169,11 @@ export function PortfolioView() {
                     <p className="num text-[18px] text-verdi">
                       {formatSol(BigInt(position.pending))} SOL
                     </p>
+                    {position.rewardCap !== null ? (
+                      <p className="num text-[11px] text-steel-500">
+                        {formatSol(BigInt(position.claimed))} of max {formatSol(BigInt(position.rewardCap))} earned
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 

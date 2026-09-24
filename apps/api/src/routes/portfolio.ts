@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { accrued } from "@vise/sdk";
+import { claimableFor } from "@vise/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";
@@ -52,9 +52,7 @@ export async function portfolioRoutes(app: FastifyInstance) {
       const info = byPool[position.pool.toBase58()];
       const mint = info?.mint as string | undefined;
       const pool = mint ? poolByMint[mint] : null;
-      const due = pool
-        ? accrued(position.weight, pool.accRewardPerWeight, position.rewardDebt)
-        : 0n;
+      const due = pool ? claimableFor(position, pool) : 0n;
       pending += due;
       claimed += position.claimed;
       return {
@@ -79,6 +77,8 @@ export async function portfolioRoutes(app: FastifyInstance) {
             : 0,
         minLockSecs: pool?.terms.minLockSecs ?? null,
         maxLockSecs: pool?.terms.maxLockSecs ?? null,
+        /** Capped pools: the most this lock may ever be paid, in lamports. */
+        rewardCap: pool?.capped ? position.rewardCap.toString() : null,
       };
     });
 

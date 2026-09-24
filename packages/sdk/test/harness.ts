@@ -161,16 +161,21 @@ export function bondingCurveAddress(mint: PublicKey): PublicKey {
  * `create_pool` reads this to prove the signer actually launched the coin, so
  * without it every pool test would be rejected as squatting. Layout: 8-byte
  * discriminator, five u64 reserves/supply, a `complete` bool, then the creator.
+ *
+ * It also prices locks on capped pools. The default is deliberately rich
+ * (~932 lamports per base unit) so a lock's cap — SOL value times multiplier
+ * — sits far above anything a test deposits and never binds unless the test
+ * passes a realistic `virtualSolReserves`.
  */
 export function setPumpCurve(
   svm: LiteSVM,
   mint: PublicKey,
   creator: PublicKey,
-  opts: { complete?: boolean } = {},
+  opts: { complete?: boolean; virtualSolReserves?: bigint } = {},
 ): PublicKey {
   const data = Buffer.alloc(8 + 5 * 8 + 1 + 32);
   data.writeBigUInt64LE(1_073_000_000_000_000n, 8);
-  data.writeBigUInt64LE(30_000_000_000n, 16);
+  data.writeBigUInt64LE(opts.virtualSolReserves ?? 1_000_000_000_000_000_000n, 16);
   data.writeBigUInt64LE(793_100_000_000_000n, 24);
   data.writeBigUInt64LE(0n, 32);
   data.writeBigUInt64LE(1_000_000_000_000_000n, 40);

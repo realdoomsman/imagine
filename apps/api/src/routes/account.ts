@@ -12,7 +12,7 @@ import {
   type AddressLookupTableAccount,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { accrued, earlyExitPenalty, formatSol } from "@vise/sdk";
+import { claimableFor, earlyExitPenalty, formatSol } from "@vise/sdk";
 import bs58 from "bs58";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -257,7 +257,7 @@ export async function accountRoutes(app: FastifyInstance) {
       const info = byPool[position.pool.toBase58()];
       const mint = (info?.mint as string | undefined) ?? null;
       const pool = mint ? projected[mint] : null;
-      const pending = pool ? accrued(position.weight, pool.accRewardPerWeight, position.rewardDebt) : 0n;
+      const pending = pool ? claimableFor(position, pool) : 0n;
       pendingTotal += pending;
       claimedTotal += position.claimed;
       const penaltyBps = Number(info?.early_unlock_penalty_bps ?? 0);
@@ -281,6 +281,8 @@ export async function accountRoutes(app: FastifyInstance) {
         share: pool && pool.totalWeight > 0n ? Number(position.weight) / Number(pool.totalWeight) : 0,
         minLockSecs: pool?.terms.minLockSecs ?? null,
         maxLockSecs: pool?.terms.maxLockSecs ?? null,
+        /** Capped pools: the most this lock may ever be paid, in lamports. */
+        rewardCap: pool?.capped ? position.rewardCap.toString() : null,
         /** What breaking the lock right now would burn. */
         earlyExitBurn: earlyExitPenalty(position.amount, position.lockStart, position.lockEnd, now, penaltyBps).toString(),
       };

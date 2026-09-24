@@ -21,7 +21,7 @@ import {
   type AddressLookupTableAccount,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { formatTokenAmount, poolPda, type PoolAccount } from "@vise/sdk";
+import { ammVaultsFor, formatTokenAmount, poolPda, type PoolAccount } from "@vise/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
@@ -439,6 +439,8 @@ async function buildFinish(
       creatorShareBps: 0,
       initialLockAmount: lockAmount,
       initialLockDuration: options.lockDurationSecs,
+      // A coin brought over after graduating is priced off its AMM pool.
+      ammVaults: decoded.complete ? ammVaultsFor(mint, tokenProgram) : undefined,
     });
     steps.push({ label: "Open the pool and clamp your bag", instructions: [...budget, poolIx] });
   }

@@ -1,3 +1,4 @@
+import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { PUMP_PROGRAM_ID, SEED, VISE_PROGRAM_ID } from "./constants.ts";
 
@@ -67,4 +68,25 @@ export function pumpCreatorVaultPda(creator: PublicKey): PublicKey {
     [Buffer.from("creator-vault"), creator.toBuffer()],
     PUMP_PROGRAM_ID,
   )[0];
+}
+
+const PUMP_AMM_PROGRAM_ID = new PublicKey("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
+
+/**
+ * The canonical pump AMM pool's base and quote vaults for a graduated coin,
+ * in the order the program reads them to price a lock (`price.rs`).
+ */
+export function ammVaultsFor(mint: PublicKey, tokenProgram: PublicKey): [PublicKey, PublicKey] {
+  const [authority] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool-authority"), mint.toBuffer()],
+    PUMP_PROGRAM_ID,
+  );
+  const [pool] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool"), Buffer.alloc(2), authority.toBuffer(), mint.toBuffer(), NATIVE_MINT.toBuffer()],
+    PUMP_AMM_PROGRAM_ID,
+  );
+  return [
+    getAssociatedTokenAddressSync(mint, pool, true, tokenProgram),
+    getAssociatedTokenAddressSync(NATIVE_MINT, pool, true, TOKEN_PROGRAM_ID),
+  ];
 }

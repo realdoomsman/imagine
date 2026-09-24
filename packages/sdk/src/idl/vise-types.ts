@@ -894,6 +894,76 @@ export type Vise = {
           }
         },
         {
+          "name": "bondingCurve",
+          "docs": [
+            "for the coin's price on a capped pool (owner verified there)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  45,
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                1,
+                86,
+                224,
+                246,
+                147,
+                102,
+                90,
+                207,
+                68,
+                219,
+                21,
+                104,
+                191,
+                23,
+                91,
+                170,
+                81,
+                137,
+                203,
+                151,
+                245,
+                210,
+                255,
+                59,
+                101,
+                93,
+                43,
+                182,
+                253,
+                109,
+                24,
+                176
+              ]
+            }
+          }
+        },
+        {
           "name": "position",
           "writable": true,
           "pda": {
@@ -945,6 +1015,122 @@ export type Vise = {
           "type": "u32"
         }
       ]
+    },
+    {
+      "name": "harvest",
+      "discriminator": [
+        228,
+        241,
+        31,
+        182,
+        53,
+        169,
+        59,
+        199
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "the rewards."
+          ],
+          "writable": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ]
+          },
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "rewardVault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "increase",
@@ -1019,6 +1205,76 @@ export type Vise = {
                 "path": "pool"
               }
             ]
+          }
+        },
+        {
+          "name": "bondingCurve",
+          "docs": [
+            "for the coin's price on a capped pool (owner verified there)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  45,
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                1,
+                86,
+                224,
+                246,
+                147,
+                102,
+                90,
+                207,
+                68,
+                219,
+                21,
+                104,
+                191,
+                23,
+                91,
+                170,
+                81,
+                137,
+                203,
+                151,
+                245,
+                210,
+                255,
+                59,
+                101,
+                93,
+                43,
+                182,
+                253,
+                109,
+                24,
+                176
+              ]
+            }
           }
         },
         {
@@ -1227,6 +1483,76 @@ export type Vise = {
           }
         },
         {
+          "name": "bondingCurve",
+          "docs": [
+            "for the coin's price on a capped pool (owner verified there)."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  111,
+                  110,
+                  100,
+                  105,
+                  110,
+                  103,
+                  45,
+                  99,
+                  117,
+                  114,
+                  118,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                1,
+                86,
+                224,
+                246,
+                147,
+                102,
+                90,
+                207,
+                68,
+                219,
+                21,
+                104,
+                191,
+                23,
+                91,
+                170,
+                81,
+                137,
+                203,
+                151,
+                245,
+                210,
+                255,
+                59,
+                101,
+                93,
+                43,
+                182,
+                253,
+                109,
+                24,
+                176
+              ]
+            }
+          }
+        },
+        {
           "name": "position",
           "writable": true,
           "pda": {
@@ -1285,6 +1611,38 @@ export type Vise = {
           "type": "u32"
         }
       ]
+    },
+    {
+      "name": "migrate",
+      "discriminator": [
+        155,
+        234,
+        231,
+        146,
+        236,
+        158,
+        162,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "target",
+          "docs": [
+            "discriminator in the handler."
+          ],
+          "writable": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "sync",
@@ -1775,6 +2133,19 @@ export type Vise = {
       ]
     },
     {
+      "name": "rewardCapped",
+      "discriminator": [
+        190,
+        141,
+        177,
+        54,
+        72,
+        111,
+        212,
+        132
+      ]
+    },
+    {
       "name": "rewardsSynced",
       "discriminator": [
         66,
@@ -1914,6 +2285,11 @@ export type Vise = {
       "code": 6019,
       "name": "invalidBondingCurve",
       "msg": "Bonding curve account is not a readable pump.fun curve"
+    },
+    {
+      "code": 6020,
+      "name": "priceUnavailable",
+      "msg": "Coin price unavailable: pass the pump AMM pool vaults for a graduated coin"
     }
   ],
   "types": [
@@ -2452,6 +2828,32 @@ export type Vise = {
           {
             "name": "vaultBump",
             "type": "u8"
+          },
+          {
+            "name": "capped",
+            "docs": [
+              "Each lock may earn at most its `Position::reward_cap`. Set on pools",
+              "created after limits shipped; older pools stay uncapped forever."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "rewardCapacity",
+            "docs": [
+              "Lamports the open locks can still earn in total: the sum of every cap,",
+              "less what has been paid and what is already credited to them. Fees",
+              "beyond it go to the treasury the moment they arrive or release."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           }
         ]
       }
@@ -2646,6 +3048,24 @@ export type Vise = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "rewardCap",
+            "docs": [
+              "On a capped pool: the most this lock may ever be paid, in lamports —",
+              "its tokens' SOL value when locked (and when grown or extended) times",
+              "its multiplier. Compared against `claimed`."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "reserved",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           }
         ]
       }
@@ -2722,6 +3142,46 @@ export type Vise = {
           {
             "name": "totalWeight",
             "type": "u128"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rewardCapped",
+      "docs": [
+        "A lock was paid up to its cap and the rest of what it had accrued went to",
+        "the treasury."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "toTreasury",
+            "type": "u64"
+          },
+          {
+            "name": "claimed",
+            "type": "u64"
+          },
+          {
+            "name": "rewardCap",
+            "type": "u64"
           },
           {
             "name": "timestamp",

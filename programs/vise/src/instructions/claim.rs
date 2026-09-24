@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::errors::ViseError;
-use crate::events::{Claimed, CreatorClaimed, RewardsSynced, TreasuryClaimed};
-use crate::instructions::lock::pay_from_vault;
+use crate::events::{CreatorClaimed, RewardsSynced, TreasuryClaimed};
+use crate::instructions::lock::{pay_accrued, pay_from_vault, settle};
 use crate::math::settle_debt;
 use crate::state::{Pool, Position};
 use anchor_lang::prelude::*;
@@ -38,10 +38,76 @@ pub struct Claim<'info> {
 /// locked, even when the platform is paused.
 pub fn claim(ctx: Context<Claim>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
-    let pool_key = ctx.accounts.pool.key();
-    let vault_lamports = ctx.accounts.reward_vault.lamports();
+    harvest_into(
+        &mut ctx.accounts.pool,
+        &mut ctx.accounts.position,
+        &ctx.accounts.reward_vault,
+        &ctx.accounts.owner.to_account_info(),
+        &ctx.accounts.system_program,
+        now,
+    )
+}
 
-    let result = ctx.accounts.pool.sync(vault_lamports, now)?;
+#[derive(Accounts)]
+pub struct Harvest<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    /// CHECK: pinned to the position's recorded owner by `has_one`; receives
+    /// the rewards.
+    #[account(mut)]
+    pub owner: UncheckedAccount<'info>,
+
+    #[account(mut, seeds = [POOL_SEED, pool.mint.as_ref()], bump = pool.bump)]
+    pub pool: Account<'info, Pool>,
+
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, pool.key().as_ref()],
+        bump = pool.vault_bump,
+        address = pool.reward_vault @ ViseError::TreasuryMismatch,
+    )]
+    pub reward_vault: SystemAccount<'info>,
+
+    #[account(
+        mut,
+        seeds = [POSITION_SEED, pool.key().as_ref(), owner.key().as_ref(), &position.index.to_le_bytes()],
+        bump = position.bump,
+        has_one = owner,
+        has_one = pool,
+    )]
+    pub position: Account<'info, Position>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// `claim`, callable by anyone, paying the position's owner. On a capped
+/// pool this is how a keeper retires locks that have reached their cap: the
+/// owner is paid up to it, the excess goes to the treasury, and the lock's
+/// weight stops diluting the locks still earning.
+pub fn harvest(ctx: Context<Harvest>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    harvest_into(
+        &mut ctx.accounts.pool,
+        &mut ctx.accounts.position,
+        &ctx.accounts.reward_vault,
+        &ctx.accounts.owner.to_account_info(),
+        &ctx.accounts.system_program,
+        now,
+    )
+}
+
+fn harvest_into<'info>(
+    pool: &mut Account<'info, Pool>,
+    position: &mut Account<'info, Position>,
+    reward_vault: &SystemAccount<'info>,
+    owner: &AccountInfo<'info>,
+    system_program: &Program<'info, System>,
+    now: i64,
+) -> Result<()> {
+    let pool_key = pool.key();
+    let vault_lamports = reward_vault.lamports();
+    let result = pool.sync(vault_lamports, now)?;
     if result.inflow > 0 || result.released > 0 {
         emit!(RewardsSynced {
             pool: pool_key,
@@ -49,40 +115,17 @@ pub fn claim(ctx: Context<Claim>) -> Result<()> {
             to_lockers: result.to_lockers,
             to_creator: result.to_creator,
             to_treasury: result.to_treasury,
-            total_weight: ctx.accounts.pool.total_weight,
-            acc_reward_per_weight: ctx.accounts.pool.acc_reward_per_weight,
+            total_weight: pool.total_weight,
+            acc_reward_per_weight: pool.acc_reward_per_weight,
             timestamp: now,
         });
     }
 
-    let pending = crate::instructions::lock::settle(&ctx.accounts.pool, &mut ctx.accounts.position)?;
+    let pending = settle(pool, position)?;
     require!(pending > 0, ViseError::NothingToClaim);
-
-    pay_from_vault(
-        &mut ctx.accounts.pool,
-        &ctx.accounts.reward_vault,
-        &ctx.accounts.owner.to_account_info(),
-        &ctx.accounts.system_program,
-        pool_key,
-        pending,
-    )?;
-
-    let position = &mut ctx.accounts.position;
+    pay_accrued(pool, position, reward_vault, owner, system_program, pool_key, pending, now)?;
     position.reward_debt = settle_debt(position.reward_debt, pending)?;
-    position.claimed = position
-        .claimed
-        .checked_add(pending)
-        .ok_or(ViseError::MathOverflow)?;
-
-    emit!(Claimed {
-        pool: pool_key,
-        position: position.key(),
-        owner: position.owner,
-        amount: pending,
-        lifetime_claimed: position.claimed,
-        timestamp: now,
-    });
-    Ok(())
+    pool.retire_if_capped(position)
 }
 
 #[derive(Accounts)]

@@ -2,6 +2,7 @@ pub mod admin;
 pub mod claim;
 pub mod deposit;
 pub mod lock;
+pub mod migrate;
 pub mod pool;
 pub mod unlock;
 
@@ -9,5 +10,6 @@ pub use admin::*;
 pub use claim::*;
 pub use deposit::*;
 pub use lock::*;
+pub use migrate::*;
 pub use pool::*;
 pub use unlock::*;

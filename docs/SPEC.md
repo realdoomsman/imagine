@@ -92,6 +92,31 @@ never exceed what was set aside. With nothing locked there is nobody to pay, so
 the lockers' share goes to the treasury rather than parking in a pot that the
 next minimum-size lock could take whole.
 
+### Earnings limits
+
+Pools created after limits shipped (`Pool::capped`) cap every lock:
+
+```
+reward_cap = SOL value of the tokens when locked × multiplier
+```
+
+The value is read on-chain from pump.fun: the bonding curve's virtual reserves,
+or the canonical pump AMM pool's two vaults once the curve is complete.
+`increase` adds the new tokens' value at today's price times the repriced
+multiplier; `extend` adds the whole bag's value today times any rise in the
+multiplier. A claim pays at most `reward_cap − claimed`; the rest of what the
+lock accrued is already in the vault and becomes `treasury_claimable`. A lock
+paid to within 1,000 lamports of its cap is retired: its weight leaves the
+pool, so the locks still earning split what arrives. `harvest` (anyone, pays
+the owner) is how the keeper retires locks the moment they are due.
+
+`reward_capacity` is what the open locks can still earn in total. An inflow's
+lockers' share only joins the stream up to that room; everything beyond goes
+straight to `treasury_claimable`, and a release clamps again in case locks left
+mid-stream. So a pool never holds more than its locks can use: surplus is the
+treasury's the moment it arrives, not when the last lock ends. Older pools are
+grown to the new layout by `migrate` and stay uncapped.
+
 ### Exits
 
 - **Matured.** Full principal, full accrued rewards, position closed. Callable
@@ -120,13 +145,15 @@ Program: `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb`
 | `initialize_config` | upgrade authority | Once; gated on ProgramData |
 | `update_config` / `transfer_admin` / `accept_admin` | admin | Bounded; two-step handover |
 | `create_pool` | coin creator | Verified against pump's `BondingCurve::creator`; requires a founding lock |
-| `lock` / `increase` / `extend` | owner | `increase` reprices on remaining term |
-| `claim` | owner | Never pausable |
+| `lock` / `increase` / `extend` | owner | `increase` reprices on remaining term; all three read the coin's price on a capped pool |
+| `claim` | owner | Never pausable; pays up to the cap |
+| `harvest` | anyone | `claim` paid to the owner; retires a capped-out lock |
 | `unlock` | anyone | Matured only; pays the owner |
 | `early_unlock` | owner | Forfeit + burn |
 | `deposit_reward` | anyone | App fee leg or donation |
 | `sync` / `claim_treasury` | anyone | Permissionless cranks |
 | `claim_creator` | pool creator | |
+| `migrate` | anyone | Grows a pre-limits pool or position to the current layout; idempotent |
 
 Guarantees, as properties of the bytecode rather than policy: no admin path to
 pool funds; terms immutable after creation; claims and unlocks unpausable;

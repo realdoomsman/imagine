@@ -82,6 +82,14 @@ your share  = weight / total weight in the pool`}
           accumulator, so it earns from fees that arrive after it, and nothing
           before.
         </p>
+        <p>
+          On coins launched from now on, each lock can earn at most the SOL
+          value of its tokens when locked, times its multiplier. Topping up or
+          extending raises that limit at the price of the day. A lock that
+          reaches it stops earning, so the locks still earning split what comes
+          in, and fees beyond what open locks can still earn go to the treasury
+          as they arrive rather than piling up in the pool.
+        </p>
       </Section>
 
       <Section title="Leaving early">

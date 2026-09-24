@@ -24,6 +24,7 @@ import {
   budgetInstructions,
   fetchCurve,
   onlinePump,
+  priceAccounts,
   sweepCreatorFees,
 } from "./pump.ts";
 import { chainConfig, connection, vise } from "./solana.ts";
@@ -141,9 +142,10 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
         amount: BigInt(action.amount),
         durationSecs: action.durationSecs,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
+        ammVaults: await priceAccounts(mint),
       });
       return {
-        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 150_000), ix],
+        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 200_000), ix],
         meta: {},
       };
     }
@@ -170,9 +172,10 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
         index: action.index,
         amount: BigInt(action.amount),
         tokenProgram: TOKEN_2022_PROGRAM_ID,
+        ammVaults: await priceAccounts(mint),
       });
       return {
-        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 150_000), ix],
+        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 200_000), ix],
         meta: {},
       };
     }
@@ -187,9 +190,10 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
         index: action.index,
         durationSecs: action.durationSecs,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
+        ammVaults: await priceAccounts(mint),
       });
       return {
-        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 150_000), ix],
+        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 200_000), ix],
         meta: {},
       };
     }

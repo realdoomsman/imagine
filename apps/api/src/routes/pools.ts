@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { accrued, curveProgress, curveSpotPrice, estimateApr, FeeKind } from "@vise/sdk";
+import { claimableFor, curveProgress, curveSpotPrice, estimateApr, FeeKind } from "@vise/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";
@@ -157,6 +157,10 @@ export async function poolRoutes(app: FastifyInstance) {
         streamEnd: onChain.streamEnd,
         openPositions: Number(onChain.openPositions),
         createdAt: onChain.createdAt,
+        /** Each lock's earnings are capped (value when locked × multiplier). */
+        capped: onChain.capped,
+        /** Lamports open locks can still earn; fees beyond go to the treasury. */
+        rewardCapacity: onChain.rewardCapacity.toString(),
       },
       rewardRate: {
         /** SOL that reached lockers' streams in the last 24 hours. */
@@ -218,11 +222,9 @@ export async function poolRoutes(app: FastifyInstance) {
         multiplierBps: position.multiplierBps,
         lockEnd: position.lockEnd,
         claimed: position.claimed.toString(),
-        pending: accrued(
-          position.weight,
-          pool.accRewardPerWeight,
-          position.rewardDebt,
-        ).toString(),
+        pending: claimableFor(position, pool).toString(),
+        /** Capped pools: the most this lock may ever be paid. */
+        rewardCap: pool.capped ? position.rewardCap.toString() : null,
         share:
           pool.totalWeight > 0n
             ? Number(position.weight) / Number(pool.totalWeight)

@@ -262,6 +262,8 @@ export default async function CoinPage({
             accRewardPerWeight={pool.accRewardPerWeight}
             supply={tokenSupply}
             lockersPerDay={detail.rewardRate.lockersPerDay}
+            capped={pool.capped}
+            priceLamports={curve?.priceLamports ?? 0}
           />
         </aside>
       </div>

@@ -75,7 +75,7 @@ not have.
 | Web | https://vise.fun (also web-production-3100c.up.railway.app) | live, built for mainnet |
 | DNS | Porkbun, account `doomsyy` | `vise.fun` ALIAS, `www`/`api` CNAME → Railway edge |
 | Postgres | Railway private network | live, migrated; devnet read models cleared at the mainnet cutover (accounts kept) |
-| Program | `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb` | **mainnet-beta**: sha256 `07f58aa2…`, commit `a057417` plus the 1-hour lock floor (`MIN_LOCK_SECS_FLOOR`), upgraded in slot 449952415; config synced to 4h–365d locks and a 1h stream by `init-config.ts`. Pools created before keep their frozen 7d–365d / 24h terms. Devnet still runs `5febae50…`. Upgrade authority, config admin and treasury: `MZRpiuK2Lyc5SKNXaqBitbmNafou66EvuGYMKdQ6DEu`, a hot key on the operator's machine — the owner's decision; move to a multisig with `set-upgrade-authority` / `transfer_admin` when one exists (treasury is frozen per pool) |
+| Program | `VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb` | **mainnet-beta**: sha256 `8252b985…` (earnings limits), upgraded in slot 449970607, program data extended to 580,000 bytes. The 2 pools and 7 positions that existed were grown to the new layout by `scripts/migrate-accounts.ts` and stay uncapped; every pool created since is capped. Config: 4h–365d locks, 1h stream. Devnet still runs `5febae50…`. Upgrade authority, config admin and treasury: `MZRpiuK2Lyc5SKNXaqBitbmNafou66EvuGYMKdQ6DEu`, a hot key on the operator's machine — the owner's decision; move to a multisig with `set-upgrade-authority` / `transfer_admin` when one exists (treasury is frozen per pool) |
 | RPC | Helius, key `vise` | API/indexer use the keyed URL (`apps/api/.mainnet-rpc.tmp`); the browser uses the keyless per-IP "secure" URL baked by `push-web.sh` |
 
 ### Why the images are pushed, not built on Railway
@@ -269,7 +269,7 @@ pool). It is idempotent like a launch: re-running skips the steps done.
 
 ## The keeper
 
-The indexer process runs two permissionless cranks every `KEEPER_INTERVAL_MS`,
+The indexer process runs four permissionless cranks every `KEEPER_INTERVAL_MS`,
 signed and paid for by `KEEPER_KEYPAIR`.
 
 **Fee sweeps.** pump.fun pays a coin's creator fees into a vault and leaves them
@@ -326,8 +326,15 @@ pool to the current moment with the program's own stream arithmetic
 locker sees what a claim would pay even if nothing has touched the pool for a
 day.
 
-Still manual: **`claim_treasury`** per pool moves the platform share out.
-Weekly is fine.
+**Capped locks.** On pools with earnings limits, every 5 minutes the keeper
+reads each capped pool's positions and `harvest`s any lock whose accrual has
+reached its cap (at most 5 per tick): the owner is paid up to the cap, the
+excess goes to the treasury share, and the lock's weight stops diluting the
+locks still earning.
+
+**Treasury.** Any pool whose projected `treasury_claimable` is at least
+0.01 SOL gets a `claim_treasury` at most hourly, so the 10% cut and every
+surplus fee land in the treasury wallet on their own.
 
 ## Media
 

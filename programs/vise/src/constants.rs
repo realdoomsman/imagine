@@ -81,6 +81,15 @@ pub const POSITION_SEED: &[u8] = b"position";
 /// pump.fun's bonding curve program, identical on devnet and mainnet.
 /// <https://github.com/pump-fun/pump-public-docs/blob/main/docs/PUMP_PROGRAM_README.md>
 pub const PUMP_PROGRAM_ID: Pubkey = pubkey!("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
+/// pump.fun's AMM, where a coin trades once its bonding curve completes.
+pub const PUMP_AMM_PROGRAM_ID: Pubkey = pubkey!("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
+pub const WSOL_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
+pub const SPL_TOKEN_PROGRAM_ID: Pubkey = pubkey!("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+
+/// A lock paid to within this many lamports of its cap is treated as fully
+/// paid and stops earning (`Pool::retire_if_capped`). Covers accumulator
+/// rounding, which only ever leaves a lock a few lamports short.
+pub const CAP_DUST_LAMPORTS: u64 = 1_000;
 
 /// Byte offset of `BondingCurve::creator` within the pump account.
 ///

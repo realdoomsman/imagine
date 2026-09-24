@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::errors::ViseError;
 use crate::events::{RewardsSynced, Unlocked};
-use crate::instructions::lock::{pay_from_vault, settle};
+use crate::instructions::lock::{pay_accrued, settle};
 use crate::math::early_exit_penalty;
 use crate::state::{Pool, Position};
 use anchor_lang::prelude::*;
@@ -158,14 +158,21 @@ pub fn unlock(mut ctx: Context<Unlock>) -> Result<()> {
 
     let pool_key = ctx.accounts.pool.key();
     let pending = settle(&ctx.accounts.pool, &mut ctx.accounts.position)?;
-    pay_from_vault(
+    pay_accrued(
         &mut ctx.accounts.pool,
+        &mut ctx.accounts.position,
         &ctx.accounts.reward_vault,
         &ctx.accounts.owner.to_account_info(),
         &ctx.accounts.system_program,
         pool_key,
         pending,
+        now,
     )?;
+    // Everything accrued is settled, so the lock takes only its unused cap
+    // with it.
+    ctx.accounts
+        .pool
+        .close_capacity(&ctx.accounts.position, 0);
 
     let amount = ctx.accounts.position.amount;
     let weight = ctx.accounts.position.weight;
@@ -174,25 +181,6 @@ pub fn unlock(mut ctx: Context<Unlock>) -> Result<()> {
     ctx.accounts.release_tokens(amount, &mint_key, &bump)?;
 
     let position_key = ctx.accounts.position.key();
-    let claimed = ctx
-        .accounts
-        .position
-        .claimed
-        .checked_add(pending)
-        .ok_or(ViseError::MathOverflow)?;
-    if pending > 0 {
-        // The final harvest is usually the largest. Without this event an
-        // indexer would miss it entirely, and now that a keeper may close a
-        // matured position the payout is not attributable to the signer.
-        emit!(crate::events::Claimed {
-            pool: pool_key,
-            position: position_key,
-            owner: ctx.accounts.owner.key(),
-            amount: pending,
-            lifetime_claimed: claimed,
-            timestamp: now,
-        });
-    }
     let pool = &mut ctx.accounts.pool;
     pool.total_locked = pool
         .total_locked
@@ -266,6 +254,7 @@ pub fn early_unlock(mut ctx: Context<Unlock>) -> Result<()> {
             .total_weight
             .checked_sub(weight)
             .ok_or(ViseError::MathOverflow)?;
+        pool.close_capacity(&ctx.accounts.position, forfeited);
         // The lamports never left the vault, so `last_vault_balance` is
         // deliberately untouched: only their owner changes.
         pool.forfeit(forfeited, now)?;

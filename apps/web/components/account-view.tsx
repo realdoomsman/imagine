@@ -392,7 +392,10 @@ function PositionCard({
         <div className="text-right">
           <p className="rule-label">Earning</p>
           <p className="num text-[20px] leading-none text-verdi">{formatSol(pending)} SOL</p>
-          <p className="num mt-1 text-[11px] text-steel-500">{formatSol(BigInt(position.claimed))} claimed so far</p>
+          <p className="num mt-1 text-[11px] text-steel-500">
+            {formatSol(BigInt(position.claimed))}
+            {position.rewardCap !== null ? ` of max ${formatSol(BigInt(position.rewardCap))}` : ""} claimed so far
+          </p>
         </div>
       </div>
 

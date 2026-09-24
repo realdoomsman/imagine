@@ -113,6 +113,8 @@ weight          = amount × multiplier
 multiplier      = 1.0 + (max − 1.0) × (term − min) / (max_term − min)
 acc            += committed_lamports × SCALE / total_weight
 claimable       = (weight × acc − reward_debt) / SCALE
+reward_cap      = SOL value when locked × multiplier        (pools created with limits)
+paid           ≤ reward_cap − claimed; the excess and any fee open locks cannot use → treasury
 ```
 
 `reward_debt` is carried in scaled units so each position keeps its sub-lamport

@@ -42,6 +42,8 @@ export function LockPanel({
   accRewardPerWeight,
   supply,
   lockersPerDay,
+  capped,
+  priceLamports,
 }: {
   mint: string;
   symbol: string;
@@ -53,6 +55,10 @@ export function LockPanel({
   supply: string;
   /** Lamports a day reaching this pool's lockers at the trailing fee rate. */
   lockersPerDay: string;
+  /** Each lock earns at most its SOL value when locked × its multiplier. */
+  capped: boolean;
+  /** Current price of one whole token, lamports. */
+  priceLamports: number;
 }) {
   const actor = useActor();
   const balance = useTokenBalance(mint, actor.publicKey);
@@ -81,6 +87,12 @@ export function LockPanel({
   // The coin's own fee flow sets the pay: the same lock earns more on a coin
   // that trades more. Realised trailing rate times the share this lock takes.
   const perDay = projection ? BigInt(Math.floor(Number(lockersPerDay) * projection.share)) : null;
+  // What the program will cap this lock at: its SOL value now times its
+  // multiplier. Quoted at the page's price; the program prices it on-chain.
+  const maxEarn =
+    capped && amount > 0n
+      ? BigInt(Math.floor((Number(amount) / 10 ** decimals) * priceLamports * (multiplier / 10_000)))
+      : null;
   const bonus = sizeBonusBps(amount, totalSupply, poolTerms);
   // The next tier up, so the panel can say what a larger lock would earn.
   const nextTier = poolTerms.sizeTierBps
@@ -189,6 +201,18 @@ export function LockPanel({
               : `At the last day's fee rate, ${formatSol(BigInt(lockersPerDay))} SOL/day to lockers. Tracks volume: more trading, more rewards.`}
           </dd>
         </div>
+        {capped ? (
+          <div className="col-span-2 bg-steel-900 px-4 py-3">
+            <dt className="rule-label">Most this lock can earn</dt>
+            <dd className="num mt-1 text-[20px] text-steel-50">
+              {maxEarn === null ? "—" : `≈ ${formatSol(maxEarn)} SOL`}
+            </dd>
+            <dd className="mt-0.5 text-[11px] text-steel-500">
+              Its SOL value when locked × its {formatMultiplier(multiplier)} multiplier. Once it has
+              earned that it stops earning; fees beyond what locks can earn go to the treasury.
+            </dd>
+          </div>
+        ) : null}
       </dl>
 
       <p className="mt-3 text-[12px] leading-relaxed text-steel-600">

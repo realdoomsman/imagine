@@ -2,6 +2,7 @@ use crate::constants::*;
 use crate::errors::ViseError;
 use crate::events::{Locked, PoolCreated, RewardsSynced};
 use crate::instructions::lock::open_position;
+use crate::price::coin_value_lamports;
 use crate::mint_guard::assert_custody_safe;
 use crate::state::{Config, Pool, PoolTerms, Position};
 use anchor_lang::prelude::*;
@@ -119,7 +120,13 @@ fn pump_coin_creator(account: &UncheckedAccount) -> Result<Pubkey> {
     Ok(creator)
 }
 
-pub fn create_pool(ctx: Context<CreatePool>, args: CreatePoolArgs) -> Result<()> {
+/// Remaining accounts, only when the coin has already graduated (a coin
+/// brought over from pump.fun): the canonical pump AMM pool's base and quote
+/// vaults, to value the founding lock.
+pub fn create_pool<'info>(
+    ctx: Context<'_, '_, 'info, 'info, CreatePool<'info>>,
+    args: CreatePoolArgs,
+) -> Result<()> {
     let config = &ctx.accounts.config;
     require!(!config.paused, ViseError::Paused);
     require!(
@@ -170,6 +177,8 @@ pub fn create_pool(ctx: Context<CreatePool>, args: CreatePoolArgs) -> Result<()>
         pool.created_at = now;
         pool.bump = ctx.bumps.pool;
         pool.vault_bump = ctx.bumps.reward_vault;
+        // Every pool from here on limits what each lock can earn.
+        pool.capped = true;
     }
 
     // Fund the reward vault's rent floor so it can exist as a system account and
@@ -213,6 +222,13 @@ pub fn create_pool(ctx: Context<CreatePool>, args: CreatePoolArgs) -> Result<()>
         ctx.accounts.mint.decimals,
     )?;
 
+    let value = coin_value_lamports(
+        &ctx.accounts.mint.key(),
+        &ctx.accounts.token_program.key(),
+        args.initial_lock_amount,
+        &ctx.accounts.bonding_curve.to_account_info(),
+        ctx.remaining_accounts,
+    )?;
     let pool = &mut ctx.accounts.pool;
     let position = &mut ctx.accounts.position;
     open_position(
@@ -225,6 +241,7 @@ pub fn create_pool(ctx: Context<CreatePool>, args: CreatePoolArgs) -> Result<()>
         args.initial_lock_amount,
         args.initial_lock_duration,
         ctx.accounts.mint.supply,
+        value,
         now,
     )?;
 

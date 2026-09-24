@@ -88,6 +88,23 @@ export default function FeesPage() {
         </p>
       </DocSection>
 
+      <DocSection title="Every lock has a ceiling">
+        <p>
+          On coins launched from now on, a lock can earn at most the SOL value
+          of its tokens when locked, times its multiplier: 1 SOL worth locked
+          at 6.00× can earn up to 6 SOL. The price comes from pump.fun&apos;s own
+          bonding curve, or its AMM pool once the coin has graduated, read by
+          the program when you lock.
+        </p>
+        <p>
+          A lock that reaches its ceiling stops earning and the locks still
+          earning split what arrives. The pool only keeps what its open locks
+          can still earn; every fee beyond that goes to the treasury the moment
+          it arrives. Coins launched before this keep their original,
+          uncapped terms.
+        </p>
+      </DocSection>
+
       <DocSection title="Leaving early">
         <p>Breaking a lock before its term costs two things, both to the benefit of the people who stayed:</p>
         <ul>
