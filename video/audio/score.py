@@ -187,8 +187,23 @@ def pad_chord(midis: list[int], length: int) -> np.ndarray:
 def pluck(midi: int, length: int) -> np.ndarray:
     f = note_hz(midi)
     x = saw(f, length) + 0.4 * saw(f, length, 9)
-    x = lowpass(x, 2600)
-    return x * adsr(length, 0.002, 0.16, 0.0, 0.02) * 0.5
+    x = lowpass(x, 1700)
+    return x * adsr(length, 0.003, 0.22, 0.0, 0.03) * 0.5
+
+
+def lead(midi: int, length: int) -> np.ndarray:
+    """A soft, slow-attack voice for the motif: rounded, a little vibrato, far back."""
+    f = note_hz(midi)
+    t = t_axis(length)
+    vib = 1 + 0.004 * np.sin(2 * np.pi * 5.2 * t) * np.minimum(t / 0.6, 1)
+    phase = 2 * np.pi * np.cumsum(f * vib) / SR
+    x = np.sin(phase) + 0.28 * np.sin(2 * phase) + 0.1 * np.sin(3 * phase)
+    x = lowpass(x, 2400)
+    return x * adsr(length, 0.09, 0.2, 0.8, 0.35) * 0.4
+
+
+# The motif: eight notes over two bars, D minor, rising then settling.
+MOTIF = [(74, 1.0), (77, 1.0), (81, 1.5), (79, 0.5), (77, 1.0), (74, 1.0), (72, 1.0), (74, 1.0)]
 
 
 # --- arrangement -------------------------------------------------------------
@@ -227,28 +242,42 @@ class Arrangement:
                 place(self.bass, bass_note(root, n(BAR * 0.95)), bar * BAR, 0.8)
 
     def arp_bars(self, start_bar: int, end_bar: int, gain: float = 1.0) -> None:
-        pattern = [0, 1, 2, 3, 2, 1, 3, 2, 0, 2, 1, 3, 2, 3, 1, 0]
+        """Eighth notes with rests: motion without a buzz."""
+        pattern = [0, 2, 1, None, 3, None, 2, 1]
         for bar in range(start_bar, end_bar):
             midis, _ = self.chord_at(bar)
-            for k in range(16):
-                m = midis[pattern[k]] + 12
-                accent = 1.0 if k % 4 == 0 else 0.7
-                place(self.arp, pluck(m, n(BEAT / 4 * 1.6)), bar * BAR + k * BEAT / 4, gain * accent)
+            for k, idx in enumerate(pattern):
+                if idx is None:
+                    continue
+                m = midis[idx] + 12
+                accent = 1.0 if k == 0 else 0.7
+                place(self.arp, pluck(m, n(BEAT / 2 * 1.5)), bar * BAR + k * BEAT / 2, gain * accent)
+
+    def motif_bars(self, start_bar: int, gain: float = 1.0) -> None:
+        at = start_bar * BAR
+        for midi, beats in MOTIF:
+            place(self.arp, lead(midi, n(beats * BEAT * 1.15)), at, gain)
+            at += beats * BEAT
+
+    def pulse_bars(self, start_bar: int, end_bar: int) -> None:
+        """A kick on one and three only: a heartbeat, not a groove."""
+        for bar in range(start_bar, end_bar):
+            for beat in (0, 2):
+                at = bar * BAR + beat * BEAT
+                place(self.drums, kick(), at, 0.75)
+                self.kicks.append(at)
 
     def drums_bars(self, start_bar: int, end_bar: int, full: bool = True) -> None:
         for bar in range(start_bar, end_bar):
             for beat in range(4):
                 at = bar * BAR + beat * BEAT
-                place(self.drums, kick(), at, 1.0)
+                place(self.drums, kick(), at, 0.95)
                 self.kicks.append(at)
-                if full and beat in (1, 3):
-                    place(self.drums, clap(), at, 0.8)
+                # half-time clap: one backbeat per bar keeps it unhurried
+                if full and beat == 2:
+                    place(self.drums, clap(), at, 0.55)
             for k in range(8):
-                place(self.drums, hat(open_=(full and k == 7)), bar * BAR + k * BEAT / 2, 0.8 if k % 2 == 0 else 0.55)
-            if full:
-                for k in range(16):
-                    if k % 2 == 1:
-                        place(self.drums, hat(), bar * BAR + k * BEAT / 4, 0.28)
+                place(self.drums, hat(open_=(full and k == 7)), bar * BAR + k * BEAT / 2, 0.55 if k % 2 == 0 else 0.32)
 
     def sidechain(self) -> np.ndarray:
         env = np.ones(self.len)
@@ -259,16 +288,20 @@ class Arrangement:
             env[s:e] = np.minimum(env[s:e], duck[: e - s])
         return env
 
-    def mix(self, pad_cutoff: np.ndarray, gains: dict[str, float]) -> np.ndarray:
+    def mix(self, pad_cutoff: np.ndarray, gains: dict[str, float], intensity: np.ndarray | None = None) -> np.ndarray:
+        """`intensity` is a per-sample gain over the music (not the effects):
+        the arrangement's dynamics, so a quiet passage is actually quiet."""
         sc = self.sidechain()
+        duck = 0.55 + 0.45 * sc  # a gentle pump, not a gasp
         pads = sweep_lowpass(self.pads, pad_cutoff)
-        pads = reverb(pads, 2.4, 0.35, 3200) * sc
-        bass = self.bass * np.maximum(sc, 0.35)
-        arp = delay(reverb(self.arp, 1.2, 0.2, 5000), BEAT * 0.75, 0.32, 0.28) * sc
+        pads = reverb(pads, 2.4, 0.3, 2600) * duck
+        bass = self.bass * np.maximum(sc, 0.5)
+        arp = delay(reverb(self.arp, 1.4, 0.25, 4000), BEAT * 0.75, 0.3, 0.26) * duck
         drums = reverb(self.drums, 0.5, 0.08, 6000)
-        return (
-            pads * gains["pads"] + bass * gains["bass"] + arp * gains["arp"] + drums * gains["drums"] + self.fx * gains["fx"]
-        )
+        music = pads * gains["pads"] + bass * gains["bass"] + arp * gains["arp"] + drums * gains["drums"]
+        if intensity is not None:
+            music = music * intensity
+        return music + self.fx * gains["fx"]
 
 
 # --- sound design ------------------------------------------------------------
@@ -326,9 +359,9 @@ def stereo(mono: np.ndarray, width: float = 0.16) -> np.ndarray:
     return np.stack([left, right], axis=1)
 
 
-def master(x: np.ndarray, peak: float = 0.92) -> np.ndarray:
+def master(x: np.ndarray, peak: float = 0.8) -> np.ndarray:
     x = highpass(x.T, 28).T if x.ndim == 2 else highpass(x, 28)
-    driven = np.tanh(x * 0.9) / math.tanh(0.9)
+    driven = np.tanh(x * 0.6) / math.tanh(0.6)
     return driven / max(1e-9, float(np.max(np.abs(driven)))) * peak
 
 
@@ -354,39 +387,47 @@ def fade(x: np.ndarray, out_seconds: float) -> np.ndarray:
 
 def promo() -> None:
     """60s, 24 bars. Sections in bars: hook 0–2, problem 2–5, mechanism 5–8,
-    ladder 8–12, product 12–16, guarantees 16–20, close 20–24."""
+    ladder 8–12, product 12–16, guarantees 16–20, close 20–24.
+
+    Restraint is the brief: a heartbeat under the problem, a light groove
+    under the numbers, nothing but the pad under the guarantees, and the
+    motif twice, so the hour of loops the film will be watched in does not
+    wear."""
     a = Arrangement(60.5)
     a.pads_bars(0, 24)
-    a.bass_bars(0, 2, eighths=False)
-    a.bass_bars(2, 16)
+    a.bass_bars(0, 5, eighths=False)
+    a.bass_bars(5, 8)
+    a.bass_bars(8, 16)
     a.bass_bars(16, 20, eighths=False)
     a.bass_bars(20, 24)
-    a.arp_bars(2, 5, 0.55)
-    a.arp_bars(5, 16, 0.85)
-    a.arp_bars(16, 20, 0.45)
-    a.arp_bars(20, 24, 0.85)
+    a.pulse_bars(2, 5)
     a.drums_bars(5, 8, full=False)
     a.drums_bars(8, 16, full=True)
     a.drums_bars(20, 23, full=True)
-    # the pad filter opens with the film and closes for the guarantees
+    a.arp_bars(8, 16, 0.35)
+    a.motif_bars(5, 0.7)
+    a.motif_bars(12, 0.6)
+    a.motif_bars(20, 0.75)
     cutoff = np.interp(
         t_axis(a.len),
         [0, 5, 12.5, 20, 30, 40, 42, 50, 52, 60],
-        [260, 420, 900, 1600, 2200, 2200, 700, 700, 2400, 900],
+        [240, 380, 700, 1200, 1500, 1500, 520, 520, 1600, 700],
     )
-    # sound design on the cut points
     for i, at in enumerate((1.6, 2.9, 4.2)):
-        place(a.fx, crank(1.0 + i * 0.1), at, 0.9)
+        place(a.fx, crank(0.9 + i * 0.1), at, 0.8)
     for at in (12.5, 20.0, 30.0, 40.0):
-        place(a.fx, riser(1.1), at - 1.1, 0.55)
-        place(a.fx, impact(0.8, 1.4), at, 0.9)
-    place(a.fx, riser(1.6), 48.4, 0.7)
+        place(a.fx, riser(1.1), at - 1.1, 0.4)
+        place(a.fx, impact(0.7, 1.4), at, 0.8)
+    place(a.fx, riser(1.6), 48.4, 0.55)
     place(a.fx, impact(1.0, 2.4), 50.0, 1.0)
-    place(a.fx, crank(1.1), 50.35, 0.9)
-    for k in range(5):
-        place(a.fx, tick(), 20.6 + k * 0.45, 0.8)
+    place(a.fx, crank(1.0), 50.35, 0.85)
     place(a.fx, impact(1.0, 3.0), 57.5, 1.0)
-    mixed = a.mix(cutoff, {"pads": 0.3, "bass": 0.75, "arp": 0.55, "drums": 1.05, "fx": 1.0})
+    intensity = np.interp(
+        t_axis(a.len),
+        [0, 5, 12.5, 20, 30, 40, 41, 49, 50, 57.5, 60.5],
+        [0.55, 0.7, 0.85, 1.0, 0.95, 0.9, 0.5, 0.5, 1.0, 0.9, 0.6],
+    )
+    mixed = a.mix(cutoff, {"pads": 0.36, "bass": 0.6, "arp": 0.45, "drums": 0.62, "fx": 0.9}, intensity)
     write("promo.wav", fade(master(stereo(mixed)), 1.2))
 
 
@@ -395,15 +436,16 @@ def teaser() -> None:
     a = Arrangement(12.2)
     a.pads_bars(0, 5)
     a.bass_bars(0, 5, eighths=False)
-    a.arp_bars(1, 4, 0.5)
+    a.pulse_bars(1, 3)
     a.drums_bars(3, 5, full=False)
+    a.motif_bars(3, 0.6)
     cutoff = np.interp(t_axis(a.len), [0, 3, 8, 12], [300, 700, 2200, 1200])
     for i, at in enumerate((3.83, 5.5, 7.17)):
         place(a.fx, crank(1.0 + i * 0.12), at, 0.95)
     place(a.fx, riser(1.0), 7.0, 0.7)
     place(a.fx, impact(1.0, 2.2), 8.0, 1.0)
     place(a.fx, impact(0.45, 1.6), 9.4, 0.6)
-    mixed = a.mix(cutoff, {"pads": 0.32, "bass": 0.7, "arp": 0.5, "drums": 0.9, "fx": 1.0})
+    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.62, "fx": 0.9})
     write("teaser.wav", fade(master(stereo(mixed)), 0.8))
 
 
@@ -411,9 +453,14 @@ def explainer() -> None:
     """30s. Beats at 0, 6, 13, 21; closing from 21."""
     a = Arrangement(30.2)
     a.pads_bars(0, 12)
-    a.bass_bars(0, 12)
-    a.arp_bars(2, 12, 0.7)
-    a.drums_bars(5, 12, full=True)
+    a.bass_bars(0, 5, eighths=False)
+    a.bass_bars(5, 12)
+    a.pulse_bars(2, 5)
+    a.drums_bars(5, 8, full=False)
+    a.drums_bars(8, 12, full=True)
+    a.arp_bars(5, 12, 0.35)
+    a.motif_bars(2, 0.6)
+    a.motif_bars(8, 0.7)
     cutoff = np.interp(t_axis(a.len), [0, 6, 13, 21, 30], [350, 800, 1600, 2200, 1200])
     for at in (6.0, 13.0):
         place(a.fx, riser(0.8), at - 0.8, 0.5)
@@ -424,7 +471,7 @@ def explainer() -> None:
     place(a.fx, impact(1.0, 2.4), 21.0, 1.0)
     place(a.fx, crank(0.9), 22.6, 0.8)
     place(a.fx, impact(0.4, 2.0), 26.0, 0.5)
-    mixed = a.mix(cutoff, {"pads": 0.3, "bass": 0.75, "arp": 0.55, "drums": 1.0, "fx": 1.0})
+    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.62, "fx": 0.9})
     write("explainer.wav", fade(master(stereo(mixed)), 1.0))
 
 
@@ -432,9 +479,12 @@ def vertical() -> None:
     """15s. Lines at 0, 3.2, 6.4; payoff 9–15."""
     a = Arrangement(15.2)
     a.pads_bars(0, 6)
-    a.bass_bars(0, 6)
-    a.arp_bars(1, 6, 0.6)
-    a.drums_bars(2, 6, full=True)
+    a.bass_bars(0, 3, eighths=False)
+    a.bass_bars(3, 6)
+    a.pulse_bars(1, 3)
+    a.drums_bars(3, 6, full=True)
+    a.arp_bars(3, 6, 0.35)
+    a.motif_bars(3, 0.65)
     cutoff = np.interp(t_axis(a.len), [0, 3.2, 6.4, 9, 15], [400, 900, 1600, 2200, 1200])
     for at in (3.2, 6.4):
         place(a.fx, impact(0.6, 1.2), at, 0.8)
@@ -443,7 +493,7 @@ def vertical() -> None:
     for i, at in enumerate((9.5, 10.3, 11.2)):
         place(a.fx, crank(0.9 + i * 0.1), at, 0.9)
     place(a.fx, impact(0.5, 1.8), 12.4, 0.6)
-    mixed = a.mix(cutoff, {"pads": 0.3, "bass": 0.75, "arp": 0.55, "drums": 1.0, "fx": 1.0})
+    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.62, "fx": 0.9})
     write("vertical.wav", fade(master(stereo(mixed)), 0.8))
 
 

@@ -8,6 +8,7 @@ import { api, ApiError, post } from "@/lib/api";
 import { signAndSend, type BuiltTransaction } from "@/lib/send";
 import { useAccount } from "./account-provider";
 import { LockDial } from "./lock-dial";
+import { ShareButton } from "./share-button";
 import { SignInPrompt } from "./sign-in-prompt";
 
 interface LaunchPlan {
@@ -153,9 +154,17 @@ export function LaunchForm() {
           pointed at its lock pool.
         </p>
         <p className="num mt-4 break-all text-[12px] text-steel-500">{result.mint}</p>
-        <a href={`/coins/${result.mint}`} className="btn btn-primary mt-6">
-          Open the coin page
-        </a>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <a href={`/coins/${result.mint}`} className="btn btn-primary">
+            Open the coin page
+          </a>
+          <ShareButton
+            text={`${symbol.trim().toUpperCase()} is live on pump.fun with a vise on it: every trade pays the people who lock it, and I locked ${lockPercent}% of my dev buy for ${lockDays} days.`}
+            url={`https://vise.fun/coins/${result.mint}`}
+            label="Tell X"
+            className="h-10 px-4 text-[13.5px]"
+          />
+        </div>
       </section>
     );
   }

@@ -13,6 +13,7 @@ import { LockPanel } from "@/components/lock-panel";
 import { SwapPanel } from "@/components/swap-panel";
 import { LockerTable } from "@/components/locker-table";
 import { RewardChart } from "@/components/reward-chart";
+import { ShareButton } from "@/components/share-button";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +95,14 @@ export default async function CoinPage({
           <p className="mt-1.5 text-[14px] text-steel-500">
             {metadata?.name ?? "unnamed coin"}
           </p>
-          <p className="num mt-2 text-[11px] text-steel-600">{mint}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="num text-[11px] text-steel-600">{mint}</p>
+            <ShareButton
+              text={`${metadata?.symbol ?? "This coin"} has a vise on it: ${formatPercent(BigInt(tokenSupply) > 0n ? Number(supplyLocked) / Number(BigInt(tokenSupply)) : 0, 1)} of supply is locked and every trade pays the lockers.`}
+              url={`https://vise.fun/coins/${mint}`}
+              className="h-7 px-2.5 text-[11.5px]"
+            />
+          </div>
           {metadata?.description ? (
             <p className="mt-3 max-w-[64ch] text-[13.5px] leading-relaxed text-steel-400">{metadata.description}</p>
           ) : null}

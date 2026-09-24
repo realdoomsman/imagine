@@ -10,6 +10,7 @@ import {
   shortAddress,
 } from "@vise/sdk";
 import Link from "next/link";
+import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";
 import { api, type Holding, type WalletPosition, type WalletView } from "@/lib/api";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -171,9 +172,12 @@ export function AccountView() {
               and you can take it with you any time.
             </p>
           </div>
-          <div className="bg-steel-900 px-5 py-4">
-            <p className="rule-label">SOL</p>
-            <p className="num mt-1 text-[28px] leading-none text-steel-50">{formatSol(sol)}</p>
+          <div className="flex items-center gap-5 bg-steel-900 px-5 py-4">
+            <DepositQr address={view.wallet} />
+            <div>
+              <p className="rule-label">SOL</p>
+              <p className="num mt-1 text-[28px] leading-none text-steel-50">{formatSol(sol)}</p>
+            </div>
           </div>
         </div>
       </section>
@@ -580,6 +584,33 @@ function KeyPanel({
         </button>
       )}
     </section>
+  );
+}
+
+/** The address as a QR, for sending from a phone wallet without typing it. */
+function DepositQr({ address }: { address: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void QRCode.toString(`solana:${address}`, {
+      type: "svg",
+      margin: 0,
+      errorCorrectionLevel: "M",
+      color: { dark: "#eceff3", light: "#00000000" },
+    }).then((out) => {
+      if (live) setSvg(out);
+    });
+    return () => {
+      live = false;
+    };
+  }, [address]);
+  if (!svg) return <div className="size-[72px] shrink-0 rounded-[3px] bg-steel-860" />;
+  return (
+    <div
+      className="size-[72px] shrink-0 rounded-[3px] border border-steel-700 bg-steel-990 p-1.5 [&_svg]:size-full"
+      title="Scan to send to this wallet"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
   );
 }
 

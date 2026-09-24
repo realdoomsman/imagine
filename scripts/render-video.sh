@@ -25,3 +25,11 @@ for comp in ${COMPS:-Promo Teaser Explainer Vertical}; do
     --codec=h264 --crf=16 --browser-executable="$SHELL_BIN" --log=error
   echo "rendered $out"
 done
+
+# The site's copy of the film: smaller, faststart, with a poster from the close.
+FFMPEG=$(command -v ffmpeg.exe || command -v ffmpeg)
+mkdir -p "$ROOT/apps/web/public/film"
+"$FFMPEG" -hide_banner -loglevel error -y -i out/vise-promo.mp4 -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p \
+  -movflags +faststart -c:a aac -b:a 160k "$ROOT/apps/web/public/film/vise-promo.mp4"
+"$FFMPEG" -hide_banner -loglevel error -y -ss 56 -i out/vise-promo.mp4 -frames:v 1 -q:v 3 "$ROOT/apps/web/public/film/poster.jpg"
+echo "web film encoded"

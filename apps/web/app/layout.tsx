@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { MobileNav, SiteHeader } from "@/components/site-header";
+import { ClusterNotice } from "@/components/cluster-notice";
 import { SiteFooter } from "@/components/site-footer";
 import { WalletProvider } from "@/components/wallet-provider";
 import { AccountProvider } from "@/components/account-provider";
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main id="content" className="min-h-screen pt-[84px]">
             {children}
           </main>
+          <ClusterNotice />
           <SiteFooter />
           <MobileNav />
           </AccountProvider>

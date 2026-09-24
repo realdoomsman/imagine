@@ -4,15 +4,19 @@ import { ViseMark } from "@/components/vise-mark";
 import { Reveal, Magnetic } from "@/components/motion";
 import { StatMarquee } from "@/components/stat-marquee";
 import { FlowDiagram } from "@/components/flow-diagram";
+import { Film } from "@/components/film";
+import { Faq } from "@/components/faq";
 
 export default function HomePage() {
   return (
     <>
       <Hero />
       <StatMarquee />
+      <Film />
       <HowItWorks />
       <Split />
       <Guarantees />
+      <Faq />
       <Cta />
     </>
   );
