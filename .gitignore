@@ -20,3 +20,4 @@ video/node_modules
 .env
 video/public/*.wav
 video/out/shots/
+video/public/shots/

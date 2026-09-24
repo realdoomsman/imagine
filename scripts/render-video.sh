@@ -19,7 +19,7 @@ if ! ls "$BROWSERS"/chrome-headless-shell/*/chrome-headless-shell-linux64/chrome
 fi
 SHELL_BIN=$(ls "$BROWSERS"/chrome-headless-shell/*/chrome-headless-shell-linux64/chrome-headless-shell | head -1)
 
-for comp in Teaser Explainer Vertical; do
+for comp in ${COMPS:-Promo Teaser Explainer Vertical}; do
   out="out/vise-$(echo "$comp" | tr '[:upper:]' '[:lower:]').mp4"
   corepack pnpm exec remotion render src/index.ts "$comp" "$out" \
     --codec=h264 --crf=16 --browser-executable="$SHELL_BIN" --log=error

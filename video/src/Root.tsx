@@ -2,6 +2,7 @@ import { Composition, Still } from "remotion";
 import { Card, CARD_DEFAULT } from "./Card";
 import { Avatar, Banner } from "./Profile";
 import { Explainer, EXPLAINER_DURATION } from "./Explainer";
+import { Promo, PROMO_DURATION } from "./Promo";
 import { Teaser, TEASER_DURATION } from "./Teaser";
 import { Vertical, VERTICAL_DURATION } from "./Vertical";
 import { FPS } from "./theme";
@@ -9,6 +10,7 @@ import { FPS } from "./theme";
 export function Root() {
   return (
     <>
+      <Composition id="Promo" component={Promo} durationInFrames={PROMO_DURATION} fps={FPS} width={1920} height={1080} />
       <Composition
         id="Teaser"
         component={Teaser}

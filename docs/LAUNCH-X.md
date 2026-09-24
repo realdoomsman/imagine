@@ -4,6 +4,9 @@ Handle: `@ViseDotFun` · Site: `vise.fun`
 
 ## Live (2026-09-23)
 
+- Pinned post (60s film, quoting the Article):
+  see "Pinned" below once posted; the thread is no longer pinned.
+
 - Pinned thread (14 posts, teaser video on the first):
   https://x.com/ViseDotFun/status/2102748079682195471
 - X Article "Selling is free. Holding is not.":
