@@ -23,3 +23,11 @@ video/public/*.wav
 video/out/shots/
 video/public/shots/
 apps/web/public/film/vise-promo.mp4
+
+# all env files except examples
+.env.*
+!.env.example
+# scratch
+tmp-audit/
+tmp/
+%TEMP%*/

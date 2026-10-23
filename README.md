@@ -53,6 +53,8 @@ validator, so a launch exercises the same code path mainnet would.
 
 ```bash
 pnpm install
+cp apps/api/.env.example apps/api/.env.local   # see the file for every variable
+cp apps/web/.env.example apps/web/.env.local
 
 # 1. Validator with pump.fun cloned in, plus the VISE program and its
 #    fee-collecting accounts pre-created
