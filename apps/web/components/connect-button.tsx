@@ -14,7 +14,7 @@ import { GoogleSignIn } from "./google-signin";
  * Signed out: one button opening a small sheet with both ways in. Signed in
  * with an Imagine wallet: the avatar, linking to the account page. Connected
  * with an extension: the address, opening a menu (account, copy, switch,
- * disconnect) so a stray click never drops the connection.
+ * disconnect) so a stray click never drops the connection. Deliberately not the
  * wallet-adapter default button — that component ships its own purple styling
  * and is one of the clearest "template site" tells.
  */
