@@ -23,9 +23,9 @@ export function DocPage({
   );
 }
 
-export function DocSection({ title, children }: { title: string; children: React.ReactNode }) {
+export function DocSection({ id, title, children }: { id?: string; title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-14">
+    <section id={id} className="mt-14 scroll-mt-24">
       <h2 className="t-h2 text-[clamp(1.4rem,2.6vw,1.85rem)]">{title}</h2>
       <div className="prose-imagine mt-5 text-[15.5px] [&_pre]:overflow-x-auto [&_pre]:rounded-[10px] [&_pre]:border [&_pre]:border-line [&_pre]:bg-ink-1 [&_pre]:p-4 [&_pre]:text-[13px] [&_pre]:leading-relaxed [&_pre]:text-fg">
         {children}

@@ -1,6 +1,7 @@
 import { PublicKey, SystemProgram, type AccountMeta, TransactionInstruction } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { AccountReader, BorshWriter, disc } from "./layout.ts";
+import { BPS, COMPOUND_SLIPPAGE_BPS } from "./constants.ts";
 
 /**
  * Raydium LaunchLab (`raydium_launchpad`) and Raydium CPMM (`raydium_cp_swap`, where LaunchLab pools
@@ -1043,4 +1044,43 @@ export function cpmmSwapIx(p: {
     ],
     data,
   });
+}
+
+// ---------------- Auto-compound quotes ----------------
+
+/** Where `compound` buys: the live curve with its fee rates, or (graduated) the CPMM pool's quote→coin side. */
+export type CompoundVenue =
+  | { kind: "curve"; pool: CurveReserves; rates: CurveFeeRates }
+  | { kind: "cpmm"; side: CpmmSwapSide; config: CpmmAmmConfig };
+
+/**
+ * What `compound` buys with `quoteIn` at the live reserves (`tokensOut`), and `floor`: the least the
+ * program accepts on its own guard, `COMPOUND_SLIPPAGE_BPS` under `quoteIn` at the spot price before
+ * the buy. `capped`: the curve would fill only part of `quoteIn` (it is about to complete), which the
+ * program refuses. Pass `compoundMinOut(tokensOut)` as `minTokensOut`.
+ */
+export function quoteCompound(venue: CompoundVenue, quoteIn: bigint): { tokensOut: bigint; floor: bigint; capped: boolean } {
+  let tokensOut: bigint;
+  let quoteReserve: bigint;
+  let baseReserve: bigint;
+  let capped = false;
+  if (venue.kind === "curve") {
+    const fill = buyExactIn(venue.pool, quoteIn, venue.rates);
+    tokensOut = fill.base;
+    capped = fill.quote < quoteIn;
+    quoteReserve = curveQuoteReserve(venue.pool);
+    baseReserve = curveBaseReserve(venue.pool);
+  } else {
+    tokensOut = cpmmSwapBaseInput(venue.side, quoteIn, venue.config).amountOut;
+    quoteReserve = venue.side.inputReserve;
+    baseReserve = venue.side.outputReserve;
+  }
+  const atSpot = quoteReserve > 0n ? (quoteIn * baseReserve) / quoteReserve : 0n;
+  const floor = ceilDiv(atSpot * (BPS - COMPOUND_SLIPPAGE_BPS), BPS);
+  return { tokensOut, floor, capped };
+}
+
+/** `minTokensOut` for a compound quoted at `tokensOut`: `slippageBps` under it (default 2%). */
+export function compoundMinOut(tokensOut: bigint, slippageBps = 200n): bigint {
+  return (tokensOut * (BPS - slippageBps)) / BPS;
 }

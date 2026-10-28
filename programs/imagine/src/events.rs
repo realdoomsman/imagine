@@ -181,3 +181,17 @@ pub struct ConfigUpdated {
     pub paused: bool,
     pub timestamp: i64,
 }
+
+/// A lock's rewards bought more of its coin, added to the lock (`compound`).
+/// `quote_in` counts as paid to the lock (toward its cap), like a claim.
+#[event]
+pub struct Compounded {
+    pub pool: Pubkey,
+    pub position: Pubkey,
+    pub owner: Pubkey,
+    pub quote_in: u64,
+    pub tokens_out: u64,
+    pub new_amount: u64,
+    pub new_weight: u128,
+    pub timestamp: i64,
+}

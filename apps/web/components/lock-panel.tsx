@@ -12,6 +12,7 @@ import {
   sizeBonusBps,
   type PoolTerms,
 } from "@imagine/sdk";
+import Link from "next/link";
 import { useCallback, useState } from "react";
 import type { PoolDetail, QuoteInfo } from "@/lib/api";
 import { decimalInput, formatQuote, parseAmount, usdSuffix } from "@/lib/format";
@@ -203,6 +204,14 @@ export function LockPanel({
         })}
         . Leaving early burns up to {formatPercent(terms.earlyUnlockPenaltyBps / 10_000, 0)} of your principal and
         hands unclaimed rewards to whoever stayed.
+      </p>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted">
+        Optional: turn on{" "}
+        <Link href="/docs#auto-compound" className="text-steel-hi hover:text-fg">
+          auto-compound
+        </Link>{" "}
+        for a lock on your account page and its {quote.symbol} rewards buy more ${symbol} and add to the lock. Hold,
+        earn, buy, lock, repeat.
       </p>
 
       {actor.publicKey ? (

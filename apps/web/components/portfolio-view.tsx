@@ -139,6 +139,22 @@ export function PortfolioView() {
                     index: position.index,
                   })
                 }
+                onSetAutoCompound={(enabled) =>
+                  void act(`auto-${key}`, { kind: "setAutoCompound", ...base, enabled }, {
+                    kind: "setAutoCompound",
+                    mint: new PublicKey(position.mint!),
+                    index: position.index,
+                    enabled,
+                  })
+                }
+                onCompound={() =>
+                  void act(`compound-${key}`, { kind: "compound", ...base }, {
+                    kind: "compound",
+                    mint: new PublicKey(position.mint!),
+                    index: position.index,
+                    expectedOut: position.compoundEstimate !== null ? BigInt(position.compoundEstimate) : null,
+                  })
+                }
               />
             );
           })}

@@ -5,20 +5,33 @@ import { getAssociatedTokenAddressSync, NATIVE_MINT } from "@solana/spl-token";
 import { Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import {
   accrued,
+  claimableFor,
   decodePool,
   decodePosition,
   DISCRIMINATOR,
   IMAGINE_PROGRAM_ID,
+  KEEPER_AUTHORITY,
   poolPda,
+  POSITION_AUTO_COMPOUND_OFFSET,
   positionPda,
+  type PoolAccount,
 } from "@imagine/sdk";
 import bs58 from "bs58";
+import { compoundBlocker } from "./actions.ts";
 import { sql } from "./db.ts";
 import { logger } from "./log.ts";
 import { env } from "./env.ts";
 import { rawToUsd, usdPrice } from "./quotes.ts";
 import { connection, imagine } from "./solana.ts";
-import { collectFeesInstructions, readMarket, uncollectedFees, unsyncedRewards } from "./raydium.ts";
+import {
+  collectFeesInstructions,
+  compoundInstructions,
+  quoteCompoundNow,
+  readMarket,
+  uncollectedFees,
+  unsyncedRewards,
+  type Market,
+} from "./raydium.ts";
 import { KEEPER_LOW_BALANCE, KEEPER_MIN_BALANCE, writeStatus } from "./status.ts";
 import { fixedBudget } from "./transactions.ts";
 
@@ -51,6 +64,14 @@ import { fixedBudget } from "./transactions.ts";
  * Treasury. `claim_treasury` moves each pool's treasury share — the 10% cut
  * plus every surplus fee no lock could earn — into the treasury wallet, so it
  * is withdrawable there without anyone doing anything.
+ *
+ * Auto-compound. A lock whose owner opted in has its pending rewards spent on
+ * more of its own coin, added to the lock (`compound`, which the program takes
+ * only from the owner or `KEEPER_AUTHORITY`, so only that key runs this
+ * phase). Only once pending is worth `COMPOUND_MIN_USD` (and
+ * never below the program's `MIN_COMPOUND_QUOTE`), at most once per
+ * `COMPOUND_SPACING_MS` per lock, with `min_tokens_out` 2% under the live
+ * quote; a failure backs that lock off exponentially.
  */
 
 const log = logger("keeper");
@@ -81,6 +102,16 @@ const HARVESTS_PER_TICK = 5;
 /** Treasury claims: only worth a transaction above this much USD, at most hourly per pool. */
 const TREASURY_MIN_USD = 5;
 const TREASURY_SPACING_MS = 60 * 60_000;
+/** Auto-compound: a lock is compounded at most this often, and only once pending is worth this much. */
+const COMPOUND_SPACING_MS = 30 * 60_000;
+const COMPOUND_MIN_USD = 0.5;
+/** A lock not yet due is looked at again after this long. */
+const COMPOUND_CHECK_MS = 5 * 60_000;
+/** How often the opted-in positions are rescanned from chain. */
+const COMPOUND_SCAN_MS = 5 * 60_000;
+const COMPOUNDS_PER_TICK = 5;
+/** `min_tokens_out` below the live quote. */
+const COMPOUND_SLIPPAGE_BPS = 200;
 
 export function loadKeeper(): Keypair | null {
   const raw = env.keeperKeypair.trim();
@@ -454,18 +485,161 @@ async function claimTreasuries(keeper: Keypair): Promise<number> {
   return claimed;
 }
 
+/** Positions that opted in to auto-compound, from the last scan. */
+let optedIn: PublicKey[] = [];
+let optedInScannedAt = 0;
+const compoundBackoff = new Map<string, Backoff>();
+
+async function compoundCandidates(): Promise<PublicKey[]> {
+  if (Date.now() - optedInScannedAt < COMPOUND_SCAN_MS) return optedIn;
+  const accounts = await connection.getProgramAccounts(IMAGINE_PROGRAM_ID, {
+    dataSlice: { offset: 0, length: 0 },
+    filters: [
+      { memcmp: { offset: 0, bytes: bs58.encode(DISCRIMINATOR.position) } },
+      { memcmp: { offset: POSITION_AUTO_COMPOUND_OFFSET, bytes: bs58.encode([1]) } },
+    ],
+  });
+  optedIn = accounts.map(({ pubkey }) => pubkey);
+  optedInScannedAt = Date.now();
+  const live = new Set(optedIn.map((address) => address.toBase58()));
+  for (const key of compoundBackoff.keys()) if (!live.has(key)) compoundBackoff.delete(key);
+  return optedIn;
+}
+
+let notAuthorityWarned = false;
+
+/**
+ * Compound up to `COMPOUNDS_PER_TICK` opted-in locks whose pending rewards are
+ * worth it. Each is re-read from chain and re-checked the way the program
+ * will check it before anything is sent; the scan is only a hint. The program
+ * takes a compound only from the lock's owner or `KEEPER_AUTHORITY`, so a
+ * keeper running under any other key skips this phase.
+ */
+async function compoundOptedIn(keeper: Keypair): Promise<number> {
+  if (!keeper.publicKey.equals(KEEPER_AUTHORITY)) {
+    if (!notAuthorityWarned) {
+      notAuthorityWarned = true;
+      log.warn("keeper key is not KEEPER_AUTHORITY; auto-compound disabled", {
+        wallet: keeper.publicKey,
+        authority: KEEPER_AUTHORITY,
+      });
+    }
+    return 0;
+  }
+  const due = (await compoundCandidates()).filter(
+    (address) => (compoundBackoff.get(address.toBase58())?.nextAt ?? 0) <= Date.now(),
+  );
+  // Pool and venue reads are shared by every lock in the same pool this tick.
+  const venues = new Map<string, Promise<{ pool: PoolAccount | null; market: Market | null }>>();
+  const venueOf = (mint: PublicKey) => {
+    const key = mint.toBase58();
+    let venue = venues.get(key);
+    if (!venue) {
+      venue = (async () => {
+        const pool = await imagine.fetchProjectedPool(mint);
+        return { pool, market: pool ? await readMarket(mint, pool.quoteMint) : null };
+      })();
+      venues.set(key, venue);
+    }
+    return venue;
+  };
+  let compounded = 0;
+
+  for (const address of due) {
+    if (compounded >= COMPOUNDS_PER_TICK) break;
+    const key = address.toBase58();
+    try {
+      const info = await connection.getAccountInfo(address);
+      if (!info || !info.owner.equals(IMAGINE_PROGRAM_ID)) {
+        compoundBackoff.set(key, { nextAt: Date.now() + COMPOUND_SCAN_MS, strikes: 0 });
+        continue;
+      }
+      const position = decodePosition(info.data);
+      const poolInfo = await connection.getAccountInfo(position.pool);
+      if (!poolInfo || !poolInfo.owner.equals(IMAGINE_PROGRAM_ID)) continue;
+      const mint = decodePool(poolInfo.data).mint;
+      if (
+        !position.autoCompound ||
+        !position.pool.equals(poolPda(mint)) ||
+        !address.equals(positionPda(mint, position.owner, position.index))
+      ) {
+        compoundBackoff.set(key, { nextAt: Date.now() + COMPOUND_SCAN_MS, strikes: 0 });
+        continue;
+      }
+      const { pool, market } = await venueOf(mint);
+      if (!pool?.founded || !market) {
+        settle(compoundBackoff, key, false, Date.now(), COMPOUND_CHECK_MS);
+        continue;
+      }
+      const pending = claimableFor(position, pool);
+      // Ended, renounced, locked forever, too short to add to, or too little:
+      // nothing to send now; looked at again shortly.
+      if (compoundBlocker(position, pool.terms, pending) !== null) {
+        settle(compoundBackoff, key, true, Date.now(), COMPOUND_CHECK_MS);
+        continue;
+      }
+      const usd = rawToUsd(pending, market.state.quoteDecimals, await usdPrice(pool.quoteMint.toBase58()));
+      if (usd !== null && usd < COMPOUND_MIN_USD) {
+        settle(compoundBackoff, key, true, Date.now(), COMPOUND_CHECK_MS);
+        continue;
+      }
+      const quoted = await quoteCompoundNow(market, pending, COMPOUND_SLIPPAGE_BPS);
+      if (!quoted?.viable || quoted.minTokensOut === 0n) {
+        // Migrating, finishing the curve, moving the price past the program's
+        // guard, or too small to set a non-zero minimum (the program refuses 0 from a keeper).
+        settle(compoundBackoff, key, false, Date.now(), COMPOUND_CHECK_MS);
+        continue;
+      }
+      const ixs = await compoundInstructions({
+        payer: keeper.publicKey,
+        owner: position.owner,
+        pool,
+        market,
+        index: position.index,
+        minTokensOut: quoted.minTokensOut,
+      });
+      const signature = await send(keeper, new Transaction().add(...fixedBudget(10_000, 400_000), ...ixs));
+      settle(compoundBackoff, key, true, Date.now(), COMPOUND_SPACING_MS);
+      // The pool moved (rewards out, coins bought and locked): fresh reads for any later lock in it.
+      venues.delete(mint.toBase58());
+      compounded += 1;
+      await sql`
+        INSERT INTO keeper_runs (mint, amount, signature)
+        VALUES (${mint.toBase58()}, ${pending.toString()}::NUMERIC, ${signature})
+      `;
+      log.info("compounded lock", {
+        action: "compound",
+        position: key,
+        owner: position.owner,
+        mint,
+        signature,
+        venue: quoted.venue,
+        quoteIn: pending,
+        estimatedTokens: quoted.tokensOut,
+        minTokensOut: quoted.minTokensOut,
+      });
+    } catch (error) {
+      if (error instanceof LeaseLost) throw error;
+      settle(compoundBackoff, key, false, Date.now(), COMPOUND_SPACING_MS);
+      log.error("compound failed", { action: "compound", position: key, err: error, backoffStrike: compoundBackoff.get(key)?.strikes });
+    }
+  }
+  return compounded;
+}
+
 export interface RunResult {
   synced: number;
   skipped: number;
   unlocked: number;
   harvested: number;
   treasuries: number;
+  compounded: number;
   /** Another process holds the keeper lease; this one sent nothing. */
   standby: boolean;
 }
 
 export async function runOnce(keeper: Keypair): Promise<RunResult> {
-  const idle = { synced: 0, skipped: 0, unlocked: 0, harvested: 0, treasuries: 0, standby: false };
+  const idle = { synced: 0, skipped: 0, unlocked: 0, harvested: 0, treasuries: 0, compounded: 0, standby: false };
   if (!(await takeLease())) return { ...idle, standby: true };
   try {
     if (!(await aboveFloor(keeper))) return idle;
@@ -474,7 +648,8 @@ export async function runOnce(keeper: Keypair): Promise<RunResult> {
     const unlocked = (await aboveFloor(keeper)) ? await unlockMatured(keeper) : 0;
     const harvested = (await aboveFloor(keeper)) ? await retireCapped(keeper) : 0;
     const treasuries = (await aboveFloor(keeper)) ? await claimTreasuries(keeper) : 0;
-    return { synced, skipped, unlocked, harvested, treasuries, standby: false };
+    const compounded = (await aboveFloor(keeper)) ? await compoundOptedIn(keeper) : 0;
+    return { synced, skipped, unlocked, harvested, treasuries, compounded, standby: false };
   } catch (error) {
     if (error instanceof LeaseLost) return { ...idle, standby: true };
     throw error;
@@ -516,7 +691,7 @@ export function startKeeper(): KeeperHandle | null {
       // Only the lease holder speaks for the keeper on /health.
       if (result?.standby) return;
       // Each send is logged where it happens; the summary only when there were any.
-      if (result && result.synced + result.unlocked + result.harvested + result.treasuries > 0) {
+      if (result && result.synced + result.unlocked + result.harvested + result.treasuries + result.compounded > 0) {
         log.info("keeper run", { ...result, tookMs, balanceLamports: lastBalance });
       }
       await writeStatus("keeper", {

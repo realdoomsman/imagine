@@ -41,7 +41,7 @@ import { quoteDisplay, usdPrices, withPrices } from "../quotes.ts";
 import { connection, imagine } from "../solana.ts";
 import { buildLaunch } from "../raydium.ts";
 import { budgetInstructions, compileV0, fitBudget } from "../transactions.ts";
-import { describePositions } from "./portfolio.ts";
+import { compoundFields, describePositions } from "./portfolio.ts";
 import { launchRequest, LaunchSchema } from "./tx.ts";
 
 /** The mint keypair for an account launch: a function of the account's key and a nonce. */
@@ -263,7 +263,7 @@ export async function accountRoutes(app: FastifyInstance) {
 
     const described = await describePositions(positions);
     const now = Math.floor(Date.now() / 1000);
-    const rows = described.rows.map(({ position, info, pool, quote, pending }) => {
+    const rows = described.rows.map(({ position, info, pool, quote, pending, compounded, compoundEstimate }) => {
       const penaltyBps = Number(info?.early_unlock_penalty_bps ?? 0);
       return {
         address: position.address.toBase58(),
@@ -294,6 +294,9 @@ export async function accountRoutes(app: FastifyInstance) {
         forever: position.forever,
         /** What breaking the lock right now would burn. */
         earlyExitBurn: earlyExitPenalty(position.amount, position.lockStart, position.lockEnd, now, penaltyBps).toString(),
+        ...compoundFields(position.autoCompound, compounded),
+        /** Coin base units "Compound now" would add at the live price; null when it would be refused. */
+        compoundEstimate: compoundEstimate?.toString() ?? null,
       };
     });
 
@@ -346,11 +349,18 @@ export async function accountRoutes(app: FastifyInstance) {
    * `CUSTODIAL_MAX_SLIPPAGE_BPS`: a stolen week-old cookie must not be able to
    * buy an attacker's coin with the whole balance and let them sell into it.
    * Burning coins and locking a position forever destroy value for good, so
-   * they take the same fresh sign-in.
+   * they take the same fresh sign-in. Compounding spends earnings on a buy at
+   * market price, and auto-compound lets the keeper do that from then on, so
+   * both take it too.
    */
   app.post("/me/action", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
     const action = ActionSchema.parse(request.body);
-    const recent = action.kind === "swap" || action.kind === "burn" || action.kind === "lockForever";
+    const recent =
+      action.kind === "swap" ||
+      action.kind === "burn" ||
+      action.kind === "lockForever" ||
+      action.kind === "compound" ||
+      action.kind === "setAutoCompound";
     const account = await requireAccount(request, reply, { recent });
     if (!account) return;
     if (action.kind === "swap" && action.slippageBps > CUSTODIAL_MAX_SLIPPAGE_BPS) {

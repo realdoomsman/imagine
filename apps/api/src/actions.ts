@@ -1,20 +1,32 @@
 import { PublicKey, type AddressLookupTableAccount, type TransactionInstruction } from "@solana/web3.js";
 import { createBurnCheckedInstruction, getAssociatedTokenAddressSync, unpackAccount, unpackMint } from "@solana/spl-token";
 import {
+  claimableFor,
   DAY,
   HOUR,
   decodePosition,
   formatDuration,
+  MIN_COMPOUND_QUOTE,
   positionPda,
   type PoolAccount,
   type PoolTerms,
+  type PositionAccount,
   type QuoteRef,
 } from "@imagine/sdk";
 import { z } from "zod";
 import { ActionError } from "./errors.ts";
 import { imagine, connection } from "./solana.ts";
-import { buildTrade, collectFeesInstructions, readMarket, uncollectedFees, unsyncedRewards, valuationAccounts } from "./raydium.ts";
-import { budgetInstructions } from "./transactions.ts";
+import {
+  buildTrade,
+  collectFeesInstructions,
+  compoundInstructions,
+  quoteCompoundNow,
+  readMarket,
+  uncollectedFees,
+  unsyncedRewards,
+  valuationAccounts,
+} from "./raydium.ts";
+import { budgetInstructions, launchLookupTable, tablesFor } from "./transactions.ts";
 
 export { ActionError };
 
@@ -98,6 +110,10 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     priorityFeeMicroLamports: priority.default(150_000),
   }),
   z.object({ kind: z.literal("sync"), mint: pubkey }),
+  /** Opt a lock in or out of auto-compound: its rewards buy more of the coin into the lock. */
+  z.object({ kind: z.literal("setAutoCompound"), mint: pubkey, index, enabled: z.boolean() }),
+  /** Spend this lock's pending rewards on more of the coin, added to the lock, now. */
+  z.object({ kind: z.literal("compound"), mint: pubkey, index, priorityFeeMicroLamports: priority.default(100_000) }),
 ]);
 
 export type Action = z.infer<typeof ActionSchema>;
@@ -142,6 +158,28 @@ async function anyPool(mint: PublicKey): Promise<PoolAccount> {
 
 /** What every refused change to a lock-forever position says. */
 const LOCKED_FOREVER = "this lock is locked forever: it can never be unlocked, added to or extended";
+
+/**
+ * Why `compound` would refuse this position right now, in the program's own
+ * order of checks, or null when it would go through. `pending` is what the
+ * compound would spend: `claimableFor` against the pool projected to now,
+ * which is exactly what the program settles.
+ */
+export function compoundBlocker(
+  position: Pick<PositionAccount, "renounced" | "forever" | "lockEnd">,
+  terms: Pick<PoolTerms, "minLockSecs">,
+  pending: bigint,
+  now = Math.floor(Date.now() / 1000),
+): string | null {
+  if (position.renounced) return "this lock gave up its earnings, so it has nothing to compound";
+  if (position.forever) return LOCKED_FOREVER;
+  if (position.lockEnd <= now) return "this lock has ended; unlock it instead";
+  if (position.lockEnd - now < terms.minLockSecs) {
+    return `less than ${formatDuration(terms.minLockSecs)} is left on this lock, so it cannot be added to; extend it first`;
+  }
+  if (pending < MIN_COMPOUND_QUOTE) return "not enough rewards to compound yet";
+  return null;
+}
 
 export async function buildAction(owner: PublicKey, action: Action): Promise<BuiltAction> {
   const mint = new PublicKey(action.mint);
@@ -285,6 +323,69 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
         instructions: [...budgetInstructions(50_000), ...ixs],
         lookupTables: [],
         meta: { uncollected: uncollected.toString(), unsynced: unsynced.toString() },
+      };
+    }
+
+    case "setAutoCompound": {
+      const position = await imagine.fetchPosition(mint, owner, action.index);
+      if (!position) throw new ActionError(404, "that lock does not exist");
+      if (position.renounced) throw new ActionError(409, "this lock gave up its earnings, so it has nothing to compound");
+      if (position.forever) throw new ActionError(409, LOCKED_FOREVER);
+      if (position.autoCompound === action.enabled) {
+        throw new ActionError(409, action.enabled ? "auto-compound is already on for this lock" : "auto-compound is already off for this lock");
+      }
+      const ix = await imagine.setAutoCompound({ owner, mint, index: action.index, enabled: action.enabled });
+      return plain([...budgetInstructions(50_000), ix]);
+    }
+
+    case "compound": {
+      // The owner may compound any time; the program also lets anyone crank
+      // a lock that opted in, which is what the keeper does.
+      const [position, pool] = await Promise.all([
+        imagine.fetchPosition(mint, owner, action.index),
+        imagine.fetchProjectedPool(mint),
+      ]);
+      if (!position) throw new ActionError(404, "that lock does not exist");
+      if (!pool || !pool.founded) throw new ActionError(404, "this coin has no IMAGINE pool");
+      const pending = claimableFor(position, pool);
+      const blocker = compoundBlocker(position, pool.terms, pending);
+      if (blocker) throw new ActionError(409, blocker);
+      const market = await readMarket(mint, pool.quoteMint);
+      const quoted = await quoteCompoundNow(market, pending);
+      if (!market || !quoted) {
+        throw new ActionError(409, "this coin is migrating to Raydium; compounding resumes once it lands");
+      }
+      if (!quoted.viable) {
+        throw new ActionError(
+          409,
+          "one buy this size would move the price too far (or finish the curve); try again after more trading",
+        );
+      }
+      const ixs = await compoundInstructions({
+        payer: owner,
+        owner,
+        pool,
+        market,
+        index: action.index,
+        minTokensOut: quoted.minTokensOut,
+      });
+      const instructions = [...budgetInstructions(action.priorityFeeMicroLamports), ...ixs];
+      const launchTable = await launchLookupTable();
+      let lookupTables;
+      try {
+        lookupTables = tablesFor(instructions, owner, launchTable ? [launchTable] : []);
+      } catch {
+        throw new ActionError(409, "this compound does not fit in one transaction");
+      }
+      return {
+        instructions,
+        lookupTables,
+        meta: {
+          venue: quoted.venue,
+          quoteIn: pending.toString(),
+          estimatedTokens: quoted.tokensOut.toString(),
+          minTokensOut: quoted.minTokensOut.toString(),
+        },
       };
     }
   }

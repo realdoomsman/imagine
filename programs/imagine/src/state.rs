@@ -619,5 +619,9 @@ pub struct Position {
     /// never be unlocked, broken, grown or extended, and it is renounced, so
     /// its earnings go to the other lockers. Irreversible.
     pub forever: bool,
-    pub _reserved: [u8; 30],
+    /// The owner opted in to `compound`: anyone may then turn this lock's
+    /// rewards into more of the coin, added to the lock. Off unless the owner
+    /// sets it; cleared when the lock is renounced.
+    pub auto_compound: bool,
+    pub _reserved: [u8; 29],
 }

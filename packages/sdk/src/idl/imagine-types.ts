@@ -491,6 +491,170 @@ export type Imagine = {
       "args": []
     },
     {
+      "name": "compound",
+      "discriminator": [
+        165,
+        208,
+        251,
+        78,
+        242,
+        160,
+        141,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "The owner, or for a lock with auto-compound on, the IMAGINE keeper",
+            "(`KEEPER_AUTHORITY`). Pays the fees and fronts the rent of the",
+            "transient WSOL account (refunded)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "owner",
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ]
+          },
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "tokenVault",
+          "docs": [
+            "Receives the coins bought."
+          ],
+          "writable": true
+        },
+        {
+          "name": "rewardVault",
+          "docs": [
+            "Signs the buy: it holds the quote being spent."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaultQuoteAccount",
+          "docs": [
+            "the handler: the pool's reward token account, or for a WSOL quote a",
+            "transient WSOL account the spent lamports are wrapped into."
+          ],
+          "writable": true
+        },
+        {
+          "name": "quoteMint"
+        },
+        {
+          "name": "quoteTokenProgram"
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "launchlabPool",
+          "docs": [
+            "price (owner and discriminator verified there) and traded on while the",
+            "coin is on its curve."
+          ],
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "minTokensOut",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "depositReward",
       "discriminator": [
         245,
@@ -1994,6 +2158,92 @@ export type Imagine = {
       "args": []
     },
     {
+      "name": "setAutoCompound",
+      "discriminator": [
+        101,
+        22,
+        46,
+        161,
+        189,
+        86,
+        250,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ]
+          },
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "position"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "sync",
       "discriminator": [
         4,
@@ -2416,6 +2666,19 @@ export type Imagine = {
       ]
     },
     {
+      "name": "compounded",
+      "discriminator": [
+        187,
+        212,
+        188,
+        187,
+        183,
+        29,
+        107,
+        152
+      ]
+    },
+    {
       "name": "configUpdated",
       "discriminator": [
         40,
@@ -2743,6 +3006,26 @@ export type Imagine = {
       "code": 6028,
       "name": "positionLockedForever",
       "msg": "This lock is locked forever; it can never be unlocked, grown or extended"
+    },
+    {
+      "code": 6029,
+      "name": "compoundNotEnabled",
+      "msg": "This lock has not turned on auto-compound; only its owner may compound it"
+    },
+    {
+      "code": 6030,
+      "name": "compoundTooSmall",
+      "msg": "Rewards to compound are below the minimum"
+    },
+    {
+      "code": 6031,
+      "name": "compoundSlippage",
+      "msg": "Compound bought fewer coins than the slippage guard allows"
+    },
+    {
+      "code": 6032,
+      "name": "notKeeper",
+      "msg": "Only the lock's owner or the IMAGINE keeper may compound it"
     }
   ],
   "types": [
@@ -2770,6 +3053,50 @@ export type Imagine = {
           {
             "name": "lifetimeClaimed",
             "type": "u64"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "compounded",
+      "docs": [
+        "A lock's rewards bought more of its coin, added to the lock (`compound`).",
+        "`quote_in` counts as paid to the lock (toward its cap), like a claim."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "quoteIn",
+            "type": "u64"
+          },
+          {
+            "name": "tokensOut",
+            "type": "u64"
+          },
+          {
+            "name": "newAmount",
+            "type": "u64"
+          },
+          {
+            "name": "newWeight",
+            "type": "u128"
           },
           {
             "name": "timestamp",
@@ -3699,11 +4026,20 @@ export type Imagine = {
             "type": "bool"
           },
           {
+            "name": "autoCompound",
+            "docs": [
+              "The owner opted in to `compound`: anyone may then turn this lock's",
+              "rewards into more of the coin, added to the lock. Off unless the owner",
+              "sets it; cleared when the lock is renounced."
+            ],
+            "type": "bool"
+          },
+          {
             "name": "reserved",
             "type": {
               "array": [
                 "u8",
-                30
+                29
               ]
             }
           }
@@ -3991,6 +4327,15 @@ export type Imagine = {
   ],
   "constants": [
     {
+      "name": "compoundSlippageBps",
+      "docs": [
+        "How far below the venue's spot price, before the buy, a compound may fill:",
+        "the trade's own fees and price impact must fit inside it."
+      ],
+      "type": "u64",
+      "value": "300"
+    },
+    {
       "name": "configSeed",
       "type": "bytes",
       "value": "[99, 111, 110, 102, 105, 103]"
@@ -4010,6 +4355,16 @@ export type Imagine = {
       "name": "metadataUriSuffix",
       "type": "string",
       "value": "\".json\""
+    },
+    {
+      "name": "minCompoundQuote",
+      "docs": [
+        "The least `compound` will spend, in quote base units (0.001 SOL for a SOL",
+        "quote; the same base-unit floor for any other), so a crank never pays more",
+        "in fees than it buys."
+      ],
+      "type": "u64",
+      "value": "1000000"
     },
     {
       "name": "poolSeed",

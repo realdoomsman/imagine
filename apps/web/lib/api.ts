@@ -147,6 +147,12 @@ export interface Locker {
   renounced: boolean;
   /** Locked forever: can never be unlocked or withdrawn; earns nothing. */
   forever: boolean;
+  /** The owner opted in: a keeper turns this lock's rewards into more of the coin, added to the lock. */
+  autoCompound: boolean;
+  /** Every pair-asset base unit compounded into this lock so far. */
+  compoundedQuote: string;
+  /** Every coin base unit compounding has bought into this lock so far. */
+  compoundedTokens: string;
 }
 
 /** Fee history for the reward chart: slots of `bucketSecs` from `since` (unix seconds) to now. */
@@ -187,6 +193,14 @@ export interface PortfolioPosition {
   renounced: boolean;
   /** Locked forever: can never be unlocked or withdrawn; earns nothing. */
   forever: boolean;
+  /** The owner opted in: a keeper turns this lock's rewards into more of the coin, added to the lock. */
+  autoCompound: boolean;
+  /** Every pair-asset base unit compounded into this lock so far. */
+  compoundedQuote: string;
+  /** Every coin base unit compounding has bought into this lock so far. */
+  compoundedTokens: string;
+  /** Coin base units compounding the pending rewards would buy now, at live reserves; null when too small or unknown. */
+  compoundEstimate: string | null;
 }
 
 export interface PortfolioTotals {
@@ -380,7 +394,10 @@ export interface WalletView {
 export interface ActivityRow {
   type: string;
   owner: string;
+  /** Coin base units, or for a `compound` row the coins bought into the lock. */
   amount: string;
+  /** A `compound` row's pair-asset base units spent; null on other rows. */
+  quoteIn: string | null;
   at: string;
   signature: string;
 }

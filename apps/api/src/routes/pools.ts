@@ -9,6 +9,7 @@ import { launchableQuotes, quoteInfo, rawToUsd, usdPrices } from "../quotes.ts";
 import { chainConfig, connection, imagine } from "../solana.ts";
 import { marketCapQuote, readMarket, uncollectedFees, unsyncedRewards } from "../raydium.ts";
 import { poolSummary, pricesFor, RECONSTRUCTED_KIND, SUMMARY_COLUMNS, SYNCED_KIND as SYNCED } from "../views.ts";
+import { compoundedOf, compoundedTotals, compoundFields } from "./portfolio.ts";
 
 const HISTORY_MIN_SECS = 3600;
 const HISTORY_MAX_SECS = 7 * 86_400;
@@ -234,6 +235,7 @@ export async function poolRoutes(app: FastifyInstance) {
     const pool = await imagine.fetchProjectedPool(key);
     if (!pool) return reply.code(404).send({ error: "pool not found" });
     const positions = await imagine.fetchPositionsByPool(key);
+    const compounded = await compoundedTotals(positions.map((position) => position.address.toBase58()));
 
     const rows = positions
       .map((position) => ({
@@ -253,6 +255,7 @@ export async function poolRoutes(app: FastifyInstance) {
         /** Locked for good: can never be unlocked or withdrawn; earns nothing. */
         forever: position.forever,
         share: pool.totalWeight > 0n ? Number(position.weight) / Number(pool.totalWeight) : 0,
+        ...compoundFields(position.autoCompound, compoundedOf(compounded, position.address.toBase58())),
       }))
       // By tokens locked, so a lock that renounced its earnings still shows
       // where its size puts it.
@@ -292,10 +295,18 @@ export async function poolRoutes(app: FastifyInstance) {
 
   app.get("/pools/:mint/activity", async (request) => {
     const { mint } = z.object({ mint: pubkey }).parse(request.params);
+    // `amount` is coin base units for locks and compounds, quote base units
+    // for claims; `quoteIn` is what a compound spent, null on every other row.
     const rows = await sql`
-      (SELECT 'lock' AS type, kind, owner, amount::TEXT, at, signature FROM lock_events WHERE mint = ${mint})
+      (SELECT 'lock' AS type, kind, owner, amount::TEXT, NULL::TEXT AS "quoteIn", at, signature
+       FROM lock_events WHERE mint = ${mint})
       UNION ALL
-      (SELECT 'claim' AS type, 'Claimed' AS kind, owner, amount::TEXT, at, signature FROM claim_events WHERE mint = ${mint})
+      (SELECT 'claim' AS type, 'Claimed' AS kind, owner, amount::TEXT, NULL::TEXT AS "quoteIn", at, signature
+       FROM claim_events WHERE mint = ${mint})
+      UNION ALL
+      (SELECT 'compound' AS type, 'Compounded' AS kind, owner, tokens_out::TEXT AS amount,
+              quote_in::TEXT AS "quoteIn", at, signature
+       FROM compound_events WHERE mint = ${mint})
       ORDER BY at DESC
       LIMIT 40
     `;

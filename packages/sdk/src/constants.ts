@@ -31,6 +31,19 @@ export const HOUR = 3_600;
 export const DAY = 86_400;
 
 /**
+ * The least `compound` spends, quote base units (`constants::MIN_COMPOUND_QUOTE`):
+ * 0.001 SOL for a SOL quote, the same base-unit floor for any other.
+ */
+export const MIN_COMPOUND_QUOTE = 1_000_000n;
+/** How far below the venue's spot price before the buy a compound may fill (`constants::COMPOUND_SLIPPAGE_BPS`). */
+export const COMPOUND_SLIPPAGE_BPS = 300n;
+/**
+ * The IMAGINE keeper (`constants::KEEPER_AUTHORITY`): besides a lock's owner, the only payer
+ * `compound` accepts, only on opted-in locks and only with a non-zero `minTokensOut`.
+ */
+export const KEEPER_AUTHORITY = new PublicKey("6mgSanvKanCvzMnbyYa5dyWQGZ5wx36rSwybP1WTNh4M");
+
+/**
  * The economics, in one place. `init-config` writes these on-chain, the e2e
  * and integration suites open pools with them, and the UI previews with them;
  * a number that lives anywhere else is a number that will drift.

@@ -165,4 +165,15 @@ pub mod imagine {
     pub fn early_unlock(ctx: Context<Unlock>) -> Result<()> {
         instructions::unlock::early_unlock(ctx)
     }
+
+    pub fn set_auto_compound(ctx: Context<SetAutoCompound>, enabled: bool) -> Result<()> {
+        instructions::compound::set_auto_compound(ctx, enabled)
+    }
+
+    pub fn compound<'info>(
+        ctx: Context<'_, '_, 'info, 'info, Compound<'info>>,
+        min_tokens_out: u64,
+    ) -> Result<()> {
+        instructions::compound::compound(ctx, min_tokens_out)
+    }
 }

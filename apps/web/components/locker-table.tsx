@@ -70,6 +70,17 @@ export function LockerTable({
                       >
                         Earns nothing
                       </span>
+                    ) : locker.autoCompound ? (
+                      <span
+                        className="pill pill-up ml-2 h-[20px] px-2 text-[10.5px]"
+                        title={
+                          BigInt(locker.compoundedTokens) > 0n
+                            ? `This lock's rewards buy more of the coin and add to it. ${formatTokenAmount(BigInt(locker.compoundedTokens), decimals)} compounded so far.`
+                            : "This lock's rewards buy more of the coin and add to it."
+                        }
+                      >
+                        Auto-compounding
+                      </span>
                     ) : null}
                   </td>
                   <td className="num px-6 py-2.5 text-right text-fg">

@@ -1,6 +1,13 @@
 "use client";
 
-import { formatDuration, formatMultiplier, formatPercent, formatTokenAmount, shortAddress } from "@imagine/sdk";
+import {
+  formatDuration,
+  formatMultiplier,
+  formatPercent,
+  formatTokenAmount,
+  MIN_COMPOUND_QUOTE,
+  shortAddress,
+} from "@imagine/sdk";
 import Link from "next/link";
 import { useState } from "react";
 import type { PortfolioPosition } from "@/lib/api";
@@ -43,6 +50,8 @@ export function PositionCard({
   onExtend,
   onRenounce,
   onLockForever,
+  onSetAutoCompound,
+  onCompound,
 }: {
   position: PortfolioPosition;
   /** Coin base units an early exit would burn now; null when not computed. */
@@ -57,6 +66,10 @@ export function PositionCard({
   onRenounce: () => void;
   /** Lock this position forever: never unlockable, earnings to the other lockers. */
   onLockForever: () => void;
+  /** Turn auto-compound on or off for this lock. */
+  onSetAutoCompound: (enabled: boolean) => void;
+  /** Compound this lock's rewards now: buy more of the coin with them and add it to the lock. */
+  onCompound: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
@@ -74,6 +87,12 @@ export function PositionCard({
   const pendingLabel = quote ? `${formatAmount(pending, quote.decimals)} ${quote.symbol}` : "—";
   const burnLabel = earlyExitBurn !== null ? formatTokenAmount(BigInt(earlyExitBurn), position.decimals) : null;
   const payoutBlocked = unlockError !== null && BLOCKED_PAYOUT.test(unlockError);
+  const ticker = `$${position.symbol ?? shortAddress(position.mint ?? "")}`;
+  // Compounding adds to the lock, so it runs only while the lock still earns and runs.
+  const canCompound = !position.forever && !position.renounced && !matured;
+  const compoundedQuote = BigInt(position.compoundedQuote);
+  const compoundEstimate = position.compoundEstimate !== null ? BigInt(position.compoundEstimate) : null;
+  const enoughToCompound = pending >= MIN_COMPOUND_QUOTE && compoundEstimate !== null && compoundEstimate > 0n;
 
   return (
     <article className={`card p-5 ${pending > 0n ? "card-dream" : ""}`}>
@@ -93,6 +112,14 @@ export function PositionCard({
           {position.forever ? (
             <span className="pill pill-steel ml-2 h-[20px] px-2 text-[10.5px]" title={FOREVER_TOOLTIP}>
               Locked forever
+            </span>
+          ) : null}
+          {position.autoCompound && canCompound ? (
+            <span
+              className="pill pill-up ml-2 h-[20px] px-2 text-[10.5px]"
+              title={`Rewards buy more ${ticker} and add to this lock automatically`}
+            >
+              Auto-compounding
             </span>
           ) : null}
           <p className="num mt-0.5 text-[12px] text-muted">
@@ -115,6 +142,12 @@ export function PositionCard({
             {quote ? formatAmount(position.claimed, quote.decimals) : "—"}
             {quote ? ` of max ${formatAmount(position.rewardCap, quote.decimals)}` : ""} claimed
           </p>
+          {compoundedQuote > 0n && quote ? (
+            <p className="num mt-0.5 text-[11px] text-muted">
+              {formatAmount(compoundedQuote, quote.decimals)} {quote.symbol} compounded into{" "}
+              {formatTokenAmount(BigInt(position.compoundedTokens), position.decimals)} {ticker}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -250,6 +283,58 @@ export function PositionCard({
         ) : null}
       </div>
       )}
+
+      {canCompound ? (
+        <div className="mt-4 rounded-[10px] border border-line bg-ink-1 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={position.autoCompound}
+              aria-label="Auto-compound"
+              disabled={busy !== null}
+              onClick={() => onSetAutoCompound(!position.autoCompound)}
+              className={`relative inline-flex h-[22px] w-[40px] shrink-0 items-center rounded-full border transition-colors duration-200 disabled:opacity-60 ${
+                position.autoCompound ? "border-mint/60 bg-mint/30" : "border-line-strong bg-ink-4"
+              }`}
+            >
+              <span
+                className={`inline-block size-[16px] rounded-full transition-transform duration-200 ${
+                  position.autoCompound ? "translate-x-[20px] bg-mint" : "translate-x-[2px] bg-muted"
+                }`}
+              />
+            </button>
+            <span className="text-[13px] font-semibold text-fg">
+              {busy === `auto-${key}` ? "Saving…" : "Auto-compound"}
+              <span className="ml-1.5 font-normal text-muted">{position.autoCompound ? "on" : "off"}</span>
+            </span>
+            <button
+              type="button"
+              disabled={busy !== null || !enoughToCompound}
+              onClick={onCompound}
+              className="btn btn-ghost btn-sm ml-auto"
+              title={
+                enoughToCompound
+                  ? `Buy ${ticker} with this lock's ${pendingLabel} and add it to the lock`
+                  : `Needs at least ${quote ? `${formatAmount(MIN_COMPOUND_QUOTE, quote.decimals)} ${quote.symbol}` : "a little"} earned`
+              }
+            >
+              {busy === `compound-${key}`
+                ? "Compounding…"
+                : enoughToCompound
+                  ? `Compound now · ≈ ${formatTokenAmount(compoundEstimate!, position.decimals)} ${ticker}`
+                  : "Compound now"}
+            </button>
+          </div>
+          <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+            Your {quote?.symbol ?? "pair asset"} rewards automatically buy more {ticker} and add to this lock. Optional,
+            turn off any time.{" "}
+            {position.autoCompound
+              ? "It runs on its own once about $0.50 has built up, at most every 30 minutes; the unlock date stays the same."
+              : "Same unlock date, same multiplier, a bigger lock earning a bigger share."}
+          </p>
+        </div>
+      ) : null}
 
       {position.forever ? null : sealing ? (
         <div className="mt-4 rounded-[10px] border border-rose/40 bg-rose/10 p-4">

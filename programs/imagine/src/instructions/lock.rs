@@ -425,6 +425,34 @@ pub fn increase<'info>(
     let supply = ctx.accounts.mint.supply;
     let pool = &mut ctx.accounts.pool;
     let position = &mut ctx.accounts.position;
+    grow_position(pool, position, amount, added_value, supply, now)?;
+
+    emit!(PositionIncreased {
+        pool: pool_key,
+        position: position.key(),
+        owner: position.owner,
+        added: amount,
+        amount: position.amount,
+        weight: position.weight,
+        total_weight: pool.total_weight,
+        timestamp: now,
+    });
+    Ok(())
+}
+
+/// Add `amount` coins, already in the vault and worth `added_value` quote
+/// units now, to a running position whose accrued rewards are settled. Keeps
+/// the unlock time; reprices the multiplier against the term still to run and
+/// the new size, and raises the cap by the added value at that multiplier.
+/// Shared by `increase` and `compound`.
+pub fn grow_position(
+    pool: &mut Pool,
+    position: &mut Position,
+    amount: u64,
+    added_value: u64,
+    supply: u64,
+    now: i64,
+) -> Result<()> {
     let old_weight = position.weight;
     position.lock_start = blended_lock_start(
         position.amount,
@@ -439,7 +467,7 @@ pub fn increase<'info>(
         .ok_or(ImagineError::MathOverflow)?;
     // Reprice the whole position against the term still to run and the new
     // size. Keeping the original multiplier would sell a year's weight for
-    // whatever days are left, the same mispricing the maturity guard above
+    // whatever days are left, the same mispricing the maturity guard
     // rejects; and a larger bag may have crossed into a higher tier.
     let remaining = u32::try_from(
         position
@@ -472,19 +500,7 @@ pub fn increase<'info>(
         .and_then(|w| w.checked_add(position.weight))
         .ok_or(ImagineError::MathOverflow)?;
     // A lock already paid its cap earns nothing on the new weight either.
-    pool.retire_if_capped(position)?;
-
-    emit!(PositionIncreased {
-        pool: pool_key,
-        position: position.key(),
-        owner: position.owner,
-        added: amount,
-        amount: position.amount,
-        weight: position.weight,
-        total_weight: pool.total_weight,
-        timestamp: now,
-    });
-    Ok(())
+    pool.retire_if_capped(position)
 }
 
 /// Push the unlock time further out, raising the multiplier.

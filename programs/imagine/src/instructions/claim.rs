@@ -247,6 +247,7 @@ fn renounce_position(accounts: &mut Renounce, now: i64) -> Result<()> {
     position.weight = 0;
     position.reward_debt = 0;
     position.renounced = true;
+    position.auto_compound = false;
     pool.forfeit(forfeited, now)?;
 
     emit!(Renounced {

@@ -252,6 +252,10 @@ export function AccountView() {
                   }
                   onRenounce={() => void run(`renounce-${key}`, () => api.act({ kind: "renounce", ...base }))}
                   onLockForever={() => void run(`forever-${key}`, () => api.act({ kind: "lockForever", ...base }))}
+                  onSetAutoCompound={(enabled) =>
+                    void run(`auto-${key}`, () => api.act({ kind: "setAutoCompound", ...base, enabled }))
+                  }
+                  onCompound={() => void run(`compound-${key}`, () => api.act({ kind: "compound", ...base }))}
                 />
               );
             })}
@@ -328,6 +332,10 @@ function describeAction(kind: string, detail: Record<string, unknown>): string {
       return `Gave up earnings on ${coin}`;
     case "lockForever":
       return `Locked forever on ${coin}`;
+    case "setAutoCompound":
+      return `Turned auto-compound ${detail.enabled ? "on" : "off"} on ${coin}`;
+    case "compound":
+      return `Compounded rewards into the lock on ${coin}`;
     case "burn":
       return `Burned ${coin}`;
     case "extend":

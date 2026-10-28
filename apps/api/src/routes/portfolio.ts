@@ -3,8 +3,10 @@ import { PublicKey } from "@solana/web3.js";
 import { claimableFor, type PoolAccount, type PositionAccount } from "@imagine/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { compoundBlocker } from "../actions.ts";
 import { sql } from "../db.ts";
 import { rawToUsd, type QuoteInfo } from "../quotes.ts";
+import { quoteCompoundNow, readMarket } from "../raydium.ts";
 import { connection, imagine } from "../solana.ts";
 import { pricesFor, QUOTE_COLUMNS, quoteFromRow, RECONSTRUCTED_KIND } from "../views.ts";
 
@@ -17,7 +19,9 @@ type LivePosition = PositionAccount & { address: PublicKey };
  * state: what a portfolio and the account dashboard both show. Pending
  * rewards come from the pool *projected to now* — the stream released and
  * any unsynced vault inflow folded in, with the program's own arithmetic —
- * so the number shown is what a claim would pay.
+ * so the number shown is what a claim would pay, and what a compound would
+ * spend. `compoundEstimate` is the coin that compound would buy at the live
+ * venue now; null when it would be refused.
  */
 export async function describePositions(positions: LivePosition[]): Promise<{
   rows: Array<{
@@ -26,40 +30,94 @@ export async function describePositions(positions: LivePosition[]): Promise<{
     pool: PoolAccount | null;
     quote: QuoteInfo | null;
     pending: bigint;
+    compounded: Compounded;
+    compoundEstimate: bigint | null;
   }>;
   pendingUsd: number;
   claimedUsd: number;
 }> {
   if (positions.length === 0) return { rows: [], pendingUsd: 0, claimedUsd: 0 };
   const poolAddresses = [...new Set(positions.map((p) => p.pool.toBase58()))];
-  const meta = await sql`
-    SELECT mint, pool, symbol, name, image_url, token_decimals, price_quote,
-           early_unlock_penalty_bps, ${sql([...QUOTE_COLUMNS])}
-    FROM pools WHERE pool = ANY(${poolAddresses})
-  `;
+  const [meta, compounded] = await Promise.all([
+    sql`
+      SELECT mint, pool, symbol, name, image_url, token_decimals, price_quote,
+             early_unlock_penalty_bps, ${sql([...QUOTE_COLUMNS])}
+      FROM pools WHERE pool = ANY(${poolAddresses})
+    `,
+    compoundedTotals(positions.map((p) => p.address.toBase58())),
+  ]);
   const byPool = new Map(meta.map((row) => [row.pool as string, row as Row]));
   const prices = await pricesFor(meta);
-  // One fetch per distinct pool: the accumulator is pool-level.
+  // One fetch per distinct pool: the accumulator is pool-level, and so is the venue.
   const projected = new Map(
     await Promise.all(
-      meta.map(async (row) => [row.mint as string, await imagine.fetchProjectedPool(new PublicKey(row.mint as string))] as const),
+      meta.map(async (row) => {
+        const mint = new PublicKey(row.mint as string);
+        const pool = await imagine.fetchProjectedPool(mint);
+        const market = pool ? await readMarket(mint, pool.quoteMint).catch(() => null) : null;
+        return [row.mint as string, { pool, market }] as const;
+      }),
     ),
   );
 
   let pendingUsd = 0;
   let claimedUsd = 0;
-  const rows = positions.map((position) => {
-    const info = byPool.get(position.pool.toBase58());
-    const pool = info ? (projected.get(info.mint as string) ?? null) : null;
-    const quote = info ? quoteFromRow(info, prices) : null;
-    const pending = pool ? claimableFor(position, pool) : 0n;
-    if (quote) {
-      pendingUsd += rawToUsd(pending, quote.decimals, quote.usdPrice) ?? 0;
-      claimedUsd += rawToUsd(position.claimed, quote.decimals, quote.usdPrice) ?? 0;
-    }
-    return { position, info, pool, quote, pending };
-  });
+  const rows = await Promise.all(
+    positions.map(async (position) => {
+      const info = byPool.get(position.pool.toBase58());
+      const live = info ? projected.get(info.mint as string) : undefined;
+      const pool = live?.pool ?? null;
+      const quote = info ? quoteFromRow(info, prices) : null;
+      const pending = pool ? claimableFor(position, pool) : 0n;
+      if (quote) {
+        pendingUsd += rawToUsd(pending, quote.decimals, quote.usdPrice) ?? 0;
+        claimedUsd += rawToUsd(position.claimed, quote.decimals, quote.usdPrice) ?? 0;
+      }
+      let compoundEstimate: bigint | null = null;
+      if (pool && compoundBlocker(position, pool.terms, pending) === null) {
+        const quoted = await quoteCompoundNow(live?.market ?? null, pending).catch(() => null);
+        if (quoted?.viable) compoundEstimate = quoted.tokensOut;
+      }
+      const totals = compounded.get(position.address.toBase58()) ?? NO_COMPOUNDS;
+      return { position, info, pool, quote, pending, compounded: totals, compoundEstimate };
+    }),
+  );
   return { rows, pendingUsd, claimedUsd };
+}
+
+/** What a lock has compounded so far: quote spent and coin bought, base units. */
+export interface Compounded {
+  quote: string;
+  tokens: string;
+}
+
+const NO_COMPOUNDS: Compounded = { quote: "0", tokens: "0" };
+
+/** Lifetime compound totals per position address, from the read model. */
+export async function compoundedTotals(addresses: string[]): Promise<Map<string, Compounded>> {
+  if (addresses.length === 0) return new Map();
+  const rows = await sql`
+    SELECT position, SUM(quote_in)::TEXT AS quote, SUM(tokens_out)::TEXT AS tokens
+    FROM compound_events WHERE position = ANY(${addresses})
+    GROUP BY position
+  `;
+  return new Map(rows.map((row) => [row.position as string, { quote: row.quote as string, tokens: row.tokens as string }]));
+}
+
+/** The auto-compound fields every position row carries. */
+export function compoundFields(autoCompound: boolean, compounded: Compounded) {
+  return {
+    /** Opted in: the keeper spends this lock's rewards on more of the coin, into the lock. */
+    autoCompound,
+    /** Quote base units compounded so far. */
+    compoundedQuote: compounded.quote,
+    /** Coin base units compounding has added to the lock so far. */
+    compoundedTokens: compounded.tokens,
+  };
+}
+
+export function compoundedOf(totals: Map<string, Compounded>, address: string): Compounded {
+  return totals.get(address) ?? NO_COMPOUNDS;
 }
 
 export async function portfolioRoutes(app: FastifyInstance) {
@@ -74,7 +132,7 @@ export async function portfolioRoutes(app: FastifyInstance) {
     }
 
     const described = await describePositions(await imagine.fetchPositionsByOwner(key));
-    const rows = described.rows.map(({ position, info, pool, quote, pending }) => ({
+    const rows = described.rows.map(({ position, info, pool, quote, pending, compounded, compoundEstimate }) => ({
       address: position.address.toBase58(),
       mint: (info?.mint as string | undefined) ?? null,
       symbol: (info?.symbol as string | null | undefined) ?? null,
@@ -100,6 +158,9 @@ export async function portfolioRoutes(app: FastifyInstance) {
       renounced: position.renounced,
       /** Locked for good: can never be unlocked or withdrawn; earns nothing. */
       forever: position.forever,
+      ...compoundFields(position.autoCompound, compounded),
+      /** Coin base units "Compound now" would add at the live price; null when it would be refused. */
+      compoundEstimate: compoundEstimate?.toString() ?? null,
     }));
 
     return {

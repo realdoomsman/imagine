@@ -200,6 +200,8 @@ Program: `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa` (crate `imagine`,
 | `collect_creator_fee` | anyone | See below; ends with an inline `sync` |
 | `sync` / `claim_treasury` | anyone | Permissionless cranks; `sync` is a no-op before founding. A vault balance below the books (quote moved by the issuer) is absorbed: treasury share, then the stream, then the remainder, the rest recorded as `shortfall` and repaid from the next arrivals before they are split |
 | `claim_creator` | pool creator | Only if the pool opted into a creator share (the platform ceiling is 0) |
+| `set_auto_compound` | owner | Opt a lock in to (or out of) auto-compound; off by default, refused on renounced (`PositionRenounced`) and forever (`PositionLockedForever`) locks; renouncing clears it |
+| `compound` | owner, or the IMAGINE keeper once opted in | See below |
 
 ### `collect_creator_fee`
 
@@ -224,7 +226,49 @@ Flow:
 4. `sync` inline.
 
 Every account is pinned or derived from the pool; the vault PDA signs only these
-CPIs and the program's own payouts.
+CPIs, `compound`'s buy and the program's own payouts.
+
+### `compound`
+
+"Hold → Earn → Buy → Lock → Repeat", opt-in per lock. Accounts: `payer`
+(signer; the owner, or the IMAGINE keeper `KEEPER_AUTHORITY`
+`6mgSanvKanCvzMnbyYa5dyWQGZ5wx36rSwybP1WTNh4M` once `Position.auto_compound`
+is set — anyone else `NotKeeper`, the keeper on a lock not opted in
+`CompoundNotEnabled`, the keeper with `min_tokens_out = 0`
+`InvalidParameter`; fronts the transient WSOL account's rent and
+gets it back), `owner`, `pool`, `position`, `mint`, `token_vault`,
+`reward_vault` (signs the buy), `vault_quote_account` (`ATA(vault, quote)`:
+the reward token account, or a transient WSOL account for SOL), `quote_mint`,
+`quote_token_program`, the coin's token program, the associated-token and
+system programs, `launchlab_pool`. Remaining accounts: on the curve, LaunchLab's
+authority, global config, platform config, the curve's two vaults, event
+authority, program, platform-fee and creator-fee vaults; once migrated, the
+CPMM pool (canonical PDA, `pool_creator` = the vault), its coin and quote
+vaults, authority, `amm_config`, observation and the CPMM program.
+
+Flow, atomically:
+
+1. `sync`, then settle the lock exactly as `claim` does: what it may be paid
+   up to its cap counts as paid (`claimed`), any excess goes to the treasury.
+   Below `MIN_COMPOUND_QUOTE` (1e6 quote base units, 0.001 SOL) it is
+   refused (`CompoundTooSmall`).
+2. Spend exactly that quote from the vault on the coin, delivered straight
+   into the token vault: LaunchLab `buy_exact_in` on the curve, CPMM
+   `swap_base_input` once migrated. The venue's normal trade fees apply (the
+   0.5% creator fee lands back in the pool); no app fee.
+3. Refuse (`CompoundSlippage`) a partial fill, fewer coins than
+   `min_tokens_out`, or fewer than the quote at the venue's spot price before
+   the buy less `COMPOUND_SLIPPAGE_BPS` (3%).
+4. Add the coins to the lock as `increase` does: same unlock time, multiplier
+   repriced on the term left (matured: `PositionMatured`; under the pool's
+   minimum term: `InvalidDuration`), cap raised by the coins' value at that
+   spot price. Emits `Compounded`.
+
+The spot guard bounds the buy's own price impact; a price moved before the
+transaction lands is caught by `min_tokens_out`, which the keeper sets 2% under
+its live quote. Only the owner and the IMAGINE keeper may crank it, so no third
+party can wrap a lock's buy in a sandwich. The quote never leaves the pool
+except into the locker's own lock.
 
 ### Guarantees
 
@@ -302,7 +346,10 @@ accounts, on an IMAGINE coin's pool, with no share or platform fee; and, for a
 trade, the input, the `deposit_reward` app fee and the minimum output held to
 what the page showed (minimum output within slippage plus 30% of the spot
 estimate). Swaps and fee deposits are refused in any transaction that is not a
-trade or a launch.
+trade or a launch. `set_auto_compound` and `compound` pass only for the
+signer's own position (compound paid and owned by the signer, with a nonzero
+minimum output within 30% of the page's estimate), each exactly once and only
+when the page asked for it.
 
 Coin links: `https://raydium.io/launchpad/token/?mint=<mint>`; after graduation
 also `https://raydium.io/swap/?inputMint=<quote>&outputMint=<mint>`.

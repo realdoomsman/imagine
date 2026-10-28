@@ -110,6 +110,8 @@ const IMAGINE_USER_INSTRUCTIONS = new Map(
         "harvest",
         "renounce",
         "lock_forever",
+        "set_auto_compound",
+        "compound",
         "unlock",
         "early_unlock",
         "deposit_reward",
@@ -162,6 +164,21 @@ export type Expectation =
       kind: "lockForever";
       mint: PublicKey;
       index: number;
+    }
+  | {
+      /** Turn auto-compound on or off for one of the signer's own positions: `index` is the position's. */
+      kind: "setAutoCompound";
+      mint: PublicKey;
+      index: number;
+      enabled: boolean;
+    }
+  | {
+      /** Compound one of the signer's own positions now, paid and signed by the signer. */
+      kind: "compound";
+      mint: PublicKey;
+      index: number;
+      /** Coin base units the page estimated the compound buys; null when unknown. */
+      expectedOut: bigint | null;
     }
   | {
       /** Burn exactly `amount` base units of `mint` from the signer's own Token-2022 account. */
@@ -217,6 +234,11 @@ function isOwnAta(account: PublicKey | undefined, mint: PublicKey | undefined, s
  *   asked, and no looser slippage than chosen;
  * - IMAGINE `lock_forever`: only for the signer's own position named by a
  *   `lockForever` expectation, exactly once;
+ * - IMAGINE `set_auto_compound`: only for the signer's own position and the
+ *   setting named by a `setAutoCompound` expectation, exactly once;
+ * - IMAGINE `compound`: only paid and signed by the signer for the signer's
+ *   own position named by a `compound` expectation, exactly once, with a
+ *   minimum output held to the page's estimate;
  * - Token-2022 `BurnChecked`: only with a `burn` expectation, from the
  *   signer's own account for that mint, signed by the signer, for exactly
  *   the amount typed, exactly once;
@@ -225,10 +247,11 @@ function isOwnAta(account: PublicKey | undefined, mint: PublicKey | undefined, s
  *   one compute-unit price no higher than the API takes, and a priority fee
  *   of at most 0.01 SOL; nothing else (no heap frame).
  *
- * Swaps, fee deposits, lock-forevers and burns need `expect`; without one (a
- * lock, a claim, …) they are refused outright. `lookupTables` resolves a v0
- * message's table-loaded keys; pass what `fetchLookupTables` returns. Throws
- * with the reason on the first violation.
+ * Swaps, fee deposits, lock-forevers, auto-compound changes, compounds and
+ * burns need `expect`; without one (a lock, a claim, …) they are refused
+ * outright. `lookupTables` resolves a v0 message's table-loaded keys; pass
+ * what `fetchLookupTables` returns. Throws with the reason on the first
+ * violation.
  */
 export function assertTransactionAllowed(
   message: VersionedMessage,
@@ -251,6 +274,8 @@ export function assertTransactionAllowed(
   let jupiterMinOut = 0n;
   let lockForevers = 0;
   let burns = 0;
+  let autoCompoundSets = 0;
+  let compounds = 0;
   let unitLimit: number | null = null;
   let unitPrice: bigint | null = null;
   let dataLimit: number | null = null;
@@ -365,6 +390,38 @@ export function assertTransactionAllowed(
         }
         lockForevers += 1;
       }
+      if (name === "set_auto_compound") {
+        // [owner, pool, position]; args enabled bool.
+        if (expect?.kind !== "setAutoCompound") refuse("the transaction changes auto-compound without that being asked for");
+        const target = expect as Extract<Expectation, { kind: "setAutoCompound" }>;
+        if (!accounts[0]?.equals(signer)) refuse("the auto-compound change is signed by another account");
+        if (!accounts[1]?.equals(poolPda(target.mint))) refuse("the auto-compound change is on another coin's pool");
+        if (!accounts[2]?.equals(positionPda(target.mint, signer, target.index))) {
+          refuse("the auto-compound change names a position other than the one you chose");
+        }
+        if (data.length !== 9 || data[8] !== (target.enabled ? 1 : 0)) {
+          refuse(`the transaction turns auto-compound ${target.enabled ? "off" : "on"}, not ${target.enabled ? "on" : "off"}`);
+        }
+        autoCompoundSets += 1;
+      }
+      if (name === "compound") {
+        // [payer, owner, pool, position, mint, …]; args min_tokens_out u64.
+        if (expect?.kind !== "compound") refuse("the transaction compounds a position without that being asked for");
+        const target = expect as Extract<Expectation, { kind: "compound" }>;
+        if (!accounts[0]?.equals(signer) || !accounts[1]?.equals(signer)) refuse("the compound is for another account");
+        if (!accounts[2]?.equals(poolPda(target.mint)) || !accounts[4]?.equals(target.mint)) {
+          refuse("the compound is on another coin's pool");
+        }
+        if (!accounts[3]?.equals(positionPda(target.mint, signer, target.index))) {
+          refuse("the compound names a position other than the one you chose");
+        }
+        const minOut = u64(data, 8);
+        if (minOut === 0n) refuse("the compound accepts any price (no minimum output)");
+        if (target.expectedOut !== null && minOut < (target.expectedOut * BigInt(10_000 - MAX_PRICE_IMPACT_BPS)) / 10_000n) {
+          refuse(`the compound's minimum output is more than ${MAX_PRICE_IMPACT_BPS / 100}% below the estimate shown; refresh the page`);
+        }
+        compounds += 1;
+      }
       continue;
     }
 
@@ -472,6 +529,14 @@ export function assertTransactionAllowed(
 
   if (expect?.kind === "lockForever") {
     if (lockForevers !== 1) refuse("the transaction does not lock exactly the one position asked for");
+    return;
+  }
+  if (expect?.kind === "setAutoCompound") {
+    if (autoCompoundSets !== 1) refuse("the transaction does not change exactly the one position asked for");
+    return;
+  }
+  if (expect?.kind === "compound") {
+    if (compounds !== 1) refuse("the transaction does not compound exactly the one position asked for");
     return;
   }
   if (expect?.kind === "burn") {

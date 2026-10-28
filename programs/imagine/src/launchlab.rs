@@ -19,6 +19,10 @@ const IX_INITIALIZE_WITH_TOKEN_2022: [u8; 8] = [37, 190, 126, 222, 44, 154, 171,
 pub const IX_CLAIM_CREATOR_FEE: [u8; 8] = [26, 97, 138, 203, 132, 171, 141, 252];
 /// CPMM `collect_creator_fee` (no arguments).
 pub const IX_CPMM_COLLECT_CREATOR_FEE: [u8; 8] = [20, 22, 86, 123, 198, 28, 219, 132];
+/// LaunchLab `buy_exact_in(amount_in, minimum_amount_out, share_fee_rate)`.
+pub const IX_BUY_EXACT_IN: [u8; 8] = [0xfa, 0xea, 0x0d, 0x7b, 0xd5, 0x9c, 0x13, 0xec];
+/// CPMM `swap_base_input(amount_in, minimum_amount_out)`.
+pub const IX_CPMM_SWAP_BASE_INPUT: [u8; 8] = [0x8f, 0xbe, 0x5a, 0xda, 0xc4, 0x1e, 0x33, 0xde];
 
 /// LaunchLab pool status once migrated to CPMM (0 = selling on the curve,
 /// 1 = sold out, waiting for `migrate_to_cpswap`).

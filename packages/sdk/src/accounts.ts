@@ -148,6 +148,8 @@ export interface PositionAccount {
   renounced: boolean;
   /** Locked for good (`lock_forever`): can never be unlocked, grown or extended; also renounced. */
   forever: boolean;
+  /** The owner opted in to auto-compound: keepers may turn its rewards into more coins on the lock. */
+  autoCompound: boolean;
 }
 
 export interface ConfigAccount {
@@ -249,6 +251,7 @@ export function decodePosition(data: Buffer | Uint8Array): PositionAccount {
     rewardCap: big(raw.reward_cap),
     renounced: Boolean(raw.renounced),
     forever: Boolean(raw.forever),
+    autoCompound: Boolean(raw.auto_compound),
   };
 }
 

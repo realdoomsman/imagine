@@ -141,6 +141,27 @@ CREATE TABLE IF NOT EXISTS claim_events (
 CREATE INDEX IF NOT EXISTS claim_events_owner_idx ON claim_events (owner, at DESC);
 CREATE INDEX IF NOT EXISTS claim_events_mint_idx ON claim_events (mint, at DESC);
 
+-- Rewards a lock spent buying more of its own coin (`Compounded`): quote_in
+-- in quote base units, tokens_out in coin base units, added to the lock.
+-- Per-position sums are what a card shows as "compounded so far".
+CREATE TABLE IF NOT EXISTS compound_events (
+  id         BIGSERIAL PRIMARY KEY,
+  signature  TEXT NOT NULL,
+  mint       TEXT NOT NULL,
+  position   TEXT NOT NULL,
+  owner      TEXT NOT NULL,
+  quote_in   NUMERIC(40, 0) NOT NULL,
+  tokens_out NUMERIC(40, 0) NOT NULL,
+  new_amount NUMERIC(40, 0) NOT NULL,
+  new_weight NUMERIC(50, 0) NOT NULL,
+  slot       BIGINT NOT NULL,
+  at         TIMESTAMPTZ NOT NULL,
+  UNIQUE (signature, position)
+);
+
+CREATE INDEX IF NOT EXISTS compound_events_position_idx ON compound_events (position);
+CREATE INDEX IF NOT EXISTS compound_events_mint_at_idx ON compound_events (mint, at DESC);
+
 CREATE TABLE IF NOT EXISTS indexer_cursor (
   id        SMALLINT PRIMARY KEY DEFAULT 1,
   slot      BIGINT NOT NULL DEFAULT 0,

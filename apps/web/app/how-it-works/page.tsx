@@ -131,6 +131,34 @@ your share = weight / total weight in the pool`}
         <p>Claiming is never penalised and never touches your lock.</p>
       </DocSection>
 
+      <DocSection id="auto-compound" title="Auto-compound">
+        <p>
+          Hold → Earn → Buy → Lock → Repeat. Switch on auto-compound for a lock and its rewards in the pair
+          asset buy more of the same coin, and the coins go straight into that lock. It is optional, off
+          until you turn it on, and you can turn it off any time from your account page.
+        </p>
+        <ul>
+          <li>
+            The buy happens on-chain in one step: on the coin&apos;s LaunchLab curve, or on its Raydium
+            pool once it has migrated. The coins join your lock the way adding to it does — same unlock
+            date, same multiplier rules — so your weight and share of the stream grow.
+          </li>
+          <li>
+            A keeper runs it about every 30 minutes once a lock has around $0.50 waiting, and pays the
+            network fees. &ldquo;Compound now&rdquo; on the account page does it on the spot.
+          </li>
+          <li>
+            The program refuses a buy that would come back more than 3% below the price before it.
+            There is no app fee on a compound; the coin&apos;s normal on-chain trading fee applies and
+            flows back to its lockers.
+          </li>
+        </ul>
+        <p>
+          Compounding turns rewards you could take in the pair asset into more locked coin. That coin can
+          fall, and it stays locked until the lock ends.
+        </p>
+      </DocSection>
+
       <DocSection title="What the program will not do">
         <ul>
           <li>There is no admin withdraw path. Rewards go to whoever earned them; locked coins go back to their owner.</li>

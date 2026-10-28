@@ -102,3 +102,17 @@ pub const METADATA_URI_SUFFIX: &str = ".json";
 /// fully paid and stops earning (`Pool::retire_if_capped`). Covers accumulator
 /// rounding, which only ever leaves a lock a few units short.
 pub const CAP_DUST: u64 = 1_000;
+
+/// The least `compound` will spend, in quote base units (0.001 SOL for a SOL
+/// quote; the same base-unit floor for any other), so a crank never pays more
+/// in fees than it buys.
+#[constant]
+pub const MIN_COMPOUND_QUOTE: u64 = 1_000_000;
+/// How far below the venue's spot price, before the buy, a compound may fill:
+/// the trade's own fees and price impact must fit inside it.
+#[constant]
+pub const COMPOUND_SLIPPAGE_BPS: u64 = 300;
+
+/// The IMAGINE keeper: besides a lock's owner, the only signer `compound`
+/// accepts, and only for locks whose owner turned auto-compound on.
+pub const KEEPER_AUTHORITY: Pubkey = pubkey!("6mgSanvKanCvzMnbyYa5dyWQGZ5wx36rSwybP1WTNh4M");

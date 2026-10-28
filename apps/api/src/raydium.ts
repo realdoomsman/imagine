@@ -16,6 +16,7 @@ import {
 import {
   appFeeAmount,
   buyExactIn,
+  compoundMinOut,
   CPMM_PROGRAM_ID,
   cpmmPoolPda,
   cpmmPriceQ64,
@@ -38,9 +39,11 @@ import {
   launchLabPoolVaultPda,
   launchLabTradeIx,
   metadataUri,
+  quoteCompound,
   poolPda,
   rewardVaultPda,
   sellExactIn,
+  type CompoundVenue,
   type CpmmAmmConfig,
   type CpmmPool,
   type CurveFeeRates,
@@ -261,6 +264,71 @@ export async function collectFeesInstructions(payer: PublicKey, pool: PoolAccoun
     mint: pool.mint,
     quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram },
     graduated: market?.cpmm ? { ammConfig: market.cpmm.pool.ammConfig } : undefined,
+  });
+}
+
+// --- auto-compound --------------------------------------------------------
+
+/** What a compound of `quoteIn` would buy now, and whether the program would take it. */
+export interface CompoundQuote {
+  venue: "curve" | "cpmm";
+  tokensOut: bigint;
+  /** The program's spot-price guard: below this the compound is refused. */
+  floor: bigint;
+  /**
+   * The program would accept it: the buy clears the floor, and on the curve
+   * fills in full (a buy that would complete the curve is refused).
+   */
+  viable: boolean;
+  /** `min_tokens_out` to send: the estimate less `slippageBps`, never below the floor. */
+  minTokensOut: bigint;
+}
+
+/**
+ * Price a compound against the coin's live venue with the program's own
+ * arithmetic (`quoteCompound`). Null while the coin is migrating, or when the
+ * venue cannot be read: there is nothing to buy from.
+ */
+export async function quoteCompoundNow(market: Market | null, quoteIn: bigint, slippageBps = 200): Promise<CompoundQuote | null> {
+  if (!market || quoteIn <= 0n) return null;
+  let venue: CompoundQuote["venue"];
+  let venueState: CompoundVenue;
+  if (market.status === "curve") {
+    venue = "curve";
+    venueState = { kind: "curve", pool: market.state, rates: await feeRates(market.state) };
+  } else if (market.cpmm) {
+    venue = "cpmm";
+    const { pool, vault0, vault1, config } = market.cpmm;
+    venueState = { kind: "cpmm", side: cpmmSwapSide(pool, vault0, vault1, market.state.quoteMint, config), config };
+  } else {
+    return null;
+  }
+  const { tokensOut, floor, capped } = quoteCompound(venueState, quoteIn);
+  if (tokensOut <= 0n) return null;
+  const min = compoundMinOut(tokensOut, BigInt(slippageBps));
+  return { venue, tokensOut, floor, viable: !capped && tokensOut >= floor, minTokensOut: min > floor ? min : floor };
+}
+
+/** `compound` for a position, venue accounts pinned from the market it trades on now. */
+export async function compoundInstructions(params: {
+  payer: PublicKey;
+  owner: PublicKey;
+  pool: PoolAccount;
+  market: Market;
+  index: number;
+  minTokensOut: bigint;
+}): Promise<TransactionInstruction[]> {
+  const { pool, market } = params;
+  return imagine.compound({
+    payer: params.payer,
+    owner: params.owner,
+    mint: pool.mint,
+    index: params.index,
+    minTokensOut: params.minTokensOut,
+    quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram },
+    graduated: market.cpmm ? { ammConfig: market.cpmm.pool.ammConfig } : undefined,
+    globalConfig: market.state.globalConfig,
+    platformConfig: market.state.platformConfig,
   });
 }
 

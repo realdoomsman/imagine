@@ -62,4 +62,12 @@ pub enum ImagineError {
     InvalidMetadataUri,
     #[msg("This lock is locked forever; it can never be unlocked, grown or extended")]
     PositionLockedForever,
+    #[msg("This lock has not turned on auto-compound; only its owner may compound it")]
+    CompoundNotEnabled,
+    #[msg("Rewards to compound are below the minimum")]
+    CompoundTooSmall,
+    #[msg("Compound bought fewer coins than the slippage guard allows")]
+    CompoundSlippage,
+    #[msg("Only the lock's owner or the IMAGINE keeper may compound it")]
+    NotKeeper,
 }

@@ -40,6 +40,9 @@ import {
   cpmmTokenOrder,
   creatorFeeVaultAuthorityPda,
   creatorFeeVaultPda,
+  cpmmObservationPda,
+  decodeLaunchLabPool,
+  platformFeeVaultPda,
 } from "./launchlab.ts";
 import { distributableBalance, projectSync, type PoolTerms } from "./math.ts";
 import {
@@ -54,7 +57,10 @@ import type { Imagine } from "./idl/imagine-types.ts";
 import { isNativeQuote } from "./quotes.ts";
 
 /** Byte length of a `Position` account, discriminator included. */
-export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 4 + 8 + 16 + 4 + 8 + 8 + 16 + 8 + 1 + 8 + 1 + 31;
+export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 4 + 8 + 16 + 4 + 8 + 8 + 16 + 8 + 1 + 8 + 1 + 1 + 1 + 29;
+
+/** Byte offset of `Position.auto_compound`: memcmp `bytes: "2"` (a `1`) finds every opted-in lock. */
+export const POSITION_AUTO_COMPOUND_OFFSET = 8 + 32 + 32 + 4 + 8 + 16 + 4 + 8 + 8 + 16 + 8 + 1 + 8 + 1 + 1;
 
 /** A pool's quote, as stored on the pool (`quoteMint`, `quoteTokenProgram`). */
 export interface QuoteRef {
@@ -749,6 +755,107 @@ export class ImagineClient {
         tokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts(remaining)
+      .instruction();
+    return [ix];
+  }
+
+  /** Opt a lock in to (`enabled`) or out of auto-compound. Owner-signed; refused on renounced and forever locks. */
+  async setAutoCompound(params: {
+    owner: PublicKey;
+    mint: PublicKey;
+    index: number;
+    enabled: boolean;
+  }): Promise<TransactionInstruction> {
+    return this.program.methods
+      .setAutoCompound(params.enabled)
+      .accountsPartial({
+        owner: params.owner,
+        pool: poolPda(params.mint, this.programId),
+        position: positionPda(params.mint, params.owner, params.index, this.programId),
+      })
+      .instruction();
+  }
+
+  /**
+   * Turn a lock's rewards into more of its coin, added to the same lock:
+   * permissionless (`payer` = any keeper) once its owner turned
+   * auto-compound on, otherwise owner-only (`payer` = `owner`). Buys on the
+   * LaunchLab curve, or once graduated on the CPMM pool under
+   * `graduated.ammConfig` (the platform's `cpswap_config`). `minTokensOut`:
+   * `compoundMinOut(quoteCompound(...).tokensOut)`. `quote` is read from the
+   * pool, and the curve's `globalConfig` / `platformConfig` from the LaunchLab
+   * pool, when omitted. For a SOL quote `payer` fronts the rent of a
+   * transient WSOL account and gets it back in the same instruction.
+   */
+  async compound(params: {
+    payer: PublicKey;
+    owner: PublicKey;
+    mint: PublicKey;
+    index: number;
+    minTokensOut: bigint;
+    quote?: QuoteRef;
+    graduated?: { ammConfig: PublicKey };
+    globalConfig?: PublicKey;
+    platformConfig?: PublicKey;
+  }): Promise<TransactionInstruction[]> {
+    let quote = params.quote;
+    if (!quote) {
+      const pool = await this.fetchPool(params.mint);
+      if (!pool) throw new Error(`no IMAGINE pool for ${params.mint.toBase58()}`);
+      quote = { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram };
+    }
+    const vault = rewardVaultPda(params.mint, this.programId);
+    const llPool = launchLabPoolPda(params.mint, quote.mint);
+    const w = (pubkey: PublicKey): AccountMeta => ({ pubkey, isSigner: false, isWritable: true });
+    let remaining: AccountMeta[];
+    if (params.graduated) {
+      const { ammConfig } = params.graduated;
+      const cp = cpmmPoolPda(ammConfig, params.mint, quote.mint);
+      remaining = [
+        w(cp),
+        w(cpmmVaultPda(cp, params.mint)),
+        w(cpmmVaultPda(cp, quote.mint)),
+        ...readonlyMetas([cpmmAuthorityPda(), ammConfig]),
+        w(cpmmObservationPda(cp)),
+        ...readonlyMetas([CPMM_PROGRAM_ID]),
+      ];
+    } else {
+      let { globalConfig, platformConfig } = params;
+      if (!globalConfig || !platformConfig) {
+        const info = await this.connection.getAccountInfo(llPool);
+        if (!info) throw new Error(`no LaunchLab pool for ${params.mint.toBase58()}`);
+        const ll = decodeLaunchLabPool(info.data);
+        globalConfig ??= ll.globalConfig;
+        platformConfig ??= ll.platformConfig;
+      }
+      remaining = [
+        ...readonlyMetas([launchLabAuthorityPda(), globalConfig, platformConfig]),
+        w(launchLabPoolVaultPda(llPool, params.mint)),
+        w(launchLabPoolVaultPda(llPool, quote.mint)),
+        ...readonlyMetas([launchLabEventAuthorityPda(), LAUNCHLAB_PROGRAM_ID]),
+        w(platformFeeVaultPda(platformConfig, quote.mint)),
+        w(creatorFeeVaultPda(vault, quote.mint)),
+      ];
+    }
+    const ix = await this.program.methods
+      .compound(new BN(params.minTokensOut.toString()))
+      .accountsPartial({
+        payer: params.payer,
+        owner: params.owner,
+        pool: poolPda(params.mint, this.programId),
+        position: positionPda(params.mint, params.owner, params.index, this.programId),
+        mint: params.mint,
+        tokenVault: tokenVaultPda(params.mint, this.programId),
+        rewardVault: vault,
+        vaultQuoteAccount: getAssociatedTokenAddressSync(quote.mint, vault, true, quote.tokenProgram),
+        quoteMint: quote.mint,
+        quoteTokenProgram: quote.tokenProgram,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+        launchlabPool: llPool,
       })
       .remainingAccounts(remaining)
       .instruction();

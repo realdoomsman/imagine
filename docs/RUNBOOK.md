@@ -386,6 +386,20 @@ The indexer runs permissionless cranks every `KEEPER_INTERVAL_MS`, paid by
 - **Capped locks.** `harvest`s locks that reached their earnings cap.
 - **Treasury.** `claim_treasury` moves each pool's treasury share to the
   treasury wallet.
+- **Auto-compound.** For every lock whose owner turned auto-compound on
+  (rescanned every 5 minutes), once its pending rewards are worth $0.50 (and
+  never below `MIN_COMPOUND_QUOTE`), sends `compound` with `min_tokens_out`
+  2% under the live quote: the rewards buy more of the coin on its curve or
+  CPMM pool and go into the same lock. At most once per 30 minutes per lock,
+  exponential backoff after a failure; skipped while the coin is migrating or
+  when one buy would trip the program's 3% spot guard. The keeper pays the
+  fee and fronts the transient WSOL rent (refunded in the same instruction).
+  The program takes a compound only from the lock's owner or
+  `KEEPER_AUTHORITY` (`6mgSanv…`, the key above), always with a non-zero
+  `min_tokens_out`; a keeper under any other key skips this phase and logs
+  `keeper key is not KEEPER_AUTHORITY; auto-compound disabled` once.
+  Each one logs `compounded lock`; the indexer records `Compounded` in
+  `compound_events` (coin activity, per-lock compounded totals).
 
 Sends per tick are bounded and the keeper stops below 0.02 SOL, so it cannot
 drain itself; below 0.03 SOL it logs `keeper wallet low; top it up` every 15

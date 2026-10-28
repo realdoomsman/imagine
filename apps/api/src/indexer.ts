@@ -80,8 +80,19 @@ const handled = new RecentSet(20_000);
 const queued = new Set<string>();
 let lastEventAt: Date | null = null;
 
+/**
+ * An event's numeric field as a bigint, read from the BN's bytes rather than
+ * its base-10 stringifier, which has been seen emitting corrupt strings
+ * ("3857820000NaN") for ordinary u64s.
+ */
 function asBigint(value: unknown): bigint {
-  return BigInt((value as { toString(): string }).toString());
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") return BigInt(value);
+  if (value && typeof value === "object" && "toArrayLike" in value && typeof value.toArrayLike === "function") {
+    const hex = (value.toArrayLike(Buffer, "be") as Buffer).toString("hex");
+    return BigInt(`0x${hex || "0"}`);
+  }
+  return BigInt(String(value));
 }
 
 function asDate(unixSeconds: unknown): Date {
@@ -272,6 +283,28 @@ async function handleEvent(name: string, data: EventPayload, signature: string, 
         INSERT INTO claim_events (signature, mint, owner, amount, slot, at)
         VALUES (${signature}, ${mint}, ${data.owner.toBase58()},
                 ${asBigint(data.amount).toString()}::NUMERIC, ${slot}, ${at})
+        ON CONFLICT DO NOTHING
+      `;
+      break;
+    }
+
+    case "Compounded": {
+      // Rewards bought more of the coin into the lock: the position and the
+      // pool's totals both moved, so both are re-read from chain.
+      const mint = await mintOfPool(data.pool);
+      if (!mint) break;
+      const key = new PublicKey(mint);
+      await syncPosition(key, data.position);
+      await upsertPoolFromChain(key);
+      await sql`
+        INSERT INTO compound_events (signature, mint, position, owner, quote_in, tokens_out,
+                                     new_amount, new_weight, slot, at)
+        VALUES (${signature}, ${mint}, ${data.position.toBase58()}, ${data.owner.toBase58()},
+                ${asBigint(data.quote_in).toString()}::NUMERIC,
+                ${asBigint(data.tokens_out).toString()}::NUMERIC,
+                ${asBigint(data.new_amount).toString()}::NUMERIC,
+                ${asBigint(data.new_weight).toString()}::NUMERIC,
+                ${slot}, ${at})
         ON CONFLICT DO NOTHING
       `;
       break;

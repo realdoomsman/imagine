@@ -34,7 +34,8 @@ pub mod valuation_accounts {
     pub const LEN: usize = 3;
 }
 
-fn scale(amount: u64, quote: u64, base: u64) -> Result<u64> {
+/// `amount * quote / base`, refused when either side is empty.
+pub fn scale(amount: u64, quote: u64, base: u64) -> Result<u64> {
     require!(base > 0 && quote > 0, ImagineError::PriceUnavailable);
     let value = (amount as u128)
         .checked_mul(quote as u128)
@@ -54,6 +55,18 @@ pub fn coin_value(
     launchlab_pool: &AccountInfo,
     remaining: &[AccountInfo],
 ) -> Result<u64> {
+    let (quote, base, _) = spot(pool, launchlab_pool, remaining)?;
+    scale(amount, quote, base)
+}
+
+/// The coin's venue reserves, `(quote, base, migrated)`: the LaunchLab
+/// curve's while it trades there, the CPMM pool's (`valuation_accounts` at
+/// the front of `remaining`) once migrated.
+pub fn spot(
+    pool: &Pool,
+    launchlab_pool: &AccountInfo,
+    remaining: &[AccountInfo],
+) -> Result<(u64, u64, bool)> {
     require_keys_eq!(
         launchlab_pool.key(),
         pool.launchlab_pool,
@@ -62,7 +75,7 @@ pub fn coin_value(
     let state = PoolState::load(launchlab_pool)?;
     if state.status != POOL_MIGRATED {
         let (quote, base) = state.reserves()?;
-        return scale(amount, quote, base);
+        return Ok((quote, base, false));
     }
 
     // Migrated: the curve's reserves are frozen, so price off the CPMM pool the
@@ -92,5 +105,5 @@ pub fn coin_value(
     );
     let base = token_amount(base_info)?.saturating_sub(base_fees);
     let quote = token_amount(quote_info)?.saturating_sub(quote_fees);
-    scale(amount, quote, base)
+    Ok((quote, base, true))
 }
