@@ -23,8 +23,15 @@ const SET_LOADED_ACCOUNTS_DATA_SIZE_LIMIT = 4;
 /** Room above a simulation's compute: 15%, and never less than 5,000 CU. */
 const COMPUTE_HEADROOM = 1.15;
 const COMPUTE_MIN_HEADROOM = 5_000;
-/** Room above a simulation's loaded account data: 20%, rounded up to whole 32 KiB pages. */
-const DATA_HEADROOM = 1.2;
+/**
+ * Room above a simulation's loaded account data. Generous on purpose: the
+ * RPC that simulates and the leader that executes can count program data
+ * differently, and a limit one byte short fails the whole transaction
+ * ("exceeded max loaded accounts data size cap"). Twice the measured size
+ * plus 2 MiB, in whole 32 KiB pages, still sets an explicit limit.
+ */
+const DATA_HEADROOM = 2;
+const DATA_EXTRA_BYTES = 2 * 1024 * 1024;
 const DATA_PAGE_BYTES = 32 * 1024;
 
 /** web3.js 1.x has no builder for SetLoadedAccountsDataSizeLimit. */
@@ -65,8 +72,10 @@ export function computeUnitLimit(consumed: number): number {
 
 /** The loaded-account-data limit for a simulation that loaded `loaded` bytes. */
 export function loadedAccountsDataLimit(loaded: number): number {
-  const padded = Math.ceil(Math.ceil(loaded * DATA_HEADROOM) / DATA_PAGE_BYTES) * DATA_PAGE_BYTES;
-  return Math.min(MAX_LOADED_ACCOUNTS_DATA_BYTES, Math.max(DATA_PAGE_BYTES, padded));
+  const padded = Math.ceil((loaded * DATA_HEADROOM + DATA_EXTRA_BYTES) / DATA_PAGE_BYTES) * DATA_PAGE_BYTES;
+  // Strictly under the 64 MiB maximum: the browser's signing check refuses a
+  // limit that isn't.
+  return Math.min(MAX_LOADED_ACCOUNTS_DATA_BYTES - DATA_PAGE_BYTES, padded);
 }
 
 /**

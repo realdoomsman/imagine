@@ -201,8 +201,8 @@ test("compute-unit limit: 15% over the simulation, at least 5,000 CU more, whole
   assert.equal(computeUnitLimit(1_300_000), MAX_COMPUTE_UNITS);
 });
 
-test("loaded-account-data limit: 20% over the simulation, whole 32 KiB pages", () => {
-  assert.equal(loadedAccountsDataLimit(228), 32 * 1024);
-  assert.equal(loadedAccountsDataLimit(1_000_000), 37 * 32 * 1024);
-  assert.equal(loadedAccountsDataLimit(60 * 1024 * 1024), 64 * 1024 * 1024);
+test("loaded-account-data limit: twice the simulation plus 2 MiB, whole 32 KiB pages, under 64 MiB", () => {
+  assert.equal(loadedAccountsDataLimit(228), 65 * 32 * 1024);
+  assert.equal(loadedAccountsDataLimit(5_000_000), 370 * 32 * 1024);
+  assert.equal(loadedAccountsDataLimit(60 * 1024 * 1024), 64 * 1024 * 1024 - 32 * 1024);
 });
