@@ -1,8 +1,10 @@
 "use client";
 
+import { PublicKey } from "@solana/web3.js";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, type PortfolioPosition, type PortfolioTotals } from "@/lib/api";
+import type { Expectation } from "@/lib/send";
 import { formatUsd } from "@/lib/format";
 import { useActor } from "@/lib/signer";
 import { ImagineMark } from "./imagine-mark";
@@ -45,12 +47,12 @@ export function PortfolioView() {
   }, [refresh]);
 
   const act = useCallback(
-    async (key: string, action: Record<string, unknown>) => {
+    async (key: string, action: Record<string, unknown>, expect?: Expectation) => {
       setBusy(key);
       setError(null);
       setFailed(null);
       try {
-        await actor.act(action);
+        await actor.act(action, expect);
         await refresh();
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : "action failed";
@@ -130,6 +132,13 @@ export function PortfolioView() {
                 onUnlock={(early) => void act(`unlock-${key}`, { kind: "unlock", ...base, early })}
                 onExtend={(seconds) => void act(`extend-${key}`, { kind: "extend", ...base, durationSecs: seconds })}
                 onRenounce={() => void act(`renounce-${key}`, { kind: "renounce", ...base })}
+                onLockForever={() =>
+                  void act(`forever-${key}`, { kind: "lockForever", ...base }, {
+                    kind: "lockForever",
+                    mint: new PublicKey(position.mint!),
+                    index: position.index,
+                  })
+                }
               />
             );
           })}

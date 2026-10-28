@@ -1,6 +1,6 @@
 use crate::constants::*;
 use crate::errors::ImagineError;
-use crate::events::{CreatorClaimed, Renounced, TreasuryClaimed};
+use crate::events::{CreatorClaimed, LockedForever, Renounced, TreasuryClaimed};
 use crate::instructions::lock::{pay_accrued, settle};
 use crate::math::settle_debt;
 use crate::rewards::Rewards;
@@ -183,23 +183,57 @@ pub struct Renounce<'info> {
 /// a lump of them. Irreversible: a renounced lock cannot be grown or extended.
 /// Pays nothing, so it needs no quote payout accounts.
 pub fn renounce(ctx: Context<Renounce>) -> Result<()> {
-    let now = Clock::get()?.unix_timestamp;
-    let pool_key = ctx.accounts.pool.key();
-    let position_key = ctx.accounts.position.key();
     require!(
         !ctx.accounts.position.renounced,
         ImagineError::PositionRenounced
     );
+    renounce_position(ctx.accounts, Clock::get()?.unix_timestamp)
+}
+
+/// Lock a position's tokens for good. Irreversible: from here `unlock`,
+/// `early_unlock` (matured or not), `increase` and `extend` all fail, so the
+/// principal can never leave the vault. The lock is renounced as well (if it
+/// was not already), so everything it had accrued and would earn goes to the
+/// other lockers. Owner-only (`has_one = owner` on a signer).
+///
+/// Uses `Renounce`'s accounts: the same sync is needed to settle the forfeit.
+pub fn lock_forever(ctx: Context<Renounce>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    require!(
+        !ctx.accounts.position.forever,
+        ImagineError::PositionLockedForever
+    );
+    if !ctx.accounts.position.renounced {
+        renounce_position(ctx.accounts, now)?;
+    }
+    let position = &mut ctx.accounts.position;
+    position.forever = true;
+    emit!(LockedForever {
+        pool: position.pool,
+        position: position.key(),
+        owner: position.owner,
+        amount: position.amount,
+        lock_end: position.lock_end,
+        timestamp: now,
+    });
+    Ok(())
+}
+
+/// Take a not-yet-renounced position's weight out of the pool and hand what
+/// it had accrued back to the stream for the other lockers.
+fn renounce_position(accounts: &mut Renounce, now: i64) -> Result<()> {
+    let pool_key = accounts.pool.key();
+    let position_key = accounts.position.key();
     let rewards = Rewards::new(
-        &ctx.accounts.pool,
-        ctx.accounts.reward_vault.to_account_info(),
-        ctx.accounts.reward_token_account.as_ref().map(|x| x.to_account_info()),
+        &accounts.pool,
+        accounts.reward_vault.to_account_info(),
+        accounts.reward_token_account.as_ref().map(|x| x.to_account_info()),
         None,
         None,
         None,
     )?;
-    let pool = &mut ctx.accounts.pool;
-    let position = &mut ctx.accounts.position;
+    let pool = &mut accounts.pool;
+    let position = &mut accounts.position;
     rewards.sync(pool, pool_key, now)?;
 
     // Weight leaves first so the forfeit lands only on the lockers who remain.

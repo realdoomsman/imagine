@@ -1780,6 +1780,113 @@ export type Imagine = {
       ]
     },
     {
+      "name": "lockForever",
+      "discriminator": [
+        241,
+        4,
+        17,
+        77,
+        120,
+        95,
+        174,
+        203
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ]
+          },
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "rewardVault",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rewardTokenAccount",
+          "optional": true
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.index",
+                "account": "position"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "renounce",
       "discriminator": [
         241,
@@ -2361,6 +2468,19 @@ export type Imagine = {
       ]
     },
     {
+      "name": "lockedForever",
+      "discriminator": [
+        117,
+        111,
+        159,
+        18,
+        249,
+        238,
+        90,
+        246
+      ]
+    },
+    {
       "name": "poolCreated",
       "discriminator": [
         202,
@@ -2618,6 +2738,11 @@ export type Imagine = {
       "code": 6027,
       "name": "invalidMetadataUri",
       "msg": "Metadata URI is not this coin's IMAGINE metadata document"
+    },
+    {
+      "code": 6028,
+      "name": "positionLockedForever",
+      "msg": "This lock is locked forever; it can never be unlocked, grown or extended"
     }
   ],
   "types": [
@@ -3028,6 +3153,42 @@ export type Imagine = {
           {
             "name": "totalWeight",
             "type": "u128"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "lockedForever",
+      "docs": [
+        "A lock was locked forever: its tokens can never leave the vault and its",
+        "earnings go to the other lockers. Irreversible."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "position",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "lockEnd",
+            "type": "i64"
           },
           {
             "name": "timestamp",
@@ -3529,11 +3690,20 @@ export type Imagine = {
             "type": "bool"
           },
           {
+            "name": "forever",
+            "docs": [
+              "The owner locked these tokens for good (`lock_forever`): the lock can",
+              "never be unlocked, broken, grown or extended, and it is renounced, so",
+              "its earnings go to the other lockers. Irreversible."
+            ],
+            "type": "bool"
+          },
+          {
             "name": "reserved",
             "type": {
               "array": [
                 "u8",
-                31
+                30
               ]
             }
           }

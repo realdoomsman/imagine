@@ -131,6 +131,8 @@ export interface PoolDetail {
 
 export interface Locker {
   owner: string;
+  /** The position account, the on-chain record of this lock. */
+  address: string;
   index: number;
   amount: string;
   weight: string;
@@ -143,6 +145,8 @@ export interface Locker {
   rewardCap: string;
   /** Gave up its earnings for good: tokens locked, earns nothing. */
   renounced: boolean;
+  /** Locked forever: can never be unlocked or withdrawn; earns nothing. */
+  forever: boolean;
 }
 
 /** Fee history for the reward chart: slots of `bucketSecs` from `since` (unix seconds) to now. */
@@ -181,6 +185,8 @@ export interface PortfolioPosition {
   rewardCap: string;
   /** Gave up its earnings for good: tokens locked, earns nothing. */
   renounced: boolean;
+  /** Locked forever: can never be unlocked or withdrawn; earns nothing. */
+  forever: boolean;
 }
 
 export interface PortfolioTotals {
@@ -398,6 +404,11 @@ export const api = {
   quotes: () => get<QuoteInfo[]>("/api/quotes"),
   portfolio: (owner: string) =>
     get<{ positions: PortfolioPosition[]; totals: PortfolioTotals }>(`/api/portfolio/${owner}`),
+  /** A wallet's unlocked IMAGINE coins, for burning from an extension wallet. */
+  holdings: (owner: string) =>
+    get<{ holdings: Array<Pick<Holding, "mint" | "amount" | "decimals" | "tokenProgram" | "symbol" | "name" | "imageUrl">> }>(
+      `/api/portfolio/${owner}/holdings`,
+    ),
   leaderboard: <B extends Leaderboard["board"]>(board: B) =>
     get<Extract<Leaderboard, { board: B }>>(`/api/leaderboard?board=${board}`),
   stats: () => get<Stats>("/api/stats"),

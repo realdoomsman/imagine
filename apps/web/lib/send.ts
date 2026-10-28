@@ -28,6 +28,7 @@ import {
   IMAGINE_PROGRAM_ID,
   LAUNCHLAB_PROGRAM_ID,
   poolPda,
+  positionPda,
   rewardVaultPda,
 } from "@imagine/sdk";
 
@@ -94,6 +95,7 @@ const IMAGINE_USER_INSTRUCTIONS = new Map(
         "claim",
         "harvest",
         "renounce",
+        "lock_forever",
         "unlock",
         "early_unlock",
         "deposit_reward",
@@ -140,6 +142,18 @@ export type Expectation =
       /** The dev buy: pair-asset base units, or lamports when `payWithSol`. */
       devBuy: bigint;
       payWithSol: boolean;
+    }
+  | {
+      /** Lock one of the signer's own positions forever: `index` is the position's. */
+      kind: "lockForever";
+      mint: PublicKey;
+      index: number;
+    }
+  | {
+      /** Burn exactly `amount` base units of `mint` from the signer's own Token-2022 account. */
+      kind: "burn";
+      mint: PublicKey;
+      amount: bigint;
     };
 
 /**
@@ -186,12 +200,17 @@ function isOwnAta(account: PublicKey | undefined, mint: PublicKey | undefined, s
  *   `expect`;
  * - Jupiter `route`/`shared_accounts_route` (pay with SOL): the signer's own
  *   source and destination accounts, no platform fee, no more SOL in than
- *   asked, and no looser slippage than chosen.
+ *   asked, and no looser slippage than chosen;
+ * - IMAGINE `lock_forever`: only for the signer's own position named by a
+ *   `lockForever` expectation, exactly once;
+ * - Token-2022 `BurnChecked`: only with a `burn` expectation, from the
+ *   signer's own account for that mint, signed by the signer, for exactly
+ *   the amount typed, exactly once.
  *
- * Swaps and fee deposits need `expect`; without one (a lock, a claim, …) they
- * are refused outright. `lookupTables` resolves a v0 message's table-loaded
- * keys; pass what `fetchLookupTables` returns. Throws with the reason on the
- * first violation.
+ * Swaps, fee deposits, lock-forevers and burns need `expect`; without one (a
+ * lock, a claim, …) they are refused outright. `lookupTables` resolves a v0
+ * message's table-loaded keys; pass what `fetchLookupTables` returns. Throws
+ * with the reason on the first violation.
  */
 export function assertTransactionAllowed(
   message: VersionedMessage,
@@ -212,6 +231,8 @@ export function assertTransactionAllowed(
   let appFee = 0n;
   let jupiterIn = 0n;
   let jupiterMinOut = 0n;
+  let lockForevers = 0;
+  let burns = 0;
 
   for (const compiled of message.compiledInstructions) {
     const programId = keys.get(compiled.programIdIndex);
@@ -259,6 +280,18 @@ export function assertTransactionAllowed(
     }
 
     if (TOKEN_PROGRAMS.has(program.toBase58())) {
+      if (data[0] === TOKEN_BURN_CHECKED && expect?.kind === "burn") {
+        // BurnChecked: [account, mint, authority]; args amount u64, decimals u8.
+        if (!program.equals(TOKEN_2022_PROGRAM_ID)) refuse("the burn is not on Token-2022");
+        if (!accounts[1]?.equals(expect.mint)) refuse("the burn is for another coin");
+        if (!accounts[2]?.equals(signer)) refuse("the burn is authorised by another account");
+        if (!getAssociatedTokenAddressSync(expect.mint, signer, true, TOKEN_2022_PROGRAM_ID).equals(accounts[0])) {
+          refuse("the burn takes from a token account that is not yours");
+        }
+        if (data.length < 10 || u64(data, 1) !== expect.amount) refuse("the burn is not for the amount you entered");
+        burns += 1;
+        continue;
+      }
       assertTokenInstruction(data, accounts, signer, program);
       continue;
     }
@@ -275,6 +308,17 @@ export function assertTransactionAllowed(
         if (data[16] !== (trade.side === "buy" ? 0 : 1)) refuse("the app fee is booked as the wrong side of the trade");
         appFee += u64(data, 8);
       }
+      if (name === "lock_forever") {
+        // [owner, pool, reward_vault, reward_token_account, position].
+        if (expect?.kind !== "lockForever") refuse("the transaction locks a position forever without that being asked for");
+        const target = expect as Extract<Expectation, { kind: "lockForever" }>;
+        if (!accounts[0]?.equals(signer)) refuse("the lock-forever is signed by another account");
+        if (!accounts[1]?.equals(poolPda(target.mint))) refuse("the lock-forever is on another coin's pool");
+        if (!accounts[4]?.equals(positionPda(target.mint, signer, target.index))) {
+          refuse("the lock-forever names a position other than the one you chose");
+        }
+        lockForevers += 1;
+      }
       continue;
     }
 
@@ -286,25 +330,26 @@ export function assertTransactionAllowed(
       if (disc !== LAUNCHLAB_BUY_EXACT_IN && disc !== LAUNCHLAB_SELL_EXACT_IN) {
         refuse("the transaction calls a Raydium LaunchLab instruction other than a curve buy or sell");
       }
-      if (!expect) refuse("the transaction trades without a trade being asked for");
+      if (expect?.kind !== "trade" && expect?.kind !== "launch") refuse("the transaction trades without a trade being asked for");
+      const venue = expect as Extract<Expectation, { kind: "trade" | "launch" }>;
       const baseMint = accounts[9];
       const quoteMint = accounts[10];
       if (!accounts[0]?.equals(signer)) refuse("the curve trade is made by another account");
       if (!isOwnAta(accounts[5], baseMint, signer) || !isOwnAta(accounts[6], quoteMint, signer)) {
         refuse("the curve trade pays from or into a token account that is not yours");
       }
-      if (!baseMint?.equals(expect!.mint)) refuse("the curve trade is for another coin");
+      if (!baseMint?.equals(venue.mint)) refuse("the curve trade is for another coin");
       if (u64(data, 24) !== 0n || accounts.length !== 18) refuse("the curve trade pays a share fee to a third party");
       // An IMAGINE coin's LaunchLab creator is its reward vault, so its creator fee vault pins the pool to IMAGINE.
       if (!accounts[17].equals(creatorFeeVaultPda(rewardVaultPda(baseMint!), quoteMint!, LAUNCHLAB_PROGRAM_ID))) {
         refuse("the curve trade is on a pool that does not pay an IMAGINE vault");
       }
       const buying = disc === LAUNCHLAB_BUY_EXACT_IN;
-      if (expect!.kind === "launch" ? !buying : buying !== (expect!.side === "buy")) {
+      if (venue.kind === "launch" ? !buying : buying !== (venue.side === "buy")) {
         refuse("the curve trade is on the wrong side");
       }
       venueIn += u64(data, 8);
-      assertMinOut(u64(data, 16), expect!);
+      assertMinOut(u64(data, 16), venue);
       venueTrades += 1;
       continue;
     }
@@ -328,7 +373,11 @@ export function assertTransactionAllowed(
     }
 
     if (program.equals(JUPITER_PROGRAM_ID)) {
-      if (!expect?.payWithSol || (expect.kind === "trade" && expect.side !== "buy")) {
+      if (
+        (expect?.kind !== "trade" && expect?.kind !== "launch") ||
+        !expect.payWithSol ||
+        (expect.kind === "trade" && expect.side !== "buy")
+      ) {
         refuse("the transaction routes through Jupiter without paying in SOL being asked for");
       }
       const disc = hex(data);
@@ -361,7 +410,7 @@ export function assertTransactionAllowed(
       const inAmount = u64(data, tail);
       const quotedOut = u64(data, tail + 8);
       const slippage = Buffer.from(data).readUInt16LE(tail + 16);
-      const asked = expect!.kind === "trade" ? expect!.slippageBps : null;
+      const asked = expect?.kind === "trade" ? expect.slippageBps : null;
       if (asked !== null && slippage > asked) refuse(`the Jupiter route allows ${slippage / 100}% slippage, more than you chose`);
       jupiterIn += inAmount;
       jupiterMinOut += (quotedOut * BigInt(10_000 - slippage)) / 10_000n;
@@ -369,6 +418,14 @@ export function assertTransactionAllowed(
     }
   }
 
+  if (expect?.kind === "lockForever") {
+    if (lockForevers !== 1) refuse("the transaction does not lock exactly the one position asked for");
+    return;
+  }
+  if (expect?.kind === "burn") {
+    if (burns !== 1) refuse("the transaction does not make exactly the one burn asked for");
+    return;
+  }
   if (!expect) return;
   if (expect.kind === "trade" && venueTrades !== 1) refuse("the transaction does not make exactly the one trade asked for");
   if (expect.payWithSol && jupiterIn > (expect.kind === "trade" ? expect.amountIn : expect.devBuy)) {

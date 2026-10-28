@@ -286,6 +286,23 @@ async function handleEvent(name: string, data: EventPayload, signature: string, 
       break;
     }
 
+    case "LockedForever": {
+      // Weight leaves the pool (earnings forfeited), so the pool is re-read too.
+      const mint = await mintOfPool(data.pool);
+      if (!mint) break;
+      const key = new PublicKey(mint);
+      await syncPosition(key, data.position);
+      await upsertPoolFromChain(key);
+      await sql`
+        INSERT INTO lock_events (signature, mint, owner, kind, amount, lock_end, slot, at)
+        VALUES (${signature}, ${mint}, ${data.owner.toBase58()}, 'LockedForever',
+                ${asBigint(data.amount).toString()}::NUMERIC,
+                ${data.lock_end ? asDate(data.lock_end) : null}, ${slot}, ${at})
+        ON CONFLICT DO NOTHING
+      `;
+      break;
+    }
+
     case "Unlocked": {
       const mint = await mintOfPool(data.pool);
       if (!mint) break;

@@ -1,6 +1,6 @@
 import { formatDuration, formatMultiplier, formatPercent, formatTokenAmount, shortAddress } from "@imagine/sdk";
 import type { Locker, QuoteInfo } from "@/lib/api";
-import { formatAmount } from "@/lib/format";
+import { explorerAccount, FOREVER_TOOLTIP, formatAmount } from "@/lib/format";
 
 export function LockerTable({
   lockers,
@@ -48,7 +48,22 @@ export function LockerTable({
                 >
                   <td className="num whitespace-nowrap px-6 py-2.5 text-fg-soft">
                     {shortAddress(locker.owner)}
-                    {locker.renounced ? (
+                    {locker.forever ? (
+                      <>
+                        <span className="pill pill-steel ml-2 h-[20px] px-2 text-[10.5px]" title={FOREVER_TOOLTIP}>
+                          Locked forever
+                        </span>
+                        <a
+                          href={explorerAccount(locker.address)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="ml-2 text-[11px] text-steel-hi hover:text-fg"
+                          title="The position account on Solscan: its `forever` flag is the on-chain proof"
+                        >
+                          proof ↗
+                        </a>
+                      </>
+                    ) : locker.renounced ? (
                       <span
                         className="pill ml-2 h-[20px] px-2 text-[10.5px]"
                         title="This lock gave up its earnings for good. Its tokens stay locked; everything it would have earned goes to the other lockers."
@@ -67,7 +82,9 @@ export function LockerTable({
                   <td className="num px-6 py-2.5 text-right text-mint">
                     {locker.renounced ? <span className="text-muted">—</span> : formatAmount(locker.pending, quote.decimals)}
                   </td>
-                  <td className="num px-6 py-2.5 text-right text-fg-soft">{formatDuration(locker.lockEnd - now)}</td>
+                  <td className="num px-6 py-2.5 text-right text-fg-soft">
+                    {locker.forever ? <span title={FOREVER_TOOLTIP}>Never</span> : formatDuration(locker.lockEnd - now)}
+                  </td>
                 </tr>
               ))}
             </tbody>

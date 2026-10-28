@@ -4,12 +4,15 @@ import { formatDuration, formatMultiplier, formatPercent, formatTokenAmount, sho
 import Link from "next/link";
 import { useState } from "react";
 import type { PortfolioPosition } from "@/lib/api";
-import { formatAmount, usdSuffix } from "@/lib/format";
+import { explorerAccount, FOREVER_TOOLTIP, formatAmount, usdSuffix } from "@/lib/format";
 import { ExtendControl } from "./extend-control";
 import { QuoteLogo } from "./pair-pill";
 
 const RENOUNCE_WARNING =
   "Give up this lock's earnings for good? Your tokens stay locked until the same date, but it will never earn again: what it has built up and everything it would earn goes to the other lockers. Claim first if you want what is unclaimed. This cannot be undone.";
+
+/** What has to be typed to lock a position forever, so it is never one stray click. */
+const FOREVER_WORD = "FOREVER";
 
 /**
  * A payout refused because the pair asset's issuer froze the reward account or
@@ -39,6 +42,7 @@ export function PositionCard({
   onUnlock,
   onExtend,
   onRenounce,
+  onLockForever,
 }: {
   position: PortfolioPosition;
   /** Coin base units an early exit would burn now; null when not computed. */
@@ -51,9 +55,13 @@ export function PositionCard({
   onUnlock: (early: boolean) => void;
   onExtend: (seconds: number) => void;
   onRenounce: () => void;
+  /** Lock this position forever: never unlockable, earnings to the other lockers. */
+  onLockForever: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [forfeiting, setForfeiting] = useState(false);
+  const [sealing, setSealing] = useState(false);
+  const [typed, setTyped] = useState("");
   const now = Math.floor(Date.now() / 1000);
   const secondsLeft = Math.max(position.lockEnd - now, 0);
   const matured = secondsLeft === 0;
@@ -82,11 +90,18 @@ export function PositionCard({
           <Link href={`/coins/${position.mint}`} className="text-[15px] font-semibold text-fg hover:text-steel-hi">
             ${position.symbol ?? shortAddress(position.mint ?? "")}
           </Link>
+          {position.forever ? (
+            <span className="pill pill-steel ml-2 h-[20px] px-2 text-[10.5px]" title={FOREVER_TOOLTIP}>
+              Locked forever
+            </span>
+          ) : null}
           <p className="num mt-0.5 text-[12px] text-muted">
             {amountLabel} locked ·{" "}
-            {position.renounced
-              ? "earnings given up, locked for the other holders"
-              : `${formatMultiplier(position.multiplierBps)} · ${formatPercent(position.share, 2)} of the pool`}
+            {position.forever
+              ? "locked forever, its earnings go to the other lockers"
+              : position.renounced
+                ? "earnings given up, locked for the other holders"
+                : `${formatMultiplier(position.multiplierBps)} · ${formatPercent(position.share, 2)} of the pool`}
           </p>
         </div>
         <div className="basis-full sm:basis-auto sm:text-right">
@@ -104,19 +119,31 @@ export function PositionCard({
       </div>
 
       <div className="mt-4">
-        <div className="flex items-baseline justify-between text-[12px]">
-          <span className="text-muted">
-            {matured ? "Matured — your coins are free" : `Unlocks in ${formatDuration(secondsLeft)}`}
-          </span>
-          <span className="num text-muted">
-            {new Date(position.lockEnd * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-          </span>
-        </div>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-4">
-          <div className="h-full rounded-full" style={{ width: `${elapsed * 100}%`, background: "var(--dream)" }} />
-        </div>
+        {position.forever ? (
+          <p className="text-[12px] text-muted" title={FOREVER_TOOLTIP}>
+            Never unlocks. {FOREVER_TOOLTIP}.{" "}
+            <a href={explorerAccount(position.address)} target="_blank" rel="noreferrer" className="text-steel-hi hover:text-fg">
+              On-chain proof ↗
+            </a>
+          </p>
+        ) : (
+          <>
+            <div className="flex items-baseline justify-between text-[12px]">
+              <span className="text-muted">
+                {matured ? "Matured — your coins are free" : `Unlocks in ${formatDuration(secondsLeft)}`}
+              </span>
+              <span className="num text-muted">
+                {new Date(position.lockEnd * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink-4">
+              <div className="h-full rounded-full" style={{ width: `${elapsed * 100}%`, background: "var(--dream)" }} />
+            </div>
+          </>
+        )}
       </div>
 
+      {position.forever ? null : (
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button type="button" disabled={busy !== null || pending === 0n} onClick={onClaim} className="btn btn-primary btn-sm">
           {busy === `claim-${key}` ? "Claiming…" : `Claim${quote ? ` ${quote.symbol}` : ""}`}
@@ -222,6 +249,59 @@ export function PositionCard({
           </span>
         ) : null}
       </div>
+      )}
+
+      {position.forever ? null : sealing ? (
+        <div className="mt-4 rounded-[10px] border border-rose/40 bg-rose/10 p-4">
+          <p className="text-[12.5px] leading-relaxed text-rose">
+            Lock {amountLabel} forever? It can never be unlocked, broken or withdrawn — not at maturity, not by you, not by
+            anyone. It stops earning now: the {pendingLabel} it has built up and everything it would earn go to the other
+            lockers. Claim first if you want what is unclaimed. This cannot be undone. Type {FOREVER_WORD} to confirm.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              placeholder={`Type ${FOREVER_WORD}`}
+              aria-label={`Type ${FOREVER_WORD} to confirm`}
+              className="input num w-36 text-[14px]"
+              autoFocus
+            />
+            <button
+              type="button"
+              disabled={busy !== null || typed.trim().toUpperCase() !== FOREVER_WORD}
+              onClick={() => {
+                setSealing(false);
+                setTyped("");
+                onLockForever();
+              }}
+              className="btn btn-danger btn-sm"
+            >
+              Lock {amountLabel} forever
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSealing(false);
+                setTyped("");
+              }}
+              className="btn btn-ghost btn-sm"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => setSealing(true)}
+          className="mt-3 text-[11.5px] text-muted underline decoration-line-strong underline-offset-2 hover:text-fg"
+          title={FOREVER_TOOLTIP}
+        >
+          {busy === `forever-${key}` ? "Locking forever…" : "Lock forever"}
+        </button>
+      )}
     </article>
   );
 }

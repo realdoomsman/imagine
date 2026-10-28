@@ -154,6 +154,7 @@ impl<'info> Unlock<'info> {
 pub fn unlock(ctx: Context<Unlock>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let a = ctx.accounts;
+    require!(!a.position.forever, ImagineError::PositionLockedForever);
     require!(now >= a.position.lock_end, ImagineError::StillLocked);
     let pool_key = a.pool.key();
     let rewards = a.rewards()?;
@@ -231,6 +232,7 @@ pub fn early_unlock(ctx: Context<Unlock>) -> Result<()> {
         a.position.owner,
         ImagineError::NotPositionOwner
     );
+    require!(!a.position.forever, ImagineError::PositionLockedForever);
     let early = now < a.position.lock_end;
     let pool_key = a.pool.key();
     let rewards = a.rewards()?;

@@ -25,7 +25,9 @@
 //! * Claiming and unlocking can never be paused by the admin, and getting the
 //!   coins back never depends on the quote's issuer: a drop in the reward
 //!   vault the program did not make is absorbed by `sync`, and a matured lock
-//!   can always return its coins through `early_unlock` without moving quote.
+//!   can always return its coins through `early_unlock` without moving quote
+//!   — except a lock its owner sealed with `lock_forever`, which by design
+//!   never returns its coins.
 //! * The creator must lock first (`found`), so every pool has weight from its
 //!   first lock and no one can scoop an unassigned remainder.
 
@@ -142,6 +144,10 @@ pub mod imagine {
 
     pub fn renounce(ctx: Context<Renounce>) -> Result<()> {
         instructions::claim::renounce(ctx)
+    }
+
+    pub fn lock_forever(ctx: Context<Renounce>) -> Result<()> {
+        instructions::claim::lock_forever(ctx)
     }
 
     pub fn claim_creator(ctx: Context<ClaimCreator>) -> Result<()> {

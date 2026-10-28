@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, ApiError, type PoolDetail, type RewardHistory } from "@/lib/api";
 import { loadFees } from "@/lib/fees";
-import { formatBps, formatPrice, formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
+import { explorerAccount, FOREVER_TOOLTIP, formatBps, formatPrice, formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
 import { IMAGINE_MINT } from "@/lib/official";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 import { X_HANDLE } from "@/components/site-header-links";
@@ -101,6 +101,8 @@ export default async function CoinPage({
     .filter((entry) => entry.tier > 0);
   const lockersShare =
     ((10_000 - pool.terms.treasuryShareBps) / 10_000) * ((10_000 - pool.terms.creatorShareBps) / 10_000);
+  const foreverLocks = lockers?.lockers.filter((locker) => locker.forever) ?? [];
+  const foreverAmount = foreverLocks.reduce((sum, locker) => sum + BigInt(locker.amount), 0n);
 
   return (
     <div className="container-x py-10 lg:py-14">
@@ -201,6 +203,31 @@ export default async function CoinPage({
             accent
           />
         </dl>
+        {foreverLocks.length > 0 ? (
+          <section className="card flex flex-wrap items-center gap-3 px-5 py-4" title={FOREVER_TOOLTIP}>
+            <span className="pill pill-steel h-[22px] px-2.5 text-[11px]">Locked forever</span>
+            <p className="min-w-0 flex-1 text-[13px] text-fg-soft">
+              {formatTokenAmount(foreverAmount, decimals)} ${symbol}
+              {BigInt(tokenSupply) > 0n
+                ? ` (${formatPercent(Number((foreverAmount * 1_000_000n) / BigInt(tokenSupply)) / 1_000_000, 1)} of supply)`
+                : ""}{" "}
+              can never be unlocked or withdrawn; its earnings go to the other lockers.
+            </p>
+            <span className="flex flex-wrap gap-2 text-[12px]">
+              {foreverLocks.map((locker) => (
+                <a
+                  key={locker.address}
+                  href={explorerAccount(locker.address)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-steel-hi hover:text-fg"
+                >
+                  On-chain proof · {shortAddress(locker.owner)} ↗
+                </a>
+              ))}
+            </span>
+          </section>
+        ) : null}
       </header>
 
       <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">

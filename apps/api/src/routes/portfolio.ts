@@ -1,10 +1,11 @@
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { claimableFor, type PoolAccount, type PositionAccount } from "@imagine/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";
 import { rawToUsd, type QuoteInfo } from "../quotes.ts";
-import { imagine } from "../solana.ts";
+import { connection, imagine } from "../solana.ts";
 import { pricesFor, QUOTE_COLUMNS, quoteFromRow, RECONSTRUCTED_KIND } from "../views.ts";
 
 type Row = Record<string, unknown>;
@@ -97,12 +98,65 @@ export async function portfolioRoutes(app: FastifyInstance) {
       rewardCap: position.rewardCap.toString(),
       /** Gave up its earnings for good: tokens locked, earns nothing. */
       renounced: position.renounced,
+      /** Locked for good: can never be unlocked or withdrawn; earns nothing. */
+      forever: position.forever,
     }));
 
     return {
       positions: rows,
       totals: { pendingUsd: described.pendingUsd, claimedUsd: described.claimedUsd, positions: rows.length },
     };
+  });
+
+  /**
+   * A wallet's unlocked IMAGINE coins: what sits in its own token accounts,
+   * not what is locked. Only coins with an IMAGINE pool are listed. The site
+   * cannot scan token accounts through the RPC proxy, so it reads them here.
+   */
+  app.get("/portfolio/:owner/holdings", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const { owner } = z.object({ owner: z.string() }).parse(request.params);
+    let key: PublicKey;
+    try {
+      key = new PublicKey(owner);
+    } catch {
+      return reply.code(400).send({ error: "invalid owner" });
+    }
+
+    const [tokens2022, tokensLegacy] = await Promise.all([
+      connection.getParsedTokenAccountsByOwner(key, { programId: TOKEN_2022_PROGRAM_ID }),
+      connection.getParsedTokenAccountsByOwner(key, { programId: TOKEN_PROGRAM_ID }),
+    ]);
+    const held = [...tokens2022.value, ...tokensLegacy.value]
+      .map((entry) => {
+        const info = entry.account.data.parsed.info as { mint: string; tokenAmount: { amount: string; decimals: number } };
+        return {
+          account: entry.pubkey.toBase58(),
+          mint: info.mint,
+          amount: info.tokenAmount.amount,
+          decimals: info.tokenAmount.decimals,
+          tokenProgram: entry.account.owner.toBase58(),
+        };
+      })
+      .filter((holding) => BigInt(holding.amount) > 0n);
+    if (held.length === 0) return { holdings: [] };
+
+    const coins = await sql`
+      SELECT mint, symbol, name, image_url FROM pools WHERE mint = ANY(${[...new Set(held.map((h) => h.mint))]})
+    `;
+    const coinByMint = new Map(coins.map((row) => [row.mint as string, row]));
+    const holdings = held.flatMap((holding) => {
+      const coin = coinByMint.get(holding.mint);
+      if (!coin) return [];
+      return [
+        {
+          ...holding,
+          symbol: (coin.symbol as string | null) ?? null,
+          name: (coin.name as string | null) ?? null,
+          imageUrl: (coin.image_url as string | null) ?? null,
+        },
+      ];
+    });
+    return { holdings };
   });
 
   /**

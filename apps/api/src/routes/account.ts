@@ -286,6 +286,8 @@ export async function accountRoutes(app: FastifyInstance) {
         rewardCap: position.rewardCap.toString(),
         /** Gave up its earnings for good: tokens locked, earns nothing. */
         renounced: position.renounced,
+        /** Locked for good: can never be unlocked or withdrawn; earns nothing. */
+        forever: position.forever,
         /** What breaking the lock right now would burn. */
         earlyExitBurn: earlyExitPenalty(position.amount, position.lockStart, position.lockEnd, now, penaltyBps).toString(),
       };
@@ -339,10 +341,13 @@ export async function accountRoutes(app: FastifyInstance) {
    * so — like withdraw — it needs a fresh sign-in and a slippage no wider than
    * `CUSTODIAL_MAX_SLIPPAGE_BPS`: a stolen week-old cookie must not be able to
    * buy an attacker's coin with the whole balance and let them sell into it.
+   * Burning coins and locking a position forever destroy value for good, so
+   * they take the same fresh sign-in.
    */
   app.post("/me/action", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
     const action = ActionSchema.parse(request.body);
-    const account = await requireAccount(request, reply, { recent: action.kind === "swap" });
+    const recent = action.kind === "swap" || action.kind === "burn" || action.kind === "lockForever";
+    const account = await requireAccount(request, reply, { recent });
     if (!account) return;
     if (action.kind === "swap" && action.slippageBps > CUSTODIAL_MAX_SLIPPAGE_BPS) {
       return reply.code(400).send({ error: `slippage is capped at ${CUSTODIAL_MAX_SLIPPAGE_BPS / 100}% for account wallets` });

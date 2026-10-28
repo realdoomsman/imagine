@@ -6,7 +6,7 @@ import Link from "next/link";
 import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Holding, type WalletView } from "@/lib/api";
-import { formatAmount, formatNumber, formatUsd, parseAmount, decimalInput } from "@/lib/format";
+import { decimalInput, explorerTx, formatAmount, formatNumber, formatUsd, parseAmount } from "@/lib/format";
 import { useAccount } from "./account-provider";
 import { ImagineMark } from "./imagine-mark";
 import { CopyButton } from "./copy-button";
@@ -15,10 +15,7 @@ import { PositionCard } from "./position-card";
 import { Shimmer } from "./skeleton";
 import { SignInPrompt } from "./sign-in-prompt";
 import { ReauthNotice, reauthMessage } from "./reauth-notice";
-
-const CLUSTER = process.env.NEXT_PUBLIC_CLUSTER ?? "mainnet-beta";
-const EXPLORER_SUFFIX = CLUSTER === "mainnet-beta" ? "" : `?cluster=${CLUSTER === "localnet" ? "custom" : CLUSTER}`;
-const explorerTx = (sig: string) => `https://solscan.io/tx/${sig}${EXPLORER_SUFFIX}`;
+import { BurnPanel, WalletBurnPanel } from "./burn-panel";
 
 /**
  * The account page: the Imagine wallet held for a Google sign-in.
@@ -120,7 +117,14 @@ export function AccountView() {
 
   // An extension wallet has no Imagine wallet to show; its locks are read
   // from chain for whichever key is connected.
-  if (!account && wallet.publicKey) return <PortfolioView />;
+  if (!account && wallet.publicKey) {
+    return (
+      <>
+        <PortfolioView />
+        <WalletBurnPanel />
+      </>
+    );
+  }
 
   if (!account) {
     return (
@@ -247,6 +251,7 @@ export function AccountView() {
                     void run(`extend-${key}`, () => api.act({ kind: "extend", ...base, durationSecs: seconds }))
                   }
                   onRenounce={() => void run(`renounce-${key}`, () => api.act({ kind: "renounce", ...base }))}
+                  onLockForever={() => void run(`forever-${key}`, () => api.act({ kind: "lockForever", ...base }))}
                 />
               );
             })}
@@ -271,6 +276,12 @@ export function AccountView() {
       </section>
 
       <WithdrawPanel holdings={view.holdings} sol={BigInt(view.solAvailable)} busy={busy} run={run} />
+
+      <BurnPanel
+        holdings={view.holdings.filter((holding) => holding.hasPool && !holding.asset)}
+        busy={busy}
+        burn={(mint, amount) => run("burn", () => api.act({ kind: "burn", mint, amount: amount.toString() }))}
+      />
 
       <KeyPanel wallet={view.wallet} busy={busy} run={run} />
 
@@ -315,6 +326,10 @@ function describeAction(kind: string, detail: Record<string, unknown>): string {
       return `Claimed rewards on ${coin}`;
     case "renounce":
       return `Gave up earnings on ${coin}`;
+    case "lockForever":
+      return `Locked forever on ${coin}`;
+    case "burn":
+      return `Burned ${coin}`;
     case "extend":
       return `Extended the lock on ${coin}${term ? ` to ${term}` : ""}`;
     case "increase":

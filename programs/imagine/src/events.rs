@@ -131,6 +131,18 @@ pub struct Renounced {
     pub timestamp: i64,
 }
 
+/// A lock was locked forever: its tokens can never leave the vault and its
+/// earnings go to the other lockers. Irreversible.
+#[event]
+pub struct LockedForever {
+    pub pool: Pubkey,
+    pub position: Pubkey,
+    pub owner: Pubkey,
+    pub amount: u64,
+    pub lock_end: i64,
+    pub timestamp: i64,
+}
+
 #[event]
 pub struct Unlocked {
     pub pool: Pubkey,

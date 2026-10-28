@@ -615,5 +615,9 @@ pub struct Position {
     /// locked to its end date but holds no weight, so every unit it would
     /// have earned goes to the other lockers. Irreversible.
     pub renounced: bool,
-    pub _reserved: [u8; 31],
+    /// The owner locked these tokens for good (`lock_forever`): the lock can
+    /// never be unlocked, broken, grown or extended, and it is renounced, so
+    /// its earnings go to the other lockers. Irreversible.
+    pub forever: bool,
+    pub _reserved: [u8; 30],
 }

@@ -1,4 +1,5 @@
 import { PublicKey, type AddressLookupTableAccount, type TransactionInstruction } from "@solana/web3.js";
+import { createBurnCheckedInstruction, getAssociatedTokenAddressSync, unpackAccount, unpackMint } from "@solana/spl-token";
 import {
   DAY,
   HOUR,
@@ -76,6 +77,10 @@ export const ActionSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("claim"), mint: pubkey, index }),
   z.object({ kind: z.literal("renounce"), mint: pubkey, index }),
+  /** Irreversible: the lock can never be unlocked, and its earnings go to the other lockers. */
+  z.object({ kind: z.literal("lockForever"), mint: pubkey, index }),
+  /** Destroy coins from the signer's own token account. Base units, exact. */
+  z.object({ kind: z.literal("burn"), mint: pubkey, amount: baseUnits }),
   z.object({
     kind: z.literal("unlock"),
     mint: pubkey,
@@ -136,6 +141,9 @@ async function anyPool(mint: PublicKey): Promise<PoolAccount> {
   return pool;
 }
 
+/** What every refused change to a lock-forever position says. */
+const LOCKED_FOREVER = "this lock is locked forever: it can never be unlocked, added to or extended";
+
 export async function buildAction(owner: PublicKey, action: Action): Promise<BuiltAction> {
   const mint = new PublicKey(action.mint);
   const plain = (instructions: TransactionInstruction[]): BuiltAction => ({ instructions, lookupTables: [], meta: {} });
@@ -165,7 +173,9 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
         lockablePool(mint),
       ]);
       if (!positionInfo) throw new ActionError(404, "that lock does not exist");
-      const remaining = decodePosition(positionInfo.data).lockEnd - Math.floor(Date.now() / 1000);
+      const existing = decodePosition(positionInfo.data);
+      if (existing.forever) throw new ActionError(409, LOCKED_FOREVER);
+      const remaining = existing.lockEnd - Math.floor(Date.now() / 1000);
       if (remaining < pool.terms.minLockSecs) {
         throw new ActionError(
           409,
@@ -184,7 +194,11 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
     }
 
     case "extend": {
-      const { pool, valuation, quote } = await lockablePool(mint);
+      const [{ pool, valuation, quote }, position] = await Promise.all([
+        lockablePool(mint),
+        imagine.fetchPosition(mint, owner, action.index),
+      ]);
+      if (position?.forever) throw new ActionError(409, LOCKED_FOREVER);
       assertInWindow(action.durationSecs, pool.terms);
       const ixs = await imagine.extend({
         owner,
@@ -212,11 +226,35 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
       return plain([...budgetInstructions(100_000, 150_000), ix]);
     }
 
+    case "lockForever": {
+      const [position, pool] = await Promise.all([imagine.fetchPosition(mint, owner, action.index), anyPool(mint)]);
+      if (!position) throw new ActionError(404, "no such lock");
+      if (position.forever) throw new ActionError(409, "this lock is already locked forever");
+      const ix = await imagine.lockForever({ owner, mint, quote: quoteOf(pool), index: action.index });
+      return plain([...budgetInstructions(100_000, 150_000), ix]);
+    }
+
+    case "burn": {
+      // Only an IMAGINE coin, only from the signer's own account, only what it holds.
+      const pool = await anyPool(mint);
+      const amount = BigInt(action.amount);
+      if (amount === 0n) throw new ActionError(400, "nothing to burn");
+      const ata = getAssociatedTokenAddressSync(mint, owner, true, pool.tokenProgram);
+      const [ataInfo, mintInfo] = await connection.getMultipleAccountsInfo([ata, mint]);
+      if (!mintInfo) throw new ActionError(404, "this coin's mint is missing");
+      const balance = ataInfo ? unpackAccount(ata, ataInfo, pool.tokenProgram).amount : 0n;
+      if (amount > balance) throw new ActionError(409, "you cannot burn more than this wallet holds");
+      const { decimals } = unpackMint(mint, mintInfo, pool.tokenProgram);
+      const ix = createBurnCheckedInstruction(ata, mint, owner, amount, decimals, [], pool.tokenProgram);
+      return plain([...budgetInstructions(100_000, 50_000), ix]);
+    }
+
     case "unlock": {
       // Principal goes to the owner's coin ATA and earnings to their quote
       // ATA; either may have been closed since locking, so both are
       // recreated idempotently.
-      const pool = await anyPool(mint);
+      const [pool, position] = await Promise.all([anyPool(mint), imagine.fetchPosition(mint, owner, action.index)]);
+      if (position?.forever) throw new ActionError(409, LOCKED_FOREVER);
       const ixs = await imagine.unlock({ owner, mint, quote: quoteOf(pool), index: action.index, early: action.early });
       return plain([...budgetInstructions(100_000, 250_000), ...ixs]);
     }

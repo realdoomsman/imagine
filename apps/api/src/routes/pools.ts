@@ -237,6 +237,7 @@ export async function poolRoutes(app: FastifyInstance) {
 
     const rows = positions
       .map((position) => ({
+        address: position.address.toBase58(),
         owner: position.owner.toBase58(),
         index: position.index,
         amount: position.amount.toString(),
@@ -249,6 +250,8 @@ export async function poolRoutes(app: FastifyInstance) {
         rewardCap: position.rewardCap.toString(),
         /** Gave up its earnings for good: tokens locked, earns nothing. */
         renounced: position.renounced,
+        /** Locked for good: can never be unlocked or withdrawn; earns nothing. */
+        forever: position.forever,
         share: pool.totalWeight > 0n ? Number(position.weight) / Number(pool.totalWeight) : 0,
       }))
       // By tokens locked, so a lock that renounced its earnings still shows
@@ -290,9 +293,9 @@ export async function poolRoutes(app: FastifyInstance) {
   app.get("/pools/:mint/activity", async (request) => {
     const { mint } = z.object({ mint: pubkey }).parse(request.params);
     const rows = await sql`
-      (SELECT 'lock' AS type, owner, amount::TEXT, at, signature FROM lock_events WHERE mint = ${mint})
+      (SELECT 'lock' AS type, kind, owner, amount::TEXT, at, signature FROM lock_events WHERE mint = ${mint})
       UNION ALL
-      (SELECT 'claim' AS type, owner, amount::TEXT, at, signature FROM claim_events WHERE mint = ${mint})
+      (SELECT 'claim' AS type, 'Claimed' AS kind, owner, amount::TEXT, at, signature FROM claim_events WHERE mint = ${mint})
       ORDER BY at DESC
       LIMIT 40
     `;

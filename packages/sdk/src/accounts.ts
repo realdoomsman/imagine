@@ -146,6 +146,8 @@ export interface PositionAccount {
   rewardCap: bigint;
   /** The owner gave up this lock's earnings for good; it holds no weight. */
   renounced: boolean;
+  /** Locked for good (`lock_forever`): can never be unlocked, grown or extended; also renounced. */
+  forever: boolean;
 }
 
 export interface ConfigAccount {
@@ -246,6 +248,7 @@ export function decodePosition(data: Buffer | Uint8Array): PositionAccount {
     bump: num(raw.bump),
     rewardCap: big(raw.reward_cap),
     renounced: Boolean(raw.renounced),
+    forever: Boolean(raw.forever),
   };
 }
 

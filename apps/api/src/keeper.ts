@@ -266,8 +266,9 @@ async function maturedCandidates(): Promise<typeof matured> {
   matured = accounts
     .flatMap(({ pubkey, account }) => {
       try {
-        const { lockEnd } = decodePosition(account.data);
-        return lockEnd <= horizon ? [{ address: pubkey, lockEnd }] : [];
+        // A lock-forever position never unlocks, however long ago it matured.
+        const { lockEnd, forever } = decodePosition(account.data);
+        return lockEnd <= horizon && !forever ? [{ address: pubkey, lockEnd }] : [];
       } catch {
         return [];
       }
@@ -309,8 +310,8 @@ async function unlockMatured(keeper: Keypair): Promise<number> {
         continue;
       }
       const position = decodePosition(positionInfo.data);
-      if (position.lockEnd > now) {
-        forget(address); // extended since the scan
+      if (position.lockEnd > now || position.forever) {
+        forget(address); // extended, or locked forever, since the scan
         continue;
       }
       const poolInfo = await connection.getAccountInfo(position.pool);

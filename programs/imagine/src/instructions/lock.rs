@@ -386,6 +386,10 @@ pub fn increase<'info>(
 ) -> Result<()> {
     require!(amount > 0, ImagineError::AmountTooSmall);
     require!(
+        !ctx.accounts.position.forever,
+        ImagineError::PositionLockedForever
+    );
+    require!(
         !ctx.accounts.position.renounced,
         ImagineError::PositionRenounced
     );
@@ -495,6 +499,10 @@ pub fn extend<'info>(
     duration_secs: u32,
 ) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
+    require!(
+        !ctx.accounts.position.forever,
+        ImagineError::PositionLockedForever
+    );
     require!(
         !ctx.accounts.position.renounced,
         ImagineError::PositionRenounced

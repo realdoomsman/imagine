@@ -569,6 +569,37 @@ export class ImagineClient {
   }
 
   /**
+   * Lock a position's tokens for good: irreversibly, `unlock`, `early_unlock`,
+   * `increase` and `extend` all fail from here on. The lock is renounced too
+   * (if it was not already), so its earnings go to the other lockers.
+   * Owner-signed. `quote` is read from the pool when omitted.
+   */
+  async lockForever(params: {
+    owner: PublicKey;
+    mint: PublicKey;
+    index: number;
+    quote?: QuoteRef;
+  }): Promise<TransactionInstruction> {
+    let quote = params.quote;
+    if (!quote) {
+      const pool = await this.fetchPool(params.mint);
+      if (!pool) throw new Error(`no IMAGINE pool for ${params.mint.toBase58()}`);
+      quote = { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram };
+    }
+    const { rewardVault, rewardTokenAccount } = this.rewardAccounts(params.mint, quote);
+    return this.program.methods
+      .lockForever()
+      .accountsPartial({
+        owner: params.owner,
+        pool: poolPda(params.mint, this.programId),
+        rewardVault,
+        rewardTokenAccount,
+        position: positionPda(params.mint, params.owner, params.index, this.programId),
+      })
+      .instruction();
+  }
+
+  /**
    * Close a position, preceded by idempotent creates of the owner's coin ATA
    * (principal only ever lands there) and, for a token quote, quote ATA,
    * paid by `payer`.

@@ -60,4 +60,6 @@ pub enum ImagineError {
     PlatformMismatch,
     #[msg("Metadata URI is not this coin's IMAGINE metadata document")]
     InvalidMetadataUri,
+    #[msg("This lock is locked forever; it can never be unlocked, grown or extended")]
+    PositionLockedForever,
 }

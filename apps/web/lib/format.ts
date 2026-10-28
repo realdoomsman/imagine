@@ -90,3 +90,15 @@ export function decimalInput(raw: string): string {
   const point = cleaned.indexOf(".");
   return point === -1 ? cleaned : `${cleaned.slice(0, point + 1)}${cleaned.slice(point + 1).replace(/\./g, "")}`;
 }
+
+const CLUSTER = process.env.NEXT_PUBLIC_CLUSTER ?? "mainnet-beta";
+const EXPLORER_SUFFIX = CLUSTER === "mainnet-beta" ? "" : `?cluster=${CLUSTER === "localnet" ? "custom" : CLUSTER}`;
+
+/** Solscan for a transaction. */
+export const explorerTx = (signature: string) => `https://solscan.io/tx/${signature}${EXPLORER_SUFFIX}`;
+
+/** Solscan for an account: the on-chain proof of a position's state. */
+export const explorerAccount = (address: string) => `https://solscan.io/account/${address}${EXPLORER_SUFFIX}`;
+
+/** The tooltip on every "Locked forever" badge. */
+export const FOREVER_TOOLTIP = "This lock can never be unlocked or withdrawn; its earnings go to the other lockers";

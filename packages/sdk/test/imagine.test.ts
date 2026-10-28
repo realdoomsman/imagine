@@ -15,7 +15,7 @@ import { describe, it } from "node:test";
 import { decodeConfig } from "../src/accounts.ts";
 import { ImagineClient } from "../src/client.ts";
 import { ECONOMICS, FeeKind, metadataUri } from "../src/constants.ts";
-import { configPda, rewardTokenAccount, rewardVaultPda, tokenVaultPda } from "../src/pda.ts";
+import { configPda, positionPda, rewardTokenAccount, rewardVaultPda, tokenVaultPda } from "../src/pda.ts";
 import {
   accrued,
   claimableFor,
@@ -90,6 +90,21 @@ const held = (w: World, owner: PublicKey) => quoteHeld(w.svm, owner, w.quote);
 function lockIx(w: World, owner: PublicKey, index: number, amount: bigint, durationSecs: number) {
   return client.lock({ owner, mint: w.mint, quote: w.quote, index, amount, durationSecs });
 }
+
+/** The program's Anchor events in a transaction's logs. */
+function eventsIn(logs: string[]) {
+  return logs
+    .filter((line) => line.startsWith("Program data: "))
+    .map((line) => client.program.coder.events.decode(line.slice("Program data: ".length)))
+    .filter((event): event is NonNullable<typeof event> => event !== null) as Array<{
+    name: string;
+    data: Record<string, unknown>;
+  }>;
+}
+
+/** An Anchor-decoded integer (BN). Read in hex: BN's base-10 stringifier is unreliable here (see `big` in accounts.ts). */
+type Decimal = { toString(radix: number): string };
+const bigOf = (value: unknown) => BigInt(`0x${(value as Decimal).toString(16)}`);
 
 /** A `deposit_reward` from `payer`, funding its quote ATA first on a token quote. */
 async function depositIx(w: World, payer: Keypair, amount: bigint, kind: number = FeeKind.Buy) {
@@ -862,6 +877,139 @@ for (const q of QUOTES) {
       warp(w.svm, 101 * DAY);
       send(w.svm, await client.unlock({ owner: creator, mint: w.mint, quote: q, index: 0, early: false }), [w.creator]);
       assert.equal(tokenBalance(w.svm, w.mint, creator) - tokensBefore, 50_000n * TOKEN);
+    });
+
+    it("lock_forever can never be unlocked, grown or extended, and forfeits its earnings", async () => {
+      const stayer = Keypair.generate();
+      const w = await openPool({
+        quote: q,
+        initialLockAmount: 50_000n * TOKEN,
+        initialLockDuration: 30 * DAY,
+        extraHolders: [{ owner: stayer.publicKey, amount: 100_000n * TOKEN }],
+      });
+      w.svm.airdrop(stayer.publicKey, 10n * WSOL.unit);
+      send(w.svm, [await lockIx(w, stayer.publicKey, 0, 50_000n * TOKEN, 7 * DAY)], [stayer]);
+      const trader = fundedKeypair(w.svm);
+      await deposit(w, 10n * q.unit, FeeKind.Buy, trader);
+      warp(w.svm, ECONOMICS.rewardStreamSecs / 2);
+
+      const creator = w.creator.publicKey;
+      const position = positionPda(w.mint, creator, 0);
+      const stayerPos = readPosition(w.svm, w.mint, stayer.publicKey, 0)!;
+      const before = readPosition(w.svm, w.mint, creator, 0)!;
+      const lockedBefore = readPool(w.svm, w.mint).totalLocked;
+      const owedBefore = claimableFor(before, readPool(w.svm, w.mint));
+
+      // Nobody else can lock someone's position forever.
+      const theirs = await client.lockForever({ owner: stayer.publicKey, mint: w.mint, quote: q, index: 0 });
+      const hijack = theirs.keys.map((k) => (k.pubkey.equals(positionPda(w.mint, stayer.publicKey, 0)) ? { ...k, pubkey: position } : k));
+      assert.match(
+        sendExpectingError(w.svm, [{ ...theirs, keys: hijack } as TransactionInstruction], [stayer]),
+        /ConstraintSeeds|ConstraintHasOne|seeds|has one/i,
+      );
+      assert.equal(readPosition(w.svm, w.mint, creator, 0)!.forever, false);
+
+      const logs = send(w.svm, [await client.lockForever({ owner: creator, mint: w.mint, quote: q, index: 0 })], [w.creator]);
+      const events = eventsIn(logs);
+      const locked = events.find((e) => e.name === "lockedForever" || e.name === "LockedForever");
+      assert.ok(locked, `LockedForever emitted (got ${events.map((e) => e.name).join(", ")})`);
+      assert.ok((locked.data.position as PublicKey).equals(position));
+      assert.ok((locked.data.owner as PublicKey).equals(creator));
+      assert.equal(bigOf(locked.data.amount), 50_000n * TOKEN);
+      assert.equal(Number(bigOf(locked.data.lock_end ?? locked.data.lockEnd)), before.lockEnd);
+      const renouncedEvent = events.find((e) => e.name === "renounced" || e.name === "Renounced");
+      assert.ok(renouncedEvent, "the forfeit is reported as a renounce too");
+      assert.ok(bigOf(renouncedEvent.data.forfeited_rewards ?? renouncedEvent.data.forfeitedRewards) >= owedBefore);
+
+      const forever = readPosition(w.svm, w.mint, creator, 0)!;
+      assert.equal(forever.forever, true);
+      assert.equal(forever.renounced, true);
+      assert.equal(forever.weight, 0n);
+      assert.equal(forever.amount, 50_000n * TOKEN);
+      assert.equal(forever.lockEnd, before.lockEnd);
+      const pool = readPool(w.svm, w.mint);
+      assert.equal(pool.totalLocked, lockedBefore, "tokens stay locked");
+      assert.equal(pool.totalWeight, stayerPos.weight, "only the stayer earns");
+      assert.ok(pool.undistributed > 0n, "what it had accrued rejoins the stream");
+
+      const tokensBefore = tokenBalance(w.svm, w.mint, creator);
+      const refusals = async () => [
+        [await client.lockForever({ owner: creator, mint: w.mint, quote: q, index: 0 })],
+        await client.increase({ owner: creator, mint: w.mint, quote: q, index: 0, amount: TOKEN }),
+        await client.extend({ owner: creator, mint: w.mint, quote: q, index: 0, durationSecs: 200 * DAY }),
+        await client.unlock({ owner: creator, mint: w.mint, quote: q, index: 0, early: true }),
+        await client.unlock({ owner: creator, mint: w.mint, quote: q, index: 0, early: false }),
+      ];
+      for (const ixs of await refusals()) {
+        assert.match(sendExpectingError(w.svm, ixs, [w.creator]), /PositionLockedForever/);
+      }
+
+      // Earnings are gone for good: everything goes to the stayer.
+      await deposit(w, 10n * q.unit, FeeKind.Buy, trader);
+      await settleStream(w, trader);
+      assert.match(
+        sendExpectingError(w.svm, await client.claim({ owner: creator, mint: w.mint, quote: q, index: 0 }), [w.creator]),
+        /NothingToClaim/,
+      );
+      const after = readPool(w.svm, w.mint);
+      const owedStayer = claimableFor(readPosition(w.svm, w.mint, stayer.publicKey, 0)!, after);
+      assert.ok(
+        owedStayer + after.rewardRemainder >= after.lifetimeRewards - 1_000n,
+        `stayer owed ${owedStayer} of ${after.lifetimeRewards}`,
+      );
+      assertSolvent(w.svm, w.mint, [
+        { owner: creator, index: 0 },
+        { owner: stayer.publicKey, index: 0 },
+      ]);
+
+      // Long after maturity nothing gets out either: not the owner, not a keeper.
+      warp(w.svm, 400 * DAY);
+      for (const ixs of await refusals()) {
+        assert.match(sendExpectingError(w.svm, ixs, [w.creator]), /PositionLockedForever/);
+      }
+      const keeper = fundedKeypair(w.svm);
+      assert.match(
+        sendExpectingError(
+          w.svm,
+          await client.unlock({ owner: creator, mint: w.mint, quote: q, index: 0, early: false, payer: keeper.publicKey }),
+          [keeper],
+        ),
+        /PositionLockedForever/,
+      );
+      assert.equal(tokenBalance(w.svm, w.mint, creator), tokensBefore, "no coin ever came back");
+      assert.equal(readPool(w.svm, w.mint).totalLocked, lockedBefore);
+      assert.equal(readPosition(w.svm, w.mint, creator, 0)!.forever, true, "the position is still there");
+
+      // The stayer's ordinary lock still unlocks as usual.
+      send(w.svm, await client.unlock({ owner: stayer.publicKey, mint: w.mint, quote: q, index: 0, early: false }), [stayer]);
+      assert.equal(readPosition(w.svm, w.mint, stayer.publicKey, 0), null);
+    });
+
+    it("lock_forever on an already renounced lock only seals it", async () => {
+      const w = await openPool({ quote: q, initialLockAmount: 50_000n * TOKEN, initialLockDuration: 30 * DAY });
+      const creator = w.creator.publicKey;
+      send(w.svm, [await client.renounce({ owner: creator, mint: w.mint, quote: q, index: 0 })], [w.creator]);
+      const poolBefore = readPool(w.svm, w.mint);
+      const logs = send(w.svm, [await client.lockForever({ owner: creator, mint: w.mint, quote: q, index: 0 })], [w.creator]);
+      const names = eventsIn(logs).map((e) => e.name.toLowerCase());
+      assert.deepEqual(names, ["lockedforever"]);
+      const position = readPosition(w.svm, w.mint, creator, 0)!;
+      assert.equal(position.forever, true);
+      assert.equal(readPool(w.svm, w.mint).totalWeight, poolBefore.totalWeight);
+      assert.equal(readPool(w.svm, w.mint).undistributed, poolBefore.undistributed, "no second forfeit");
+      for (const early of [true, false]) {
+        assert.match(
+          sendExpectingError(w.svm, await client.unlock({ owner: creator, mint: w.mint, quote: q, index: 0, early }), [w.creator]),
+          /PositionLockedForever/,
+        );
+      }
+      warp(w.svm, 31 * DAY);
+      for (const early of [true, false]) {
+        assert.match(
+          sendExpectingError(w.svm, await client.unlock({ owner: creator, mint: w.mint, quote: q, index: 0, early }), [w.creator]),
+          /PositionLockedForever/,
+        );
+      }
     });
 
     it("charges no penalty for an early exit at the very end of term", async () => {
