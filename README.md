@@ -144,7 +144,9 @@ These are properties of the bytecode, not policy:
   creator's founding position exists (`found`, in the launch transaction), so
   every pool has weight from its first live slot.
 - **The creator gets nothing from fees.** The pool's split is 90% lockers, 10%
-  treasury, 0% creator, and the coin's LaunchLab "creator" is the pool vault.
+  treasury (which funds continued development and future updates), 0% creator,
+  and the coin's LaunchLab "creator" is the pool vault. Creators who want a share
+  lock their own tokens and earn like any other locker.
 - **Coins only launch under the configured platform.** `launch` creates the coin
   through LaunchLab under `config.launchlab_platform` and makes the pool's vault
   the LaunchLab pool creator.

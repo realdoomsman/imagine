@@ -99,7 +99,8 @@ your share = weight / total weight in the pool`}
           nothing anyone else does can move yours.
         </p>
         <p>
-          Of everything that arrives, 10% goes to the treasury and 90% streams to lockers by
+          Of everything that arrives, 10% goes to the treasury, which funds continued development of
+          IMAGINE and future updates, and 90% streams to lockers by
           weight. Arrivals are released over a short window rather than all at once, so a lock
           opened a moment before a big trade earns a moment&apos;s worth of it, not a slice of the
           whole. A new lock earns from fees that arrive after it and never dilutes what earlier
