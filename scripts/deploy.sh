@@ -30,7 +30,7 @@ BUFFER="$ROOT/target/deploy/imagine-buffer.json"
 # Room for upgrades without paying rent on double the binary (the default).
 # `solana program extend` grows it later if a build outgrows this.
 MAX_LEN="${MAX_LEN:-800000}"
-NEEDED=4.2
+NEEDED="${NEEDED:-4.2}"
 
 case "$CLUSTER" in
   localnet) RPC="${RPC_URL:-http://127.0.0.1:8999}" ;;
