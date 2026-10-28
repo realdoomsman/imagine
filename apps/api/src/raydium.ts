@@ -526,17 +526,6 @@ const LAUNCH_UNITS = 1_000_000;
 const STEP_UNITS = 500_000;
 
 /**
- * Nobody but IMAGINE launches a coin called IMAGINE: fakes would use the site
- * to pass as the official coin. Catches the ticker inside a longer one and
- * common letter swaps (1/l/|/! for i, 0 for o, a leading $).
- */
-function impersonatesImagine(name: string, symbol: string): boolean {
-  const fold = (text: string) =>
-    text.toLowerCase().replace(/[1l|!]/g, "i").replace(/0/g, "o").replace(/[^a-z]/g, "");
-  return fold(symbol).includes("imagine") || name.split(/\s+/).some((word) => fold(word).startsWith("imagine"));
-}
-
-/**
  * A launch, as the ordered transactions the creator signs back to back.
  *
  * Normally one v0 transaction through the `LAUNCH_ALT` table:
@@ -561,9 +550,6 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
   const native = isNative(quoteMint);
   if (request.devBuy <= 0n) {
     throw new ActionError(400, "a launch needs a dev buy: the creator must lock coins to open the pool");
-  }
-  if (impersonatesImagine(request.name, request.symbol)) {
-    throw new ActionError(403, "the IMAGINE name and ticker are reserved for the official $IMAGINE coin");
   }
 
   // The metadata must be the document hosted here for this mint, whose
