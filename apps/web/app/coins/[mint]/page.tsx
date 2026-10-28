@@ -247,15 +247,18 @@ export default async function CoinPage({
             <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-4">
               <Term label="Fees, 24h" value={formatQuote(rewardRate.feesPerDay, quote)} />
               <Term label="To lockers, 24h" value={formatQuote(rewardRate.lockersPerDay, quote)} accent />
-              <Term label="In the vault, unsynced" value={formatQuote(rewardRate.unsynced, quote)} />
-              <Term label="Pool fee, uncollected" value={formatQuote(rewardRate.uncollected, quote)} />
+              <Term label="Paid to lockers, all time" value={formatQuote(pool.lifetimeRewards, quote)} accent />
+              <Term
+                label="On its way to lockers"
+                value={formatQuote((BigInt(rewardRate.uncollected) + BigInt(rewardRate.unsynced)).toString(), quote)}
+              />
             </dl>
             <p className="mt-4 text-[12.5px] leading-relaxed text-muted">
               {streaming
                 ? `${formatQuote(pool.undistributed, quote)} is streaming to lockers over the next ${formatDuration(pool.streamEnd - now)}. `
                 : "Nothing is streaming right now; the next fee starts a new stream. "}
-              The on-chain fee waits in Raydium&apos;s fee vault until anyone collects it into the pool; anything in the
-              vault is booked by the next sync and streamed the same way.{" "}
+              Fees from trades are collected into the pool automatically every few minutes and then streamed the same
+              way.{" "}
               {rewardRate.trades > 0
                 ? `${rewardRate.trades} trade${rewardRate.trades === 1 ? "" : "s"} (${formatQuote(rewardRate.siteVolume, quote)}) went through Imagine in this window.`
                 : null}
