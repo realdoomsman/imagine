@@ -68,7 +68,11 @@ async function send(transaction: Transaction): Promise<string> {
 }
 
 if (existing) {
+  // TREASURY_PUBKEY moves the treasury stamped into pools created from now on;
+  // live pools keep the treasury frozen into them at creation.
+  const treasury = process.env.TREASURY_PUBKEY ? new PublicKey(process.env.TREASURY_PUBKEY) : existing.treasury;
   const drift =
+    !existing.treasury.equals(treasury) ||
     !existing.launchlabPlatform.equals(LAUNCHLAB_PLATFORM) ||
     existing.tradeFeeBps !== ECONOMICS.tradeFeeBps ||
     existing.defaultTreasuryShareBps !== ECONOMICS.treasuryShareBps ||
@@ -94,7 +98,7 @@ if (existing) {
   console.log("before:", summary(existing));
   const update = await imagine.program.methods
     .updateConfig(
-      ImagineClient.configArgs({ treasury: existing.treasury, launchlabPlatform: LAUNCHLAB_PLATFORM, paused: existing.paused }),
+      ImagineClient.configArgs({ treasury, launchlabPlatform: LAUNCHLAB_PLATFORM, paused: existing.paused }),
     )
     .accountsPartial({ admin: admin.publicKey, config: configPda() })
     .instruction();
