@@ -1672,3 +1672,89 @@ for (const q of QUOTES) {
     });
   });
 }
+
+/*
+ * An xStock issuer keeps a permanent delegate, freeze and pause powers over
+ * the quote. The suite stands in for them by editing the vault's token
+ * account directly: the program sees exactly what a delegate transfer or a
+ * freeze would leave behind.
+ */
+describe("quote issuer powers (SPYx)", () => {
+  const q = SPYX;
+  const vaultOf = (w: World) => rewardTokenAccount(w.mint, q.mint, q.tokenProgram)!;
+
+  it("absorbs quote pulled from the vault: treasury, stream, remainder, then a shortfall repaid first", async () => {
+    const w = await openPool({ quote: q, initialLockDuration: 7 * DAY });
+    const trader = await deposit(w, 100n * q.unit);
+    warp(w.svm, Math.floor(STREAM_SECS / 2));
+    send(w.svm, [await client.sync({ mint: w.mint, quote: q })], [trader]);
+    const before = readPool(w.svm, w.mint);
+    assert.ok(before.treasuryClaimable > 0n && before.undistributed > 0n);
+
+    // More than everything no locker has been credited yet.
+    const unassigned = before.treasuryClaimable + before.undistributed + before.rewardRemainder;
+    addTokenAmount(w.svm, vaultOf(w), -(unassigned + 1_000n));
+    const projected = projectSync(before, rewardBalance(w.svm, w.mint), now(w.svm));
+    send(w.svm, [await client.sync({ mint: w.mint, quote: q })], [trader]);
+    const after = readPool(w.svm, w.mint);
+    assert.equal(after.treasuryClaimable, 0n);
+    assert.equal(after.undistributed, 0n);
+    assert.equal(after.rewardRemainder, 0n);
+    assert.equal(after.shortfall, 1_000n);
+    assert.equal(after.lastVaultBalance, rewardBalance(w.svm, w.mint));
+    assert.equal(after.accRewardPerWeight, before.accRewardPerWeight, "credited lockers keep their accrual");
+    for (const field of ["shortfall", "treasuryClaimable", "undistributed", "rewardRemainder", "lastVaultBalance", "streamRate"] as const) {
+      assert.equal(projected[field], after[field], field);
+    }
+
+    // New quote makes good the shortfall before it is split.
+    await deposit(w, 600n, FeeKind.Buy, trader);
+    assert.equal(readPool(w.svm, w.mint).shortfall, 400n);
+    assert.equal(readPool(w.svm, w.mint).lifetimeInflow, after.lifetimeInflow, "a repayment is not inflow");
+    await deposit(w, 10n * q.unit, FeeKind.Buy, trader);
+    const repaid = readPool(w.svm, w.mint);
+    assert.equal(repaid.shortfall, 0n);
+    assert.equal(repaid.lifetimeInflow, after.lifetimeInflow + 10n * q.unit - 400n);
+    assertSolvent(w.svm, w.mint, [{ owner: w.creator.publicKey, index: 0 }]);
+
+    // Claims and the matured unlock still pay.
+    const owed = accrued(readPosition(w.svm, w.mint, w.creator.publicKey, 0)!.weight, repaid.accRewardPerWeight, readPosition(w.svm, w.mint, w.creator.publicKey, 0)!.rewardDebt);
+    const heldBefore = held(w, w.creator.publicKey);
+    send(w.svm, await client.claim({ owner: w.creator.publicKey, mint: w.mint, quote: q, index: 0 }), [w.creator]);
+    assert.ok(held(w, w.creator.publicKey) - heldBefore >= owed && owed > 0n, "the claim paid what was credited");
+    warp(w.svm, 8 * DAY);
+    const coins = tokenBalance(w.svm, w.mint, w.creator.publicKey);
+    const locked = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!.amount;
+    send(w.svm, await client.unlock({ owner: w.creator.publicKey, mint: w.mint, quote: q, index: 0, early: false }), [w.creator]);
+    assert.equal(tokenBalance(w.svm, w.mint, w.creator.publicKey), coins + locked);
+  });
+
+  it("a frozen vault blocks quote payouts, never the coins: a matured lock leaves whole through early_unlock", async () => {
+    const w = await openPool({ quote: q, initialLockDuration: 7 * DAY });
+    await deposit(w, 100n * q.unit);
+    warp(w.svm, 8 * DAY);
+
+    // AccountState::Frozen (offset 108 in both token programs).
+    const vault = vaultOf(w);
+    const acc = w.svm.getAccount(vault)!;
+    const data = Buffer.from(acc.data);
+    data[108] = 2;
+    w.svm.setAccount(vault, { ...acc, data });
+
+    const unlock = (early: boolean) => client.unlock({ owner: w.creator.publicKey, mint: w.mint, quote: q, index: 0, early });
+    assert.match(sendExpectingError(w.svm, await unlock(false), [w.creator]), /frozen|0x11/i);
+    assert.match(
+      sendExpectingError(w.svm, await client.claim({ owner: w.creator.publicKey, mint: w.mint, quote: q, index: 0 }), [w.creator]),
+      /frozen|0x11/i,
+    );
+
+    const coins = tokenBalance(w.svm, w.mint, w.creator.publicKey);
+    const supply = mintSupply(w.svm, w.mint);
+    const locked = readPosition(w.svm, w.mint, w.creator.publicKey, 0)!.amount;
+    send(w.svm, await unlock(true), [w.creator]);
+    assert.equal(tokenBalance(w.svm, w.mint, w.creator.publicKey), coins + locked, "every coin back");
+    assert.equal(mintSupply(w.svm, w.mint), supply, "nothing burned at maturity");
+    assert.equal(readPosition(w.svm, w.mint, w.creator.publicKey, 0), null);
+    assert.equal(readPool(w.svm, w.mint).totalLocked, 0n);
+  });
+});

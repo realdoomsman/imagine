@@ -125,10 +125,12 @@ The value (`price.rs`) is read on chain from the venue the coin trades on:
   real_base)`. The account is pinned to `pool.launchlab_pool`, its owner must be
   LaunchLab and its discriminator is checked.
 - **Migrated** (status 2): remaining accounts are the CPMM `PoolState` and its
-  two vaults. The pool must hold exactly (coin, quote), be the canonical CPMM PDA
-  `["pool", amm_config, token0, token1]` for its own `amm_config`, and the vault
-  keys must match the pool state. Price = quote vault / coin vault, net of fees
-  parked in the vaults.
+  two vaults. The pool must hold exactly (coin, quote), be the CPMM PDA
+  `["pool", amm_config, token0, token1]` for its own `amm_config`, and have the
+  pool's reward vault as `pool_creator`, which only LaunchLab's migration can
+  set: anyone may open another pool for the pair under another AmmConfig at
+  any price, and that one is refused. The vault keys must match the pool
+  state. Price = quote vault / coin vault, net of fees parked in the vaults.
 
 `increase` adds the new tokens' value at today's price times the repriced
 multiplier; `extend` adds the whole bag's value today times any rise in the
@@ -193,10 +195,10 @@ Program: `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa` (crate `imagine`,
 | `harvest` | anyone | `claim` paid to the owner; retires a capped-out lock |
 | `renounce` | owner | Irreversible; weight leaves, accrued rewards rejoin the stream |
 | `unlock` | anyone | Matured only; pays the owner's canonical ATAs |
-| `early_unlock` | owner | Forfeit + burn |
+| `early_unlock` | owner | Forfeits accrued rewards to the stream; burns the unserved share of the penalty, which is zero from the end date, so on a matured lock it returns every coin without moving quote (the way out when the quote's issuer blocks payouts) |
 | `deposit_reward` | anyone | Requires `founded`; app fee leg or donation, in the quote |
 | `collect_creator_fee` | anyone | See below; ends with an inline `sync` |
-| `sync` / `claim_treasury` | anyone | Permissionless cranks; `sync` is a no-op before founding |
+| `sync` / `claim_treasury` | anyone | Permissionless cranks; `sync` is a no-op before founding. A vault balance below the books (quote moved by the issuer) is absorbed: treasury share, then the stream, then the remainder, the rest recorded as `shortfall` and repaid from the next arrivals before they are split |
 | `claim_creator` | pool creator | Only if the pool opted into a creator share (the platform ceiling is 0) |
 
 ### `collect_creator_fee`

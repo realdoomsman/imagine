@@ -3251,11 +3251,21 @@ export type Imagine = {
             "type": "u64"
           },
           {
+            "name": "shortfall",
+            "docs": [
+              "Quote that left the vault without this program (a quote issuer's",
+              "permanent delegate or clawback) and that the treasury's share, the",
+              "stream and the remainder could not cover: what the pool owes beyond",
+              "what it holds. Repaid first from the next arrivals. See `absorb_loss`."
+            ],
+            "type": "u64"
+          },
+          {
             "name": "reserved",
             "type": {
               "array": [
                 "u8",
-                64
+                56
               ]
             }
           }

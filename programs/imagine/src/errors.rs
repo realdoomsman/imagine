@@ -14,6 +14,8 @@ pub enum ImagineError {
     NotAnExtension,
     #[msg("Position is still locked")]
     StillLocked,
+    /// Retired: `early_unlock` also closes matured locks now. Kept so the
+    /// codes of the variants after it do not shift.
     #[msg("Position has already unlocked; use unlock instead")]
     AlreadyUnlocked,
     #[msg("Launches are paused for new pools")]

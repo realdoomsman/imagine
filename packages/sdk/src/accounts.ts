@@ -126,6 +126,8 @@ export interface PoolAccount {
   founded: boolean;
   /** Quote base units the open locks can still earn in total. */
   rewardCapacity: bigint;
+  /** Quote taken from the vault outside the program that the pool could not absorb; repaid first from new arrivals. */
+  shortfall: bigint;
 }
 
 export interface PositionAccount {
@@ -221,6 +223,7 @@ export function decodePool(data: Buffer | Uint8Array): PoolAccount {
     vaultBump: num(raw.vault_bump),
     founded: Boolean(raw.founded),
     rewardCapacity: big(raw.reward_capacity),
+    shortfall: big(raw.shortfall),
   };
 }
 

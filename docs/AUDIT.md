@@ -74,8 +74,12 @@ an overflow, which is rejected, not wrapped.
 
 ### IMG-07 — Low — `sync` absorbing an unexplained balance drop
 
-*Enforced:* `sync` requires the distributable balance to be at least
-`last_vault_balance` (`VaultAccountingMismatch`), in both asset paths.
+*Superseded by N-07.* `sync` used to refuse a distributable balance below
+`last_vault_balance` (`VaultAccountingMismatch`). For an xStock quote the
+issuer's permanent delegate can cause exactly that, and refusing made every
+claim and unlock of the pool revert for good. `sync` now absorbs the drop
+(`Pool::absorb_loss`, N-07); every program payout still goes through
+`Rewards::pay` → `debit`, so only quote moved by someone else is absorbed.
 
 ### IMG-08 — Low — rent reserve
 
@@ -148,9 +152,23 @@ discriminator and length) rather than corrupting accounts.
 ### N-02 — Pricing for the earnings cap (`price.rs`)
 
 On the curve the `PoolState` is pinned to `pool.launchlab_pool`, owner and
-discriminator checked. After migration the CPMM pool must be the canonical PDA
-for its own `amm_config`, hold exactly (coin, quote), and its vault keys must
-match; fees parked in the vaults are excluded. The price is spot and
+discriminator checked. After migration the CPMM pool must be the PDA for its
+own `amm_config`, hold exactly (coin, quote), name the pool's reward vault as
+`pool_creator`, and its vault keys must match; fees parked in the vaults are
+excluded.
+
+*Fixed (external review, High):* the `pool_creator` check was missing. Anyone
+can open a CPMM pool for the same pair under another AmmConfig with a few
+units of liquidity at any price; locking against it set an arbitrary cap
+(uncapped earnings) and could push `reward_capacity` to overflow, so every
+honest lock, increase and extend of the coin failed. Only LaunchLab's
+migration can create a pool whose creator is the vault PDA (CPMM's
+`initialize` needs the creator's signature, its permissioned create the
+payer's permission), as `collect_creator_fee` already relied on
+(`PriceUnavailable` otherwise; LiteSVM: a rogue pool under another config is
+refused, the same forgery naming the vault is priced).
+
+The price is spot and
 manipulable within a transaction; manipulation only moves a lock's cap, never
 its share of inflow, so the gain is bounded by avoiding the cap and costs a
 round trip through venue fees. Accepted.
@@ -221,14 +239,33 @@ xStocks are Token-2022 mints carrying a PermanentDelegate, Pausable,
 ScaledUiAmount, a TransferHook with only its authority set, a
 DefaultAccountState authority and a freeze authority. These are accepted for
 **quote** mints (never for the coin): the issuer could freeze or pause the
-vault's token account, or move tokens out of it with the permanent delegate.
-Effects: payouts of that quote stop (pause/freeze), or the vault holds less
-than the books (delegate transfer) — then `sync` fails with
-`VaultAccountingMismatch` and every payout of that pool stops until the
-balance is restored. No other pool and no locked principal (the coin) is
-affected. ScaledUiAmount changes only the UI amount; the program works in raw
-base units. This is the issuer risk every xStock holder already carries;
-lockers of an xStock-paired coin take it on for their rewards.
+vault's token account, set a hook program, or move tokens out of it with the
+permanent delegate. ScaledUiAmount changes only the UI amount; the program
+works in raw base units. No other pool is affected.
+
+*Fixed (external review, Medium):* a delegate pull used to make `sync` fail
+(`VaultAccountingMismatch`), and a frozen or paused quote made the matured
+`unlock` revert on its reward transfer, so the coins locked in that pool
+could only leave through `early_unlock`'s burn. Now:
+
+- `sync` absorbs a drop it did not make (`absorb_loss`): first from the
+  treasury's unclaimed share, then the lockers' quote still streaming (the
+  stream restarts on what is left), then the undivided remainder — quote no
+  locker has been credited. What is left is owed to lockers and the creator
+  already credited and is recorded as `Pool::shortfall`; the next arrivals
+  repay it before they are split (not counted as inflow). Until then the last
+  claims may fail for lack of balance; nothing else does.
+- `early_unlock` also closes a matured lock: the penalty is zero from the end
+  date, so every coin comes back, no quote moves, and the accrued rewards are
+  forfeited to the stayers. It is owner-only; a matured `unlock` still pays the
+  rewards whenever the quote can move.
+
+LiteSVM (SPYx): a pull larger than treasury + stream + remainder leaves the
+exact `shortfall`, `projectSync` matches, later deposits repay it, then claim
+and unlock pay; with the vault frozen, `unlock` and `claim` fail and a matured
+`early_unlock` returns every coin and burns nothing. This is the issuer risk
+every xStock holder carries; lockers of an xStock-paired coin take it on for
+their rewards, never their coins.
 
 ### N-08 — Founding gate
 

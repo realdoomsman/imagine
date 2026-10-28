@@ -207,15 +207,22 @@ pub fn unlock(ctx: Context<Unlock>) -> Result<()> {
     Ok(())
 }
 
-/// Break a lock before term.
+/// Break a lock before term, or leave a matured one without its rewards.
 ///
-/// Two costs, both flowing to the people who stayed: accrued rewards are
-/// forfeited back into the pool's release stream, and a slice of principal —
-/// linear in the fraction of the term left unserved — is burned.
+/// Before term, two costs, both flowing to the people who stayed: accrued
+/// rewards are forfeited back into the pool's release stream, and a slice of
+/// principal — linear in the fraction of the term left unserved — is burned.
 ///
-/// Owner-only, unlike the matured path: burning someone else's principal is not
-/// a decision a third party gets to make for them. Pays out no quote, so the
-/// quote mint, program and owner quote account may be omitted.
+/// From the end date the burn is zero, so this returns every coin and moves no
+/// quote at all. That is the way out when the matured `unlock` cannot pay the
+/// rewards because the quote's issuer has paused, frozen or hooked it: the
+/// coins never depend on the quote. The rewards are forfeited to the stayers
+/// as before; waiting and using `unlock` keeps them.
+///
+/// Owner-only, unlike the matured path: burning someone else's principal, or
+/// giving up their rewards, is not a decision a third party gets to make for
+/// them. Pays out no quote, so the quote mint, program and owner quote account
+/// may be omitted.
 pub fn early_unlock(ctx: Context<Unlock>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     let a = ctx.accounts;
@@ -224,7 +231,7 @@ pub fn early_unlock(ctx: Context<Unlock>) -> Result<()> {
         a.position.owner,
         ImagineError::NotPositionOwner
     );
-    require!(now < a.position.lock_end, ImagineError::AlreadyUnlocked);
+    let early = now < a.position.lock_end;
     let pool_key = a.pool.key();
     let rewards = a.rewards()?;
     rewards.sync(&mut a.pool, pool_key, now)?;
@@ -281,7 +288,7 @@ pub fn early_unlock(ctx: Context<Unlock>) -> Result<()> {
         returned,
         burned: penalty,
         forfeited_rewards: forfeited,
-        early: true,
+        early,
         total_locked: pool.total_locked,
         total_weight: pool.total_weight,
         timestamp: now,

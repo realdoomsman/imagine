@@ -595,4 +595,52 @@ describe("graduated coins", () => {
       void NATIVE_MINT;
     });
   }
+
+  it("prices a graduated coin only off the pool it graduated into, never a rogue pool for the pair", async () => {
+    const q = WSOL;
+    const locker = Keypair.generate();
+    const w = await openPool({ quote: q, realPrice: true, extraHolders: [{ owner: locker.publicKey, amount: 100_000n * TOKEN }] });
+    w.svm.airdrop(locker.publicKey, 10_000_000_000n);
+    curveBuy(w.svm, fundedKeypair(w.svm), w.mint, q, 200n * q.unit);
+    const cpPool = migrateToCpmm(w, w.mint, q);
+    const [, baseVault, quoteVault] = valuationAccounts(w.mint, q.mint, CPMM_AMM_CONFIG);
+    const baseIs0 = decodeCpmmPool(Buffer.from(w.svm.getAccount(cpPool)!.data)).token0Mint.equals(w.mint);
+
+    // A CPMM pool for (coin, quote) under another AmmConfig, as anyone may open
+    // one: `creator` as its pool creator, `base` coin units against the real
+    // pool's quote, no fees parked.
+    function rogue(creator: PublicKey, base: bigint): PublicKey[] {
+      const config = Keypair.generate().publicKey;
+      const address = cpmmPoolPda(config, w.mint, q.mint);
+      const [coinSide, quoteSide] = [Keypair.generate().publicKey, Keypair.generate().publicKey];
+      const real = w.svm.getAccount(cpPool)!;
+      const data = Buffer.from(real.data);
+      config.toBuffer().copy(data, 8);
+      creator.toBuffer().copy(data, 40);
+      (baseIs0 ? coinSide : quoteSide).toBuffer().copy(data, 72);
+      (baseIs0 ? quoteSide : coinSide).toBuffer().copy(data, 104);
+      data.fill(0, 341, 413);
+      w.svm.setAccount(address, { ...real, data });
+      for (const [key, source, amount] of [
+        [coinSide, baseVault, base],
+        [quoteSide, quoteVault, tokenAmount(w.svm, quoteVault)],
+      ] as const) {
+        const acc = w.svm.getAccount(source)!;
+        const vault = Buffer.from(acc.data);
+        vault.writeBigUInt64LE(amount, 64);
+        w.svm.setAccount(key, { ...acc, data: vault });
+      }
+      return [address, coinSide, quoteSide];
+    }
+
+    const lockArgs = { owner: locker.publicKey, mint: w.mint, quote: q, index: 0, amount: 1_000n * TOKEN, durationSecs: 7 * DAY };
+    // One coin unit against the whole quote side: every coin "worth" the pool.
+    const inflated = await client.lock({ ...lockArgs, valuation: rogue(Keypair.generate().publicKey, 1n) });
+    assert.match(sendExpectingError(w.svm, [inflated], [locker]), /PriceUnavailable/);
+    // Control: the same forgery naming the vault as creator, which only
+    // LaunchLab's migration can do, is priced.
+    const control = rogue(rewardVaultPda(w.mint), tokenAmount(w.svm, baseVault));
+    send(w.svm, [await client.lock({ ...lockArgs, valuation: control })], [locker]);
+    assert.ok(readPosition(w.svm, w.mint, locker.publicKey, 0)!.rewardCap > 0n);
+  });
 });

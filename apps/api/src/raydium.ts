@@ -227,7 +227,9 @@ export async function unsyncedRewards(pool: PoolAccount): Promise<bigint> {
     const info = await connection.getAccountInfo(pool.rewardTokenAccount, "confirmed");
     balance = tokenAmount(info?.data) ?? 0n;
   }
-  return balance > pool.lastVaultBalance ? balance - pool.lastVaultBalance : 0n;
+  // Arrivals repay a recorded shortfall before they count as inflow.
+  const arrived = balance > pool.lastVaultBalance ? balance - pool.lastVaultBalance : 0n;
+  return arrived > pool.shortfall ? arrived - pool.shortfall : 0n;
 }
 
 /**

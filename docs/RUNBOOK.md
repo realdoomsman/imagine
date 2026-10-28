@@ -82,8 +82,9 @@ solana-verify get-program-hash -u "$RPC_URL" imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA
 `solanafoundation/solana-verifiable-build` image of the Agave release pinned in
 `Cargo.toml` `[workspace.metadata.cli]` (3.1.10, digest-pinned by
 solana-verify), SBPF v0 like every IMAGINE build. `scripts/anchor-build.sh`
-stays the development build and the IDL refresh; its binary differs from the
-verifiable one byte-wise, so never deploy it to mainnet.
+stays the development build and the IDL refresh. Its binary has so far come
+out byte-identical to the verifiable one, but only the Docker build is pinned,
+so mainnet always gets the `verified-build.sh` artifact.
 
 The build is about 632 KB, under the deployed 738,688, so no extend is
 needed; a later build that outgrows it needs `extend` first (rent for the

@@ -68,7 +68,11 @@ pub fn decimals(mint: &AccountInfo, token_program: &Pubkey) -> Result<u8> {
 ///
 /// Accepted issuer risks (xStocks carry them): a TransferHook with only its
 /// authority set, a DefaultAccountState authority, and the PermanentDelegate /
-/// Pausable / freeze powers. They can stop a payout, never corrupt the books.
+/// Pausable / freeze powers. They can stop or claw back quote payouts. They
+/// cannot trap principal: a drop in the vault the program did not make is
+/// absorbed by `Pool::sync` (`absorb_loss`) rather than failing every
+/// instruction, and once a lock has matured its owner can always leave
+/// through `early_unlock`, which returns the coins in full and moves no quote.
 pub fn require_plain_transfers(mint: &AccountInfo) -> Result<()> {
     let data = mint.try_borrow_data()?;
     for_each_extension(&data, |ty, v| {

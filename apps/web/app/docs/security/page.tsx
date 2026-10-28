@@ -61,7 +61,8 @@ export default function SecurityPage() {
         <p>
           When a lock&apos;s ceiling is priced, the program reads the coin&apos;s own LaunchLab pool,
           pinned when the coin launched, and checks who owns it. After migration it reads the
-          coin&apos;s Raydium pool and checks that it is the canonical pool for the coin and its pair.
+          Raydium pool the coin graduated into, the one whose fee recipient is the pool&apos;s vault;
+          any other pool for the same pair, which anyone could open at any price, is refused.
         </p>
         <p>
           A lock vault holds someone else&apos;s coins for up to a year, so mints that would let a

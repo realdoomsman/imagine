@@ -216,6 +216,7 @@ export interface StreamState {
   lifetimeCreator: bigint;
   lifetimeTreasury: bigint;
   rewardCapacity: bigint;
+  shortfall: bigint;
   terms: Pick<PoolTerms, "treasuryShareBps" | "creatorShareBps"> & {
     rewardStreamSecs: number;
   };
@@ -228,8 +229,9 @@ export interface StreamState {
  * Between touches the stream keeps releasing and fees keep landing in the
  * vault, so a balance read straight from the account under-reports what a
  * claim would pay. This replays the program's exact arithmetic — release the
- * elapsed share of the stream, then fold in any unsynced inflow and restart
- * the window — against the live distributable balance
+ * elapsed share of the stream, then fold in any unsynced inflow (after making
+ * good any `shortfall`) and restart the window, or absorb a drop the program
+ * did not make (`absorb_loss`) — against the live distributable balance
  * (`distributableBalance`), without sending anything. A no-op before the pool
  * is founded, like the program.
  *
@@ -248,6 +250,12 @@ export function projectSync<T extends StreamState>(
     next.lifetimeTreasury += amount;
   };
   const sub = (a: bigint, b: bigint) => (a > b ? a - b : 0n);
+  const min = (a: bigint, b: bigint) => (a < b ? a : b);
+  const restartStream = () => {
+    next.streamRate = (next.undistributed * SCALE) / BigInt(pool.terms.rewardStreamSecs);
+    next.streamEnd = now + pool.terms.rewardStreamSecs;
+    next.lastStreamAt = now;
+  };
 
   // credit_lockers: with nothing locked the share goes to the treasury, and
   // only what open locks may still earn is credited.
@@ -280,26 +288,44 @@ export function projectSync<T extends StreamState>(
     credit(next.released);
   }
 
-  // Unsynced inflow: quote that landed since the last touch.
-  if (balance > pool.lastVaultBalance) {
-    next.inflow = balance - pool.lastVaultBalance;
-    next.lifetimeInflow += next.inflow;
-    const { toTreasury, toCreator, toLockers } = splitInflow(next.inflow, pool.terms);
-    const overflow = sub(
-      toLockers,
-      sub(sub(next.rewardCapacity, next.undistributed), next.rewardRemainder),
-    );
-    next.treasuryClaimable += toTreasury + overflow;
-    next.creatorClaimable += toCreator;
-    next.lifetimeTreasury += toTreasury + overflow;
-    next.lifetimeCreator += toCreator;
-    next.undistributed += toLockers - overflow;
-    // restart_stream(now)
-    next.streamRate = (next.undistributed * SCALE) / BigInt(pool.terms.rewardStreamSecs);
-    next.streamEnd = now + pool.terms.rewardStreamSecs;
-    next.lastStreamAt = now;
-    next.lastVaultBalance = balance;
+  if (balance < pool.lastVaultBalance) {
+    // absorb_loss: treasury share, then the stream, then the remainder; the
+    // rest is recorded as shortfall.
+    let rest = pool.lastVaultBalance - balance;
+    const fromTreasury = min(rest, next.treasuryClaimable);
+    next.treasuryClaimable -= fromTreasury;
+    rest -= fromTreasury;
+    const fromStream = min(rest, next.undistributed);
+    if (fromStream > 0n) {
+      next.undistributed -= fromStream;
+      restartStream();
+    }
+    rest -= fromStream;
+    const fromRemainder = min(rest, next.rewardRemainder);
+    next.rewardRemainder -= fromRemainder;
+    next.shortfall += rest - fromRemainder;
+  } else if (balance > pool.lastVaultBalance) {
+    // Unsynced arrivals: first make good an earlier loss, then split the rest.
+    const arrived = balance - pool.lastVaultBalance;
+    const repaid = min(arrived, next.shortfall);
+    next.shortfall -= repaid;
+    next.inflow = arrived - repaid;
+    if (next.inflow > 0n) {
+      next.lifetimeInflow += next.inflow;
+      const { toTreasury, toCreator, toLockers } = splitInflow(next.inflow, pool.terms);
+      const overflow = sub(
+        toLockers,
+        sub(sub(next.rewardCapacity, next.undistributed), next.rewardRemainder),
+      );
+      next.treasuryClaimable += toTreasury + overflow;
+      next.creatorClaimable += toCreator;
+      next.lifetimeTreasury += toTreasury + overflow;
+      next.lifetimeCreator += toCreator;
+      next.undistributed += toLockers - overflow;
+      restartStream();
+    }
   }
+  next.lastVaultBalance = balance;
 
   return next;
 }

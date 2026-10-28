@@ -3,8 +3,14 @@
 //! Each lock's earnings are capped at the quote value of its tokens when
 //! locked, times its multiplier. That value comes from the same place the coin
 //! trades: the LaunchLab curve's virtual + real reserves while it is live, and
-//! the canonical CPMM pool's two vaults once it has migrated. Every account is
-//! verified by owner, discriminator and address before a byte of it is trusted.
+//! once it has migrated, the vaults of the CPMM pool it graduated into: the
+//! pool for the pair whose `pool_creator` is this pool's reward vault. The
+//! pair alone does not identify it — anyone can open another CPMM pool for the
+//! same pair under a different AmmConfig, at any price — but only LaunchLab's
+//! migration can name the vault PDA as creator (CPMM's `initialize` needs the
+//! creator's signature; its permissioned create, the payer's permission).
+//! Every account is verified by owner, discriminator and address before a byte
+//! of it is trusted.
 //!
 //! The price is spot, so it can be moved within a transaction. Moving it only
 //! changes where a lock's ceiling sits; a lock still earns its weight's share
@@ -18,7 +24,8 @@ use anchor_lang::prelude::*;
 
 /// Remaining accounts of a lock on a migrated coin, in this order.
 pub mod valuation_accounts {
-    /// The canonical CPMM `PoolState` of (mint, quote).
+    /// The CPMM `PoolState` the coin graduated into (created by LaunchLab's
+    /// migration, `pool_creator` = the reward vault).
     pub const CPMM_POOL: usize = 0;
     /// Its vault of the coin.
     pub const BASE_VAULT: usize = 1;
@@ -66,9 +73,9 @@ pub fn coin_value(
     );
     let cpmm_info = &remaining[valuation_accounts::CPMM_POOL];
     let cpmm = CpmmPool::load(cpmm_info)?;
-    require_keys_eq!(
-        cpmm_info.key(),
-        cpmm_pool_pda(&cpmm.amm_config, &pool.mint, &pool.quote_mint),
+    require!(
+        cpmm_info.key() == cpmm_pool_pda(&cpmm.amm_config, &pool.mint, &pool.quote_mint)
+            && cpmm.pool_creator == pool.reward_vault,
         ImagineError::PriceUnavailable
     );
     let (base_vault, base_fees) = cpmm.side(&pool.mint)?;

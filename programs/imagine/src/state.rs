@@ -222,7 +222,12 @@ pub struct Pool {
     /// credited to them. Fees beyond it go to the treasury the moment they
     /// arrive or release.
     pub reward_capacity: u64,
-    pub _reserved: [u8; 64],
+    /// Quote that left the vault without this program (a quote issuer's
+    /// permanent delegate or clawback) and that the treasury's share, the
+    /// stream and the remainder could not cover: what the pool owes beyond
+    /// what it holds. Repaid first from the next arrivals. See `absorb_loss`.
+    pub shortfall: u64,
+    pub _reserved: [u8; 56],
 }
 
 /// Outcome of a sync, for event emission.
@@ -257,80 +262,116 @@ impl Pool {
     /// Callers MUST pass the vault's live distributable balance
     /// (`rewards::reward_balance`) and MUST call this before reading
     /// `acc_reward_per_weight` or mutating `total_weight`.
+    ///
+    /// A balance below `last_vault_balance` is quote taken by someone other
+    /// than this program (every payout here calls `debit`); it is absorbed, not
+    /// refused, since refusing would block every claim and unlock of the pool.
     pub fn sync(&mut self, balance: u64, now: i64) -> Result<SyncResult> {
         if !self.founded {
             return Ok(SyncResult::default());
         }
-        // Only this program can move quote out, and every such path calls
-        // `debit`. A drop we did not record means an accounting path was added
-        // without one, and that must fail loudly rather than quietly reducing
-        // what the pool believes it owes.
-        require!(
-            balance >= self.last_vault_balance,
-            ImagineError::VaultAccountingMismatch
-        );
 
         let mut out = SyncResult {
             released: self.release(now)?,
             ..SyncResult::default()
         };
 
-        if balance > self.last_vault_balance {
-            let inflow = balance - self.last_vault_balance;
-            out.inflow = inflow;
-            self.lifetime_inflow = self
-                .lifetime_inflow
-                .checked_add(inflow)
-                .ok_or(ImagineError::MathOverflow)?;
-
-            let to_treasury = apply_bps(inflow, self.terms.treasury_share_bps)?;
-            let after_treasury = inflow - to_treasury;
-            let to_creator = apply_bps(after_treasury, self.terms.creator_share_bps)?;
-            let to_lockers = after_treasury - to_creator;
-
-            self.treasury_claimable = self
-                .treasury_claimable
-                .checked_add(to_treasury)
-                .ok_or(ImagineError::MathOverflow)?;
-            self.creator_claimable = self
-                .creator_claimable
-                .checked_add(to_creator)
-                .ok_or(ImagineError::MathOverflow)?;
-            self.lifetime_treasury = self
-                .lifetime_treasury
-                .checked_add(to_treasury)
-                .ok_or(ImagineError::MathOverflow)?;
-            self.lifetime_creator = self
-                .lifetime_creator
-                .checked_add(to_creator)
-                .ok_or(ImagineError::MathOverflow)?;
-
-            // The lockers' share can only fill what the open locks are still
-            // allowed to earn. The rest is nobody's but the treasury's, and
-            // lands there now rather than after a stream.
-            let room = self
-                .reward_capacity
-                .saturating_sub(self.undistributed)
-                .saturating_sub(self.reward_remainder);
-            let overflow = to_lockers.saturating_sub(room);
-            let to_lockers = to_lockers - overflow;
-            self.pay_treasury(overflow)?;
-
-            out.to_treasury = to_treasury + overflow;
-            out.to_creator = to_creator;
-            out.to_lockers = to_lockers;
-
-            self.undistributed = self
-                .undistributed
-                .checked_add(to_lockers)
-                .ok_or(ImagineError::MathOverflow)?;
-            self.restart_stream(now)?;
+        if balance < self.last_vault_balance {
+            self.absorb_loss(self.last_vault_balance - balance, now)?;
+        } else {
+            // What arrives first makes good an earlier loss; only the rest is
+            // new inflow.
+            let arrived = balance - self.last_vault_balance;
+            let repaid = arrived.min(self.shortfall);
+            self.shortfall -= repaid;
+            let inflow = arrived - repaid;
+            if inflow > 0 {
+                self.split_inflow(inflow, now, &mut out)?;
+            }
         }
 
         // Also tracks outflows: every payout lowers the vault, and recording the
         // new floor here keeps the next inflow diff exact.
         self.last_vault_balance = balance;
         Ok(out)
+    }
+
+    /// Split new quote by the pool's frozen terms; the lockers' share joins
+    /// the stream and the window restarts.
+    fn split_inflow(&mut self, inflow: u64, now: i64, out: &mut SyncResult) -> Result<()> {
+        out.inflow = inflow;
+        self.lifetime_inflow = self
+            .lifetime_inflow
+            .checked_add(inflow)
+            .ok_or(ImagineError::MathOverflow)?;
+
+        let to_treasury = apply_bps(inflow, self.terms.treasury_share_bps)?;
+        let after_treasury = inflow - to_treasury;
+        let to_creator = apply_bps(after_treasury, self.terms.creator_share_bps)?;
+        let to_lockers = after_treasury - to_creator;
+
+        self.treasury_claimable = self
+            .treasury_claimable
+            .checked_add(to_treasury)
+            .ok_or(ImagineError::MathOverflow)?;
+        self.creator_claimable = self
+            .creator_claimable
+            .checked_add(to_creator)
+            .ok_or(ImagineError::MathOverflow)?;
+        self.lifetime_treasury = self
+            .lifetime_treasury
+            .checked_add(to_treasury)
+            .ok_or(ImagineError::MathOverflow)?;
+        self.lifetime_creator = self
+            .lifetime_creator
+            .checked_add(to_creator)
+            .ok_or(ImagineError::MathOverflow)?;
+
+        // The lockers' share can only fill what the open locks are still
+        // allowed to earn. The rest is nobody's but the treasury's, and
+        // lands there now rather than after a stream.
+        let room = self
+            .reward_capacity
+            .saturating_sub(self.undistributed)
+            .saturating_sub(self.reward_remainder);
+        let overflow = to_lockers.saturating_sub(room);
+        let to_lockers = to_lockers - overflow;
+        self.pay_treasury(overflow)?;
+
+        out.to_treasury = to_treasury + overflow;
+        out.to_creator = to_creator;
+        out.to_lockers = to_lockers;
+
+        self.undistributed = self
+            .undistributed
+            .checked_add(to_lockers)
+            .ok_or(ImagineError::MathOverflow)?;
+        self.restart_stream(now)
+    }
+
+    /// Quote `loss` left the vault outside this program. Its owners, in order:
+    /// the treasury's unclaimed share, then the lockers' quote still streaming,
+    /// then the undivided remainder — all of it quote no locker has been
+    /// credited yet. Whatever is left is owed to lockers (and the creator)
+    /// already credited, and is recorded as `shortfall`, repaid from the next
+    /// arrivals before they are split. Lifetime counters stay as history.
+    fn absorb_loss(&mut self, loss: u64, now: i64) -> Result<()> {
+        let from_treasury = loss.min(self.treasury_claimable);
+        self.treasury_claimable -= from_treasury;
+        let rest = loss - from_treasury;
+        let from_stream = rest.min(self.undistributed);
+        if from_stream > 0 {
+            self.undistributed -= from_stream;
+            self.restart_stream(now)?;
+        }
+        let rest = rest - from_stream;
+        let from_remainder = rest.min(self.reward_remainder);
+        self.reward_remainder -= from_remainder;
+        self.shortfall = self
+            .shortfall
+            .checked_add(rest - from_remainder)
+            .ok_or(ImagineError::MathOverflow)?;
+        Ok(())
     }
 
     /// Hand the stream's elapsed share to lockers. Returns quote released.

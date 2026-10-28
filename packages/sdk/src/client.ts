@@ -64,10 +64,11 @@ export interface QuoteRef {
 
 /**
  * Remaining accounts that price a lock once the coin has migrated off its
- * LaunchLab curve: the canonical CPMM pool of (coin, quote) under
- * `ammConfig` (the platform's `cpswap_config`) and its coin and quote
- * vaults, in the order `price::valuation_accounts` reads them. Pass nothing
- * while the coin is still on its curve.
+ * LaunchLab curve: the CPMM pool of (coin, quote) under `ammConfig` (the
+ * platform's `cpswap_config`) that LaunchLab migrated the coin into, and its
+ * coin and quote vaults, in the order `price::valuation_accounts` reads them.
+ * The program refuses a pool whose `pool_creator` is not the reward vault.
+ * Pass nothing while the coin is still on its curve.
  */
 export function valuationAccounts(
   mint: PublicKey,
@@ -574,8 +575,10 @@ export class ImagineClient {
    *
    * A matured position may be closed by anyone — principal, rewards and rent
    * all go to `owner` regardless — so `payer` defaults to the owner but a
-   * keeper can pass its own key. An early exit is owner-only; the program
-   * rejects anyone else.
+   * keeper can pass its own key. `early` sends `early_unlock`, owner-only:
+   * before the end date it burns the penalty and forfeits the rewards; from
+   * the end date it returns every coin, moves no quote and forfeits the
+   * rewards (the way out when the quote's issuer blocks payouts).
    */
   async unlock(params: {
     owner: PublicKey;
