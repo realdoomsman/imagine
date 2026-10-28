@@ -11,33 +11,41 @@ export default function FeesPage() {
     <DocPage
       eyebrow="Docs · Fees"
       title="Every fee, and where it lands"
-      lede="Some fees are StonkFun's and Raydium's, some are ours, and one stream is forwarded to the vault. Here is each of them, and the split that applies once money reaches a pool."
+      lede="On imagine.fun, 2% of every trade goes to the coin's pool. Elsewhere, 0.5% still does, enforced on-chain by Raydium LaunchLab. Here is each fee, who charges it, and the split that applies once money reaches a pool."
     >
-      <DocSection title="The app fee: 1% on trades imagine.fun routes">
+      <DocSection title="The 0.5% on-chain trading fee: every trade, anywhere">
         <p>
-          Trades routed through imagine.fun pay 1% of the pair-asset side: what you spend on a buy,
-          what you receive on a sell. The deposit that carries it rides in the same transaction as
-          the trade and pays straight into that coin&apos;s pool, so a failed trade costs nothing
-          and lockers are credited the moment the trade confirms.
+          IMAGINE coins launch on Raydium LaunchLab under the IMAGINE platform, which sets a 0.5%
+          trading fee on every trade on the coin&apos;s bonding curve and names the coin&apos;s pool
+          as the one it is paid to. It applies wherever the trade comes from — Raydium, Jupiter, a
+          trading bot, imagine.fun — and it is enforced on-chain by Raydium LaunchLab, not by our
+          front-end.
         </p>
         <p>
-          It is applied by the transaction our API builds, not enforced by the on-chain program.
-          Trading the same coin elsewhere does not pay it. No front-end can charge for a trade it
-          did not build.
+          The fee accrues on LaunchLab and anyone can collect it into the coin&apos;s pool; our
+          keeper does so on a schedule. When the coin graduates from its curve to a Raydium pool,
+          that pool&apos;s fee share keeps flowing to the coin&apos;s pool the same way.
         </p>
       </DocSection>
 
-      <DocSection title="StonkFun and Raydium LaunchLab fees">
+      <DocSection title="The 1.5% app fee: trades on imagine.fun">
         <p>
-          IMAGINE coins are StonkFun coins, so StonkFun&apos;s own fees apply to them as to any
-          other: StonkFun charges 1% on curve trades, and the Raydium LaunchLab protocol fee
-          applies. Those fees are theirs.
+          Trades through imagine.fun add 1.5% of the pair-asset side: what you spend on a buy, what
+          you receive on a sell. The deposit that carries it rides in the same transaction as the
+          trade and pays straight into the coin&apos;s pool, so a failed trade costs nothing and
+          lockers are credited the moment the trade confirms. Together with the 0.5% trading fee,
+          2% of every imagine.fun trade reaches the pool.
         </p>
         <p>
-          StonkFun forwards a creator share to each coin&apos;s creator address. For an IMAGINE coin
-          that address is the pool&apos;s vault, so whatever StonkFun forwards lands where the
-          lockers are and is credited to the pool. Forwarding is StonkFun&apos;s policy; we
-          don&apos;t promise an amount.
+          The app fee is applied by the transaction our API builds. Trades elsewhere don&apos;t pay
+          it; they still pay the 0.5%.
+        </p>
+      </DocSection>
+
+      <DocSection title="Raydium's protocol fee">
+        <p>
+          Raydium charges its own 0.25% LaunchLab protocol fee on curve trades, as it does for every
+          LaunchLab coin. That fee is Raydium&apos;s and is not part of what reaches the pool.
         </p>
       </DocSection>
 
@@ -51,8 +59,8 @@ export default function FeesPage() {
             <strong>10% to the treasury</strong>, taken off the top.
           </li>
           <li>
-            <strong>0% to the creator</strong> by default. A creator earns the way everyone else
-            does: by locking.
+            <strong>0% to the creator.</strong> The creator earns nothing from fees — they earn
+            only by locking, like everyone else.
           </li>
         </ul>
         <p>

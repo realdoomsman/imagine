@@ -100,6 +100,13 @@ fi
 echo "==> confirming the program is live"
 solana program show "$PROGRAM_ID" -u "$RPC"
 
+# The config points at IMAGINE's LaunchLab PlatformConfig, which
+# apps/api/scripts/setup-platform.ts creates (and prints) first.
+if [ -z "${LAUNCHLAB_PLATFORM:-}" ]; then
+  echo "==> config not initialised: create the platform (apps/api/scripts/setup-platform.ts), then"
+  echo "    LAUNCHLAB_PLATFORM=<address> RPC_URL=$RPC node apps/api/scripts/init-config.ts $WALLET"
+  exit 0
+fi
 echo "==> initialising config (upgrade authority signs)"
 cd apps/api
 RPC_URL="$RPC" node scripts/init-config.ts "$WALLET"

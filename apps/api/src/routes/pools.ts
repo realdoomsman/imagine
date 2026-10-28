@@ -1,12 +1,12 @@
 import { NATIVE_MINT } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
-import { claimableFor, FeeKind, stonkfunTokenUrl } from "@imagine/sdk";
+import { claimableFor, FeeKind, raydiumTokenUrl } from "@imagine/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";
 import { launchableQuotes, quoteInfo, rawToUsd, usdPrices } from "../quotes.ts";
 import { chainConfig, connection, imagine } from "../solana.ts";
-import { marketCapQuote, readMarket, unsyncedRewards } from "../stonk.ts";
+import { marketCapQuote, readMarket, uncollectedFees, unsyncedRewards } from "../raydium.ts";
 import { poolSummary, pricesFor, SUMMARY_COLUMNS } from "../views.ts";
 
 /** `fee_events.kind` for a `RewardsSynced` row: what the pool actually took in. */
@@ -38,7 +38,7 @@ export async function poolRoutes(app: FastifyInstance) {
     if (row) return reply.code(404).send({ error: "pool not found" });
   });
 
-  /** The pairs a coin can launch against: StonkFun's launchable quotes, priced. */
+  /** The pairs a coin can launch against: every LaunchLab quote in the registry Jupiter can price. */
   app.get("/quotes", async () => launchableQuotes());
 
   app.get("/pools", async (request) => {
@@ -130,6 +130,7 @@ export async function poolRoutes(app: FastifyInstance) {
       quoteInfo(pool.quoteMint.toBase58()),
     ]);
     const row = meta[0];
+    const uncollected = await uncollectedFees(pool, market).catch(() => 0n);
     const totalSupply = supply ? BigInt(supply.value.amount) : null;
     const priceUsd =
       market?.priceQuote != null && quote.usdPrice !== null ? market.priceQuote * quote.usdPrice : null;
@@ -140,8 +141,8 @@ export async function poolRoutes(app: FastifyInstance) {
       mint,
       quote,
       links: {
-        stonkfun: stonkfunTokenUrl(mint),
-        raydium: graduated ? `https://raydium.io/swap/?inputMint=${quote.mint}&outputMint=${mint}` : null,
+        raydium: raydiumTokenUrl(mint),
+        raydiumSwap: graduated ? `https://raydium.io/swap/?inputMint=${quote.mint}&outputMint=${mint}` : null,
       },
       // Size tiers are a share of total supply, so the panel needs it exactly.
       tokenSupply: supply?.value.amount ?? (row?.token_supply as string | null) ?? null,
@@ -190,7 +191,9 @@ export async function poolRoutes(app: FastifyInstance) {
         lockersPerDay: day!.to_lockers as string,
         /** Everything the pool took in over the last 24 hours, before the treasury cut. */
         feesPerDay: day!.inflow as string,
-        /** Arrived in the vault (StonkFun's forwarded share, donations), not yet synced. */
+        /** The pool's on-chain trading fee still held by LaunchLab (and CPMM after graduation), not yet collected. */
+        uncollected: uncollected.toString(),
+        /** Already in the vault (collected fees, donations), not yet synced. */
         unsynced: unsynced.toString(),
         /** Quote traded through IMAGINE in the window, from the app fee it paid. */
         siteVolume:

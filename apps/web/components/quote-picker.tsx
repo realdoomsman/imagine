@@ -8,7 +8,7 @@ import { QuoteLogo } from "./pair-pill";
 import { Shimmer } from "./skeleton";
 
 /**
- * Choose what the coin is paired with: every pair StonkFun can launch against
+ * Choose what the coin is paired with: every pair asset Raydium LaunchLab supports
  * right now, grouped by category, searchable by ticker, name or mint. The
  * pair is what the coin is priced in and what its lockers will be paid in.
  */
@@ -75,7 +75,7 @@ export function QuotePicker({
   if (quotes.length === 0) {
     return (
       <div className="well px-4 py-5 text-[13px] text-muted">
-        StonkFun isn&apos;t offering any launchable pairs right now. Try again shortly.
+        No pair assets are available right now. Try again shortly.
       </div>
     );
   }
@@ -86,7 +86,7 @@ export function QuotePicker({
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder={`Search ${quotes.length} pairs — NVDAx, SOL, USDC…`}
+        placeholder={`Search ${quotes.length} pair assets on Raydium LaunchLab — NVDAx, SOL, USDC…`}
         aria-label="Search pair assets"
         className="input text-[14px]"
       />

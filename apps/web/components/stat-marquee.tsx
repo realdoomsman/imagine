@@ -11,6 +11,7 @@ export function StatMarquee() {
   return (
     <StatMarqueeTrack
       defaultTradeFeeBps={ECONOMICS.tradeFeeBps}
+      defaultPoolFeeBps={ECONOMICS.poolFeeBps}
       terms={[
         { label: "Paid in", value: "the pair asset" },
         { label: "Locker share", value: formatPercent((10_000 - ECONOMICS.treasuryShareBps) / 10_000, 0) },

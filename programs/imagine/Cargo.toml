@@ -1,7 +1,7 @@
 [package]
 name = "imagine"
 version = "0.1.0"
-description = "IMAGINE: time-weighted lock-to-earn vaults for StonkFun coins, paid in each coin's pair asset"
+description = "IMAGINE: time-weighted lock-to-earn vaults for Raydium LaunchLab coins, paid in each coin's pair asset"
 edition = "2021"
 
 [lib]

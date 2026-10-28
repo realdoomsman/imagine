@@ -1,10 +1,11 @@
 "use client";
 
-import { exactAmount, formatPercent, formatTokenAmount } from "@imagine/sdk";
+import { exactAmount, formatTokenAmount } from "@imagine/sdk";
 import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { useCallback, useState } from "react";
 import type { QuoteInfo } from "@/lib/api";
-import { decimalInput, formatAmount, formatNumber, formatQuote, parseAmount, usdSuffix } from "@/lib/format";
+import { LAUNCHLAB_PROTOCOL_FEE_BPS } from "@/lib/fees";
+import { decimalInput, formatAmount, formatBps, formatNumber, formatQuote, parseAmount, usdSuffix } from "@/lib/format";
 import { useActor } from "@/lib/signer";
 import { useTokenBalance } from "@/lib/use-token-balance";
 import { QuoteLogo } from "./pair-pill";
@@ -23,10 +24,11 @@ const SOL: Pick<QuoteInfo, "symbol" | "decimals" | "logoUrl" | "usdPrice"> = {
 /**
  * Buy and sell in the coin's pair asset, with the Imagine fee attached.
  *
- * On the bonding curve the trade goes through LaunchLab; after migration
- * through the Raydium pool. Either way the fee is shown before signing, in
- * the pair asset, and named for what it is: money for this coin's lockers.
- * A buyer without the pair asset can pay in SOL, swapped into it first.
+ * On the bonding curve the trade goes through Raydium LaunchLab; after
+ * migration through the Raydium pool. Every trade pays the coin's on-chain
+ * pool fee wherever it happens; through here it also pays the Imagine app fee
+ * into the same pool. Both are shown before signing, in the pair asset. A
+ * buyer without the pair asset can pay in SOL, swapped into it first.
  */
 export function SwapPanel({
   mint,
@@ -36,8 +38,9 @@ export function SwapPanel({
   quote,
   priceQuote,
   tradeFeeBps,
+  poolFeeBps,
   migrating,
-  stonkfunUrl,
+  raydiumUrl,
 }: {
   mint: string;
   symbol: string;
@@ -46,10 +49,14 @@ export function SwapPanel({
   quote: QuoteInfo;
   /** Pair units per whole coin at spot; null when unknown. */
   priceQuote: number | null;
+  /** Imagine app fee into the pool, bps. */
   tradeFeeBps: number;
+  /** The on-chain trading fee Raydium LaunchLab sends to the pool, bps. */
+  poolFeeBps: number;
   /** Between curve and Raydium pool: nothing can trade for a moment. */
   migrating: boolean;
-  stonkfunUrl: string;
+  /** The coin's Raydium launchpad page. */
+  raydiumUrl: string;
 }) {
   const actor = useActor();
   const nativeQuote = quote.mint === NATIVE_MINT.toBase58();
@@ -105,8 +112,8 @@ export function SwapPanel({
         ok: true,
         text:
           fee !== null && fee > 0n
-            ? `Done. ${formatQuote(fee, quote)} went to this coin's lockers. ${signature.slice(0, 12)}…`
-            : `Done. ${formatPercent(tradeFeeBps / 10_000, 0)} of the ${quote.symbol} leg went to this coin's lockers. ${signature.slice(0, 12)}…`,
+            ? `Done. ${formatQuote(fee, quote)} went into this coin's pool. ${signature.slice(0, 12)}…`
+            : `Done. ${formatBps(tradeFeeBps)} of the ${quote.symbol} leg went into this coin's pool. ${signature.slice(0, 12)}…`,
       });
       setInput("");
     } catch (error) {
@@ -124,8 +131,8 @@ export function SwapPanel({
           The curve has filled and the coin is moving to its Raydium pool. Trading reopens here as soon as the pool is
           live; locks and claims keep working throughout.
         </p>
-        <a href={stonkfunUrl} target="_blank" rel="noreferrer" className="btn btn-ghost mt-4 w-full">
-          Follow it on StonkFun ↗
+        <a href={raydiumUrl} target="_blank" rel="noreferrer" className="btn btn-ghost mt-4 w-full">
+          Follow it on Raydium ↗
         </a>
       </section>
     );
@@ -240,12 +247,15 @@ export function SwapPanel({
                 ? `≈ ${formatNumber(expectedOut)} $${symbol}`
                 : `≈ ${formatNumber(expectedOut)} ${quote.symbol}`}
         </Row>
-        <Row label={`Imagine fee (${formatPercent(tradeFeeBps / 10_000, 0)})`} accent>
+        <Row label={`Imagine fee (${formatBps(tradeFeeBps)})`} accent>
           {amount <= 0n
             ? "—"
             : fee !== null
               ? `${formatQuote(fee, quote)}${usdSuffix(fee, quote) ? ` · ${usdSuffix(fee, quote)}` : ""}`
-              : `${formatPercent(tradeFeeBps / 10_000, 0)} of the ${quote.symbol} leg`}
+              : `${formatBps(tradeFeeBps)} of the ${quote.symbol} leg`}
+        </Row>
+        <Row label="On-chain pool fee" accent>
+          {formatBps(poolFeeBps)} to the pool
         </Row>
         <Row label="Max slippage">
           <span className="flex gap-1">
@@ -266,9 +276,9 @@ export function SwapPanel({
         </Row>
       </dl>
       <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
-        The Imagine fee goes straight into this coin&apos;s pool, paid in {quote.symbol}, in the same transaction — if
-        the trade fails, it&apos;s never taken. StonkFun&apos;s 1% curve fee and the Raydium LaunchLab protocol fee
-        apply on the curve.
+        Both fees go into this coin&apos;s pool, paid in {quote.symbol} — {formatBps(poolFeeBps + tradeFeeBps)} in all
+        through Imagine; the creator earns nothing from them. If the trade fails, nothing is taken. Raydium
+        LaunchLab&apos;s {formatBps(LAUNCHLAB_PROTOCOL_FEE_BPS)} protocol fee applies on the curve.
         {solPays ? ` Your SOL is swapped to ${quote.symbol} through Jupiter first.` : ""}
       </p>
 

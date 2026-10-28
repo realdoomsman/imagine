@@ -11,10 +11,10 @@ the shipped ones: `apps/web/app/globals.css` (web) and `video/src/theme.ts`
 - **Imagine** in running prose ("Imagine pays lockers in the pair asset").
 - **$IMAGINE** for the coin only. It is not launched; every official-coin surface
   stays hidden until `NEXT_PUBLIC_OFFICIAL_MINT` is set. Never imply a date.
-- Domain **imagine.fun**, API **api.imagine.fun**. Partner name: **StonkFun**
-  (one word, capital F), site stonkfun.xyz.
-- The X handle is not decided. The link comes from `NEXT_PUBLIC_X_URL` and is
-  hidden while unset. Never write a handle. There is no project Telegram.
+- Domain **imagine.fun**, API **api.imagine.fun**. Venue: coins are
+  "Launched on Raydium" — Raydium LaunchLab, under the IMAGINE platform.
+- X: **@LockImagine** (https://x.com/LockImagine). The site's link comes from
+  `NEXT_PUBLIC_X_URL` and is hidden while unset. There is no project Telegram.
 
 ## Voice
 
@@ -33,26 +33,33 @@ line.
 | Use | Line |
 |---|---|
 | Hero | **Imagine everyone locks.** |
-| Hero sub | Launch a coin on StonkFun, paired with anything. Every trade pays the holders who lock it — in whatever it's paired with. Lock longer, earn a bigger cut. |
+| Hero sub | Launch a coin on Raydium, paired with anything. Every trade pays the holders who lock it — in whatever it's paired with. Lock longer, earn a bigger cut. |
 | Tagline | **Lock the meme. Earn its pair.** |
 | Supporting | Imagine the chart if nobody sold. · Paid in its pair, not promises. · Selling is free. It just costs you the stream. |
 
 ### Facts copy may state (and nothing beyond)
 
-Coins launch on StonkFun (Raydium LaunchLab). StonkFun charges 1% on curve
-trades; Raydium LaunchLab's protocol fee applies. imagine.fun adds a 1% app fee
-on trades it routes, paid into that coin's pool. StonkFun forwards a creator
-share to the coin's creator address, which for IMAGINE coins is the pool's
-vault (never promise an amount). 90% of pool inflow streams to lockers by
-weight, 10% to the treasury. No admin withdraw path. Terms frozen per pool.
-Claims and unlocks can't be paused. The creator locks first. Lockers earn in the
-coin's pair asset.
+Coins launch on Raydium LaunchLab under the IMAGINE platform, paired with
+anything LaunchLab supports: SOL, USDC, tokenized stocks like NVDAx and SPYx.
+Every trade anywhere (Raydium, Jupiter, any terminal or bot) pays the coin's
+0.5% on-chain trading fee — the pool fee — which Raydium LaunchLab sends to the
+coin's pool; trades on imagine.fun add a 1.5% app fee, so **2% goes into the
+pool on imagine.fun trades**. Raydium's 0.25% protocol fee also applies. After
+graduation to Raydium CPMM the pool keeps earning the CPMM pool fee; the LP is
+locked. The fees are enforced on-chain by Raydium LaunchLab. 90% of pool inflow
+streams to lockers by weight, 10% to the treasury. **The creator earns nothing
+from fees — they earn only by locking, like everyone else.** No admin withdraw
+path. Terms frozen per pool. Claims and unlocks can't be paused. The creator
+locks first. Lockers earn in the coin's pair asset.
+
+In user-facing copy never call the 0.5% a "creator fee" (LaunchLab's technical
+name; its "creator" account is the pool's vault). Say "0.5% on-chain trading
+fee" or "pool fee". Never mention other launchpads.
 
 ## Palette
 
-StonkFun-native dark teal for structure, so a coin feels at home next to the
-launchpad it trades on; one signature of IMAGINE's own on top, the `--dream`
-gradient.
+Dark teal for structure, so a coin feels at home next to the trading venues it
+lives on; one signature of IMAGINE's own on top, the `--dream` gradient.
 
 | Token | Hex | Use |
 |---|---|---|
@@ -66,7 +73,7 @@ gradient.
 | `--fg` | `#F3F8F8` | Headings, primary text |
 | `--fg-soft` | `#A4C5CF` | Body text |
 | `--muted` | `#768A93` | Labels, eyebrows |
-| `--steel` | `#69AAC1` | Primary buttons (StonkFun's), text `#071013` |
+| `--steel` | `#69AAC1` | Primary buttons, text `#071013` |
 | `--steel-hi` | `#8CC8DC` | Primary hover |
 | `--mint` | `#5EE9B5` | Up, earnings |
 | `--mint-deep` | `#39D6A3` | Mint on light fills |
@@ -143,5 +150,8 @@ Rendered by Remotion from `video/` (see `docs/RUNBOOK.md` → Media):
 | Teaser, 1920×1080, ~15 s | `video/out/imagine-teaser.mp4` |
 | Explainer, 1920×1080, ~30 s | `video/out/imagine-explainer.mp4` |
 | Vertical, 1080×1920, ~15 s | `video/out/imagine-vertical.mp4` |
+| X launch film, 1920×1080 ~80 s with voice-over, plus a 1080² feed cut with burned-in captions | `video/out/x/film/imagine-launch.mp4`, `imagine-launch-square.mp4`, `imagine-launch.srt` (from `video/src/x-film`, `video/audio/vo.py` + `launch.py`; `scripts/render-launch-film.sh`) |
 | X cards, 1600×900 | `video/out/cards/01-imagine.png` … `07-rules.png` (from `video/src/cards.ts`) |
 | Avatar 400², banner 1500×500, OG card 1200×630 | `video/out/profile/avatar.png`, `banner.png`, `card.png`; OG copy at `apps/web/app/opengraph-image.png` |
+| X launch package (article images, posts, pinned post, profile) | `video/out/x/article/`, `video/out/x/posts/`, `video/out/x/profile/` (see `docs/LAUNCH-X.md`) |
+| Platform logo, 512² (written into the IMAGINE LaunchLab PlatformConfig) | `apps/web/public/brand/imagine-512.png` → https://imagine.fun/brand/imagine-512.png |

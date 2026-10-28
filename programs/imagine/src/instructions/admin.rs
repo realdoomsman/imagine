@@ -7,7 +7,7 @@ use anchor_lang::prelude::*;
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct ConfigArgs {
     pub treasury: Pubkey,
-    /// StonkFun's LaunchLab `PlatformConfig`; new launches are created under it.
+    /// IMAGINE's LaunchLab `PlatformConfig`; new launches are created under it.
     pub launchlab_platform: Pubkey,
     pub trade_fee_bps: u16,
     pub default_treasury_share_bps: u16,

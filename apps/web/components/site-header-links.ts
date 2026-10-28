@@ -7,6 +7,9 @@ export const NAV = [
   { href: "/docs", label: "Docs" },
 ] as const;
 
+/** Where IMAGINE coins are created and trade on their bonding curve. */
+export const RAYDIUM_LAUNCHPAD_URL = "https://raydium.io/launchpad/";
+
 /**
  * Social links come from the build environment only and disappear when unset:
  * no handle is hard-coded anywhere in the site.

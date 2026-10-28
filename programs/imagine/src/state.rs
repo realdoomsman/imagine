@@ -15,8 +15,8 @@ pub struct Config {
     pub pending_admin: Pubkey,
     /// Destination stamped into new pools' `treasury` field.
     pub treasury: Pubkey,
-    /// StonkFun's LaunchLab `PlatformConfig`. `launch` creates every coin under
-    /// it, so coins list on StonkFun and its platform fee rules apply.
+    /// IMAGINE's LaunchLab `PlatformConfig`. `launch` creates every coin under
+    /// it, so its creator fee (paid to each coin's reward vault) applies.
     pub launchlab_platform: Pubkey,
     /// App fee charged by the front-end on routed swaps, in bps of the quote
     /// leg. Advisory: it is enforced when our API builds the transaction, not
@@ -166,7 +166,7 @@ pub struct Pool {
     /// Set by `found`; default until then.
     pub token_vault: Pubkey,
     /// System-owned PDA `["vault", pool]`. It is the LaunchLab pool's creator,
-    /// so StonkFun's forwarded creator share lands here (or in its token
+    /// so the coin's on-chain creator fee is collected here (or in its token
     /// account for a non-SOL quote).
     pub reward_vault: Pubkey,
     /// Token program that owns `mint` (Token-2022 for LaunchLab coins).

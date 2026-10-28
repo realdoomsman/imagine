@@ -15,6 +15,10 @@ const PLATFORM_CONFIG_DISC: [u8; 8] = [0xa0, 0x4e, 0x80, 0x00, 0xf8, 0x53, 0xe6,
 const POOL_STATE_DISC: [u8; 8] = [0xf7, 0xed, 0xe3, 0xf5, 0xd7, 0xc3, 0xde, 0x46];
 
 const IX_INITIALIZE_WITH_TOKEN_2022: [u8; 8] = [37, 190, 126, 222, 44, 154, 171, 17];
+/// LaunchLab `claim_creator_fee` (no arguments).
+pub const IX_CLAIM_CREATOR_FEE: [u8; 8] = [26, 97, 138, 203, 132, 171, 141, 252];
+/// CPMM `collect_creator_fee` (no arguments).
+pub const IX_CPMM_COLLECT_CREATOR_FEE: [u8; 8] = [20, 22, 86, 123, 198, 28, 219, 132];
 
 /// LaunchLab pool status once migrated to CPMM (0 = selling on the curve,
 /// 1 = sold out, waiting for `migrate_to_cpswap`).
@@ -146,6 +150,9 @@ impl PoolState {
 /// CPMM `PoolState` (637 bytes).
 pub struct CpmmPool {
     pub amm_config: Pubkey,
+    /// Who collects the pool's creator fees: for a LaunchLab migration under a
+    /// platform without a `platform_cp_creator`, the LaunchLab creator.
+    pub pool_creator: Pubkey,
     pub token_0_vault: Pubkey,
     pub token_1_vault: Pubkey,
     pub token_0_mint: Pubkey,
@@ -154,6 +161,8 @@ pub struct CpmmPool {
     /// they aren't liquidity (`vault_amount_without_fee`).
     pub fees_token_0: u64,
     pub fees_token_1: u64,
+    /// Creator fees accrued and not yet collected (included in `fees_*`).
+    pub creator_fees: u64,
 }
 
 impl CpmmPool {
@@ -167,12 +176,14 @@ impl CpmmPool {
         };
         Ok(Self {
             amm_config: key_at(&d, 8),
+            pool_creator: key_at(&d, 40),
             token_0_vault: key_at(&d, 72),
             token_1_vault: key_at(&d, 104),
             token_0_mint: key_at(&d, 168),
             token_1_mint: key_at(&d, 200),
             fees_token_0: fees(341, 357, 397)?,
             fees_token_1: fees(349, 365, 405)?,
+            creator_fees: u64_at(&d, 397).saturating_add(u64_at(&d, 405)),
         })
     }
 

@@ -10,7 +10,7 @@ export type Imagine = {
     "name": "imagine",
     "version": "0.1.0",
     "spec": "0.1.0",
-    "description": "IMAGINE: time-weighted lock-to-earn vaults for StonkFun coins, paid in each coin's pair asset"
+    "description": "IMAGINE: time-weighted lock-to-earn vaults for Raydium LaunchLab coins, paid in each coin's pair asset"
   },
   "instructions": [
     {
@@ -368,6 +368,120 @@ export type Imagine = {
           ],
           "writable": true,
           "optional": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "collectCreatorFee",
+      "discriminator": [
+        20,
+        22,
+        86,
+        123,
+        198,
+        28,
+        219,
+        132
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Permissionless crank. Funds any missing reward-vault token account and",
+            "is refunded the rent of the transient WSOL account."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.mint",
+                "account": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "rewardVault",
+          "docs": [
+            "The LaunchLab (and CPMM) creator of the coin; signs the claims."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vaultQuoteAccount",
+          "docs": [
+            "the handler: the pool's reward token account, or for a WSOL quote a",
+            "transient WSOL account unwrapped into the vault's lamports."
+          ],
+          "writable": true
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "quoteMint"
+        },
+        {
+          "name": "quoteTokenProgram"
+        },
+        {
+          "name": "creatorFeeVault",
+          "docs": [
+            "vault; LaunchLab validates it. Skipped while empty or not yet created."
+          ],
+          "writable": true
+        },
+        {
+          "name": "creatorFeeVaultAuthority"
+        },
+        {
+          "name": "launchlabProgram",
+          "address": "LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj"
+        },
+        {
+          "name": "tokenProgram"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
         },
         {
           "name": "systemProgram",
@@ -2498,7 +2612,7 @@ export type Imagine = {
     {
       "code": 6026,
       "name": "platformMismatch",
-      "msg": "LaunchLab platform is not the configured StonkFun platform"
+      "msg": "LaunchLab platform is not the configured IMAGINE platform"
     }
   ],
   "types": [
@@ -2562,8 +2676,8 @@ export type Imagine = {
           {
             "name": "launchlabPlatform",
             "docs": [
-              "StonkFun's LaunchLab `PlatformConfig`. `launch` creates every coin under",
-              "it, so coins list on StonkFun and its platform fee rules apply."
+              "IMAGINE's LaunchLab `PlatformConfig`. `launch` creates every coin under",
+              "it, so its creator fee (paid to each coin's reward vault) applies."
             ],
             "type": "pubkey"
           },
@@ -2665,7 +2779,7 @@ export type Imagine = {
           {
             "name": "launchlabPlatform",
             "docs": [
-              "StonkFun's LaunchLab `PlatformConfig`; new launches are created under it."
+              "IMAGINE's LaunchLab `PlatformConfig`; new launches are created under it."
             ],
             "type": "pubkey"
           },
@@ -2842,8 +2956,8 @@ export type Imagine = {
           {
             "name": "supply",
             "docs": [
-              "Curve shape, as StonkFun's pricing API and curve rule require it;",
-              "LaunchLab validates the combination."
+              "Curve shape; LaunchLab validates the combination against the quote's",
+              "GlobalConfig (and the platform's curve rule, if it has one)."
             ],
             "type": "u64"
           },
@@ -2958,7 +3072,7 @@ export type Imagine = {
             "name": "rewardVault",
             "docs": [
               "System-owned PDA `[\"vault\", pool]`. It is the LaunchLab pool's creator,",
-              "so StonkFun's forwarded creator share lands here (or in its token",
+              "so the coin's on-chain creator fee is collected here (or in its token",
               "account for a non-SOL quote)."
             ],
             "type": "pubkey"
@@ -3201,7 +3315,7 @@ export type Imagine = {
     {
       "name": "poolLaunched",
       "docs": [
-        "A coin was created on LaunchLab under StonkFun's platform with this pool's",
+        "A coin was created on LaunchLab under the IMAGINE platform with this pool's",
         "reward vault as its creator. The pool opens for locks once `found` runs."
       ],
       "type": {
@@ -3575,7 +3689,8 @@ export type Imagine = {
       "name": "rewardsSynced",
       "docs": [
         "Emitted on every sync that absorbed new quote, whatever its source: routed",
-        "app fees, StonkFun's forwarded creator share, or plain donations. Amounts",
+        "app fees, the on-chain LaunchLab / CPMM creator fee collected by",
+        "`collect_creator_fee`, or plain donations. Amounts",
         "are quote base units."
       ],
       "type": {

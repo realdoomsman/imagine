@@ -12,6 +12,7 @@ import { poolRoutes } from "./routes/pools.ts";
 import { portfolioRoutes } from "./routes/portfolio.ts";
 import { clientIp, registerRpcProxy } from "./rpc-proxy.ts";
 import { txRoutes } from "./routes/tx.ts";
+import { platformConfig } from "./raydium.ts";
 import { chainConfig, connection } from "./solana.ts";
 import { timingSafeEqual } from "node:crypto";
 
@@ -84,10 +85,15 @@ app.get("/health", async () => {
 
 app.get("/config", async () => {
   const config = await chainConfig();
+  // The pool's on-chain trading fee on every curve trade anywhere: the
+  // platform's LaunchLab creator_fee_rate (millionths), whose "creator" is the
+  // pool vault.
+  const platform = await platformConfig(config.launchlabPlatform);
   return {
     cluster: env.cluster,
     treasury: config.treasury.toBase58(),
     tradeFeeBps: config.tradeFeeBps,
+    poolFeeBps: Number(platform.creatorFeeRate / 100n),
     platform: config.launchlabPlatform.toBase58(),
     launchAlt: env.launchAlt?.toBase58() ?? null,
     googleClientId: env.googleClientId,

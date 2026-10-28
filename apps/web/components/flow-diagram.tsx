@@ -4,9 +4,9 @@
  */
 
 const SOURCES = [
-  { title: "Trades on imagine.fun", body: "1% app fee, paid into this coin's vault in the same transaction" },
-  { title: "StonkFun creator share", body: "forwarded by StonkFun to the coin's creator address: its vault" },
-  { title: "Donations", body: "anyone can deposit into a vault" },
+  { title: "Every trade, anywhere", body: "0.5% on-chain trading fee, sent to the pool by Raydium LaunchLab" },
+  { title: "Trades on imagine.fun", body: "+1.5% app fee, so 2% of each trade reaches the pool" },
+  { title: "After graduation", body: "the Raydium pool's fee share keeps flowing, plus donations" },
 ];
 
 const SPLIT = [
@@ -30,7 +30,7 @@ export function FlowDiagram() {
         viewBox="0 0 1000 400"
         className="hidden h-auto w-full md:block"
         role="img"
-        aria-label="Trades on imagine.fun, StonkFun's forwarded creator share and donations flow into the coin's vault; 90% streams to lockers by weight and 10% goes to the treasury."
+        aria-label="A 0.5% on-chain trading fee on every trade anywhere, a 1.5% app fee on imagine.fun trades, and after graduation the Raydium pool's fee share flow into the coin's vault; 90% streams to lockers by weight and 10% goes to the treasury."
       >
         <defs>
           <linearGradient id="flow-dream" x1="0" y1="0" x2="1" y2="0.58">

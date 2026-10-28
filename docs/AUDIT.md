@@ -1,25 +1,26 @@
 # Security review — internal pass
 
-Scope: `programs/imagine/src/` at the pre-deployment working tree.
-IMAGINE's program is the lock-to-earn engine reviewed earlier for its
-predecessor, ported to StonkFun: the reward accumulator, stream, caps, exits
-and admin model are carried over; the launch path, pricing and every payout are
-new (LaunchLab CPI, LaunchLab/CPMM pricing, quote-asset payouts). Earlier
-findings are kept below only where the fix is still load-bearing in this code,
-renumbered and re-scoped. New surfaces follow.
+Scope: `programs/imagine/src/` at the working tree of the upgrade that moves
+launches onto IMAGINE's own Raydium LaunchLab platform and adds
+`collect_creator_fee`. The deployed program
+(`imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa`) is the lock-to-earn engine
+reviewed earlier for its predecessor: the reward accumulator, stream, caps,
+exits and admin model are carried over; the launch path, pricing, payouts and
+creator-fee collection are new (LaunchLab and CPMM CPIs, LaunchLab/CPMM pricing,
+quote-asset payouts). Earlier findings are kept below only where the fix is
+still load-bearing, renumbered and re-scoped. New surfaces follow.
 
 Method: manual read of the program source, every `address =` / `seeds =` /
 `has_one` / `Signer` constraint traced, accounting invariants re-derived and
 checked against the Rust unit tests and the LiteSVM suites, which run the real
 mainnet LaunchLab, CPMM and Token-2022 builds (`tests/fixtures/raydium/`).
 
-**This is an internal review. An independent external audit is still required
-before mainnet** — see `docs/RUNBOOK.md`.
+**This is an internal review. An independent external audit is still owed** —
+see `docs/RUNBOOK.md`.
 
 Regression tests: `describe("audit regressions")` in
-`packages/sdk/test/imagine.test.ts`; launch and pricing guards in
-`describe("StonkFun launch guards")` and `describe("migrated coins")` in
-`packages/sdk/test/stonkfun.test.ts`.
+`packages/sdk/test/imagine.test.ts`; launch, creator-fee collection and pricing
+guards in `packages/sdk/test/raydium.test.ts`.
 
 ## Carried-over findings, still enforced
 
@@ -35,9 +36,10 @@ owner-only.
 
 ### IMG-02 — High — inflow recognised at an attacker-chosen moment
 
-More acute on StonkFun than before: forwarded creator shares arrive as plain
-transfers with no instruction, so a backlog is readable from public state at
-any time. *Enforced:* inflow is streamed over `reward_stream_secs` (frozen per
+More acute here than before: the 0.5% creator fee piles up in LaunchLab's
+creator-fee vault in public view, and anyone can call `collect_creator_fee`, so
+a backlog is readable and its arrival is attacker-timed. *Enforced:* inflow is
+streamed over `reward_stream_secs` (frozen per
 pool, 1 hour – 7 days, default 1 hour, shorter than the 4-hour minimum lock),
 so weight created after funds arrive earns nothing from them.
 `MIN_PENALTY_BPS = 500` keeps a floor under the exit cost.
@@ -121,13 +123,14 @@ as a non-signing creator. Checked:
 - The LaunchLab program account is pinned to `LAUNCHLAB_PROGRAM_ID`; Token-2022
   is pinned.
 - `launchlab_platform` must equal `config.launchlab_platform`
-  (`PlatformMismatch`), StonkFun's PlatformConfig on mainnet.
+  (`PlatformMismatch`) — the IMAGINE PlatformConfig on mainnet.
 - GlobalConfig, authority, pool, vaults and event authority are validated by
-  LaunchLab itself; the pool is then read back (IMG-04).
-- When StonkFun's platform restricts global configs or curve params, the
-  platform allow-config and curve-rule PDAs are forwarded and LaunchLab
-  enforces them; curve parameters come from StonkFun's pricing API via the
-  API, and a mismatch fails the whole transaction.
+  LaunchLab itself; the pool is then read back (IMG-04), including
+  `creator == reward vault`, which is what routes the creator fee to the pool.
+- If a configured platform restricts global configs or curve params, its
+  allow-config and curve-rule PDAs are forwarded and LaunchLab enforces them.
+  The IMAGINE platform restricts neither; curve parameters are chosen by the
+  API, and LaunchLab rejects an invalid combination, failing the transaction.
 - No lamports or tokens owned by the pool move during the CPI; the vault PDA
   never signs it.
 
@@ -158,16 +161,54 @@ non-transferability (`QuoteNotTransferable`), because any of them would make
 the books disagree with the balance. Solvency is asserted by the churn test in
 both the SOL and SPYx paths.
 
-### N-04 — StonkFun's off-chain forwarding (trust assumption)
+### N-04 — `collect_creator_fee`: LaunchLab and CPMM creator-fee CPIs
 
-The creator share is forwarded by StonkFun off-chain to the LaunchLab pool's
-`creator` — for IMAGINE coins, the reward vault. Nothing on chain obliges
-StonkFun to forward, fixes the amount, or prevents it from changing its policy.
-IMAGINE's correctness does not depend on it: forwards are simply inflow when
-they arrive. Product copy must not promise amounts or timing. The keeper syncs
-vaults once their unsynced balance passes `SYNC_MIN_USD`; anyone can `sync`.
+New and permissionless. It CPIs LaunchLab `claim_creator_fee` and, once the
+coin has migrated, CPMM `collect_creator_fee`, then (WSOL quote) closes the
+vault's WSOL ATA into the vault and runs `sync` inline. Checked:
 
-### N-05 — xStock issuer powers
+- LaunchLab and CPMM program accounts are pinned to their mainnet ids.
+- The creator-fee vault is derived (LaunchLab `[vault PDA, quote_mint]`), and
+  the LaunchLab pool is pinned to `pool.launchlab_pool`.
+- The CPMM pool must be the canonical PDA for its own `amm_config` holding
+  (coin, quote), and its `pool_creator` must be the vault PDA; the vault keys
+  must match the pool state.
+- Destination accounts are the vault's own ATAs (`QuoteAccountMismatch`
+  otherwise); nothing is paid to the caller except the transient WSOL account's
+  rent, which the caller fronted.
+- Collection only ever increases the vault's balance; it is credited by the
+  same balance-diff `sync` as every other inflow, so a failed or partial CPI
+  cannot desynchronise the books.
+
+Residual: a LaunchLab or CPMM upgrade that changes these instructions' account
+lists breaks collection (the CPI fails), not custody; fees stay claimable by
+the vault PDA in Raydium's vaults until a program upgrade adapts.
+
+### N-05 — The reward-vault PDA as a signer
+
+The vault PDA now signs outside IMAGINE: LaunchLab `claim_creator_fee` and CPMM
+`collect_creator_fee`, both of which can only move fees *to* accounts the vault
+owns. Every signing site was traced: the PDA signs only those two CPIs, the
+WSOL account close (destination: the vault), and IMAGINE's own payouts to the
+locker, creator or treasury that earned them. No caller-supplied program id
+ever receives the vault's signature.
+
+### N-06 — Fee rates live in configs IMAGINE does not freeze
+
+LaunchLab reads `creator_fee_rate` from the PlatformConfig at every trade
+(verified in LiteSVM: changing the platform's rate on a live coin changed the
+next trade's accrual), and CPMM reads its creator fee from the AmmConfig;
+neither is frozen per IMAGINE pool. The IMAGINE program cannot change either.
+LaunchLab has `update_platform_config`; whether it lets the platform admin (the
+IMAGINE admin key) change `creator_fee_rate` was not verified, so treat it as
+possible, within LaunchLab's cap of 0.5%. Raydium controls the AmmConfig.
+Lowering a rate reduces
+future inflow only; nothing already in a pool's vault or in Raydium's
+creator-fee vault is affected. The fees are enforced on-chain by Raydium
+LaunchLab, not by IMAGINE. The platform admin key should move to the same
+multisig as the program's upgrade authority.
+
+### N-07 — xStock issuer powers
 
 xStocks are Token-2022 mints carrying a PermanentDelegate, Pausable,
 ScaledUiAmount, a TransferHook with only its authority set, a
@@ -182,13 +223,14 @@ affected. ScaledUiAmount changes only the UI amount; the program works in raw
 base units. This is the issuer risk every xStock holder already carries;
 lockers of an xStock-paired coin take it on for their rewards.
 
-### N-06 — Founding gate
+### N-08 — Founding gate
 
 Between `launch` and `found` the pool exists unfounded: `lock`, `increase`,
 `extend` and `deposit_reward` require `founded` (`NotFounded`), `sync` is a
 no-op, and `found` runs once, creator only (`AlreadyFounded`,
-`NotPoolCreator`). The API sends all three in one v0 transaction; anything
-forwarded meanwhile is inflow on the first sync after founding.
+`NotPoolCreator`). The API sends all three in one v0 transaction; creator fees
+accrued meanwhile (the dev buy pays them) are inflow on the first sync after
+founding.
 
 ## Verified correct
 
@@ -197,8 +239,8 @@ forwarded meanwhile is inflow on the first sync after founding.
   after every step of a randomised churn test, SOL and SPYx.
 - The SOL vault can never be drained below its reserve.
 - No admin path moves pool funds. The only signers over a pool's funds are the
-  vault PDA (paying the locker, creator or treasury that earned it) and the pool
-  PDA (returning or burning locked tokens).
+  vault PDA (paying the locker, creator or treasury that earned it, and pulling
+  creator fees in — N-05) and the pool PDA (returning or burning locked tokens).
 - Pause blocks only `launch`; claiming and unlocking are unpausable.
 - Pool terms are written once at launch and never rewritten.
 - Every arithmetic site is checked; `overflow-checks = true` for release builds.
@@ -213,10 +255,12 @@ forwarded meanwhile is inflow on the first sync after founding.
 
 - **`pool.treasury` is frozen per pool.** Rotating the treasury key leaves
   existing pools paying the old address. Use a multisig.
-- **`trade_fee_bps` is advisory.** The 1% app fee is added by the API; trading
-  on StonkFun, Raydium or an aggregator directly does not pay it.
-- **StonkFun forwarding is off-chain** (N-04) and **xStock issuers hold
-  powers over quote balances** (N-05).
+- **`trade_fee_bps` is advisory.** The 1.5% app fee is added by the API;
+  trading on Raydium or through an aggregator pays only the on-chain 0.5%.
+- **Fee rates are set in LaunchLab/CPMM configs** (N-06) and **xStock issuers
+  hold powers over quote balances** (N-07).
+- **The graduated LP is locked, not burned.** The liquidity stays locked; its
+  Fee-Key NFT, which collects the LP's trading fees, goes to the treasury.
 - **Tokens sent directly to a pool's token vault are unrecoverable.** A sweep
   would be an admin token-movement path.
 - **Position enumeration is off-chain only.** The indexer must paginate.

@@ -22,6 +22,7 @@ import {
   cpmmSwapBaseInput,
   cpmmSwapIx,
   cpmmSwapSide,
+  creatorFeeVaultPda,
   curveFeeRates,
   curvePriceQ64,
   decodeCpmmAmmConfig,
@@ -37,7 +38,6 @@ import {
   launchLabPoolVaultPda,
   launchLabTradeIx,
   poolPda,
-  quoteByMint,
   rewardVaultPda,
   sellExactIn,
   type CpmmAmmConfig,
@@ -53,18 +53,23 @@ import { sql } from "./db.ts";
 import { ActionError } from "./errors.ts";
 import { metadataUri } from "./files.ts";
 import { swapSolToQuote } from "./jupiter.ts";
-import { launchableQuotes, launchPricing, quoteDisplay, type QuoteDisplay } from "./quotes.ts";
+import { launchableQuotes, launchCurve, quoteDisplay, type QuoteDisplay } from "./quotes.ts";
 import { chainConfig, connection, imagine } from "./solana.ts";
 import { budgetInstructions, fits, launchLookupTable, tablesFor } from "./transactions.ts";
 
 /**
- * StonkFun, through Raydium LaunchLab: reading a coin's market, and building
- * the transactions that launch and trade it with the IMAGINE app fee attached.
+ * Raydium LaunchLab, under IMAGINE's own platform config: reading a coin's
+ * market, and building the transactions that launch and trade it with the
+ * IMAGINE app fee attached.
  *
- * Every coin here is a LaunchLab Token-2022 coin under StonkFun's platform
- * config, paired with a quote asset (SOL, USDC, an xStock, …). It trades on
- * its LaunchLab curve until the raise fills, then on the Raydium CPMM pool it
- * migrates into. Prices and fees are in quote base units throughout.
+ * Every coin here is a LaunchLab Token-2022 coin under the IMAGINE
+ * PlatformConfig (`config.launchlab_platform`), paired with a quote asset
+ * (SOL, USDC, a tokenized stock, …). It trades on its LaunchLab curve until
+ * the raise fills, then on the Raydium CPMM pool it migrates into. The
+ * platform's on-chain trading fee (LaunchLab's `creator_fee_rate`, whose
+ * "creator" is the pool's reward vault) accrues to the pool on every curve
+ * trade anywhere; trades routed here add the app fee on top. Prices and fees
+ * are in quote base units throughout.
  */
 
 const isNative = (quoteMint: PublicKey) => quoteMint.equals(NATIVE_MINT);
@@ -87,10 +92,11 @@ async function cachedAccount<T>(address: PublicKey, decode: (data: Buffer) => T)
 }
 
 const globalConfig = (address: PublicKey): Promise<GlobalConfig> => cachedAccount(address, decodeGlobalConfig);
-const platformConfig = (address: PublicKey): Promise<PlatformConfig> => cachedAccount(address, decodePlatformConfig);
+/** A LaunchLab PlatformConfig, decoded and cached. */
+export const platformConfig = (address: PublicKey): Promise<PlatformConfig> => cachedAccount(address, decodePlatformConfig);
 const ammConfig = (address: PublicKey): Promise<CpmmAmmConfig> => cachedAccount(address, decodeCpmmAmmConfig);
 
-/** Every fee a curve trade pays: LaunchLab's protocol fee, StonkFun's platform fee, the creator rate. */
+/** Every fee a curve trade pays: LaunchLab's protocol fee, the platform fee (0 for IMAGINE) and the pool's trading fee. */
 async function feeRates(state: Pick<LaunchLabPool, "globalConfig" | "platformConfig">): Promise<CurveFeeRates> {
   const [global, platform] = await Promise.all([globalConfig(state.globalConfig), platformConfig(state.platformConfig)]);
   return curveFeeRates(global, platform);
@@ -133,7 +139,7 @@ function q64ToPrice(q64: bigint, coinDecimals: number, quoteDecimals: number): n
   return (Number(q64) / 2 ** 64) * 10 ** (coinDecimals - quoteDecimals);
 }
 
-/** The canonical CPMM pool a StonkFun coin migrates into, read with its vault balances. */
+/** The canonical CPMM pool a coin migrates into (the platform's `cpswap_config`), read with its vault balances. */
 async function readCpmm(state: LaunchLabPool): Promise<CpmmMarket | null> {
   const platform = await platformConfig(state.platformConfig);
   const address = cpmmPoolPda(platform.cpswapConfig, state.baseMint, state.quoteMint, CPMM_PROGRAM_ID);
@@ -205,11 +211,11 @@ export function valuationAccounts(market: Market | null): PublicKey[] {
 // --- reward vault ---------------------------------------------------------
 
 /**
- * Reward balance that has arrived since the pool last synced: StonkFun's
- * forwarded creator share, donations sent straight to the vault, anything a
- * `sync` would fold in. Native SOL above the vault's rent reserve for a
- * SOL-paired pool; the reward token account's balance otherwise. Zero before
- * the pool is founded, when `sync` does nothing.
+ * Reward balance that has arrived since the pool last synced: collected
+ * trading fees, donations sent straight to the vault, anything a `sync` would
+ * fold in. Native SOL above the vault's rent reserve for a SOL-paired pool;
+ * the reward token account's balance otherwise. Zero before the pool is
+ * founded, when `sync` does nothing.
  */
 export async function unsyncedRewards(pool: PoolAccount): Promise<bigint> {
   if (!pool.founded) return 0n;
@@ -222,6 +228,38 @@ export async function unsyncedRewards(pool: PoolAccount): Promise<bigint> {
     balance = tokenAmount(info?.data) ?? 0n;
   }
   return balance > pool.lastVaultBalance ? balance - pool.lastVaultBalance : 0n;
+}
+
+/**
+ * The pool's trading fee earned on Raydium but not yet pulled into the vault:
+ * the LaunchLab creator-fee vault of (reward vault, quote) — the vault PDA is
+ * the LaunchLab "creator" — plus, once migrated, the CPMM pool's creator fees
+ * on the quote side (gross: CPMM keeps a protocol share of those when they are
+ * collected). `collect_creator_fee` moves both into the vault and syncs.
+ */
+export async function uncollectedFees(pool: PoolAccount, market: Market | null): Promise<bigint> {
+  const feeVault = creatorFeeVaultPda(pool.rewardVault, pool.quoteMint, LAUNCHLAB_PROGRAM_ID);
+  const info = await connection.getAccountInfo(feeVault, "confirmed");
+  let total = tokenAmount(info?.data) ?? 0n;
+  if (market?.cpmm) {
+    const { pool: cpmm } = market.cpmm;
+    total += cpmm.token0Mint.equals(pool.quoteMint) ? cpmm.creatorFeesToken0 : cpmm.creatorFeesToken1;
+  }
+  return total;
+}
+
+/**
+ * `collect_creator_fee` for a pool: pulls its trading fee out of LaunchLab
+ * (and CPMM after graduation) into the reward vault, then syncs inline.
+ * Permissionless; `payer` funds any token account it creates.
+ */
+export async function collectFeesInstructions(payer: PublicKey, pool: PoolAccount, market: Market | null) {
+  return imagine.collectCreatorFee({
+    payer,
+    mint: pool.mint,
+    quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram },
+    graduated: market?.cpmm ? { ammConfig: market.cpmm.pool.ammConfig } : undefined,
+  });
 }
 
 // --- SOL wrapping ---------------------------------------------------------
@@ -501,9 +539,9 @@ function impersonatesImagine(name: string, symbol: string): boolean {
  *
  * Normally one v0 transaction through the `LAUNCH_ALT` table:
  *   1. `imagine.launch` — opens the pool and CPIs LaunchLab
- *      `initialize_with_token_2022` under StonkFun's platform config, with the
- *      pool's reward vault as the LaunchLab creator, so StonkFun's forwarded
- *      creator share lands in the pool;
+ *      `initialize_with_token_2022` under the IMAGINE platform config, with
+ *      the pool's reward vault as the LaunchLab creator, so the platform's
+ *      on-chain trading fee accrues to the pool;
  *   2. LaunchLab `buy_exact_in` — the creator's dev buy, priced exactly on the
  *      fresh curve: nothing can trade between create and buy;
  *   3. `imagine.found` — the creator's founding lock opens position 0.
@@ -538,24 +576,17 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
 
   const launchable = await launchableQuotes();
   if (!launchable.some((quote) => quote.mint === quoteMint.toBase58())) {
-    throw new ActionError(400, "StonkFun does not offer this pair for new launches right now");
+    throw new ActionError(400, "this pair can't be launched right now: it has no LaunchLab config or no USD price");
   }
   const quote = await quoteDisplay(quoteMint.toBase58());
-  const [config, chain, pricing, existing] = await Promise.all([
+  const [config, chain, curveParams, existing] = await Promise.all([
     imagine.fetchConfig(),
     chainConfig(),
-    launchPricing(quoteMint),
+    launchCurve(quoteMint),
     imagine.fetchPool(mint),
   ]);
   if (!config) throw new Error("IMAGINE config is not initialised on this cluster; run scripts/init-config.ts");
-  if (!pricing.platform.equals(chain.launchlabPlatform)) {
-    throw new Error(`StonkFun prices launches for platform ${pricing.platform.toBase58()}, config pins ${chain.launchlabPlatform.toBase58()}`);
-  }
-  const registry = quoteByMint(quoteMint.toBase58());
-  if (registry && registry.globalConfig !== pricing.globalConfig.toBase58()) {
-    throw new Error(`StonkFun's curve for ${quote.symbol} is under ${pricing.globalConfig.toBase58()}, registry says ${registry.globalConfig}`);
-  }
-  if (!pricing.available) throw new ActionError(409, `StonkFun is not accepting ${quote.symbol} launches right now`);
+  const platform = await platformConfig(chain.launchlabPlatform);
   if (existing?.founded) throw new ActionError(409, "this coin is already launched on IMAGINE");
   if (existing && !existing.creator.equals(creator)) {
     throw new ActionError(403, "only the wallet that launched this coin can finish its launch");
@@ -596,8 +627,8 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
   const launchlabPool = launchLabPoolPda(mint, quoteMint, LAUNCHLAB_PROGRAM_ID);
   const poolRef = {
     address: launchlabPool,
-    globalConfig: pricing.globalConfig,
-    platformConfig: pricing.platform,
+    globalConfig: curveParams.globalConfig,
+    platformConfig: chain.launchlabPlatform,
     baseMint: mint,
     quoteMint,
     baseVault: launchLabPoolVaultPda(launchlabPool, mint, LAUNCHLAB_PROGRAM_ID),
@@ -624,7 +655,7 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
     if (lockAmount < config.defaultMinLockAmount) {
       throw new ActionError(
         409,
-        `a founding lock of ${formatTokenAmount(lockAmount, pricing.baseDecimals)} is below the pool minimum of ${formatTokenAmount(config.defaultMinLockAmount, pricing.baseDecimals)}; buy more or lock a larger share`,
+        `a founding lock of ${formatTokenAmount(lockAmount, curveParams.baseDecimals)} is below the pool minimum of ${formatTokenAmount(config.defaultMinLockAmount, curveParams.baseDecimals)}; buy more or lock a larger share`,
       );
     }
   };
@@ -636,8 +667,8 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
     }
     // Priced on the curve `launch` is about to create: nothing else can trade
     // it before this buy, so the quote is exact; the limit is only a guard.
-    const rates = await feeRates({ globalConfig: pricing.globalConfig, platformConfig: pricing.platform });
-    const curve = freshCurve({ supply: pricing.supply, totalBaseSell: pricing.totalSell, totalQuoteFundRaising: pricing.fundRaising });
+    const rates = await feeRates({ globalConfig: curveParams.globalConfig, platformConfig: chain.launchlabPlatform });
+    const curve = freshCurve({ supply: curveParams.supply, totalBaseSell: curveParams.totalSell, totalQuoteFundRaising: curveParams.fundRaising });
     const fill = buyExactIn(curve, quoteIn, rates);
     const minOut = minusSlippage(fill.base, slippageBps);
     const lockAmount = (minOut * BigInt(request.lockPercent)) / 100n;
@@ -650,12 +681,13 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
       name: request.name,
       symbol: request.symbol,
       uri: request.uri,
-      supply: pricing.supply,
-      totalSell: pricing.totalSell,
-      fundRaising: pricing.fundRaising,
+      supply: curveParams.supply,
+      totalSell: curveParams.totalSell,
+      fundRaising: curveParams.fundRaising,
       creatorShareBps: 0,
-      globalConfig: pricing.globalConfig,
-      platform: pricing.platform,
+      globalConfig: curveParams.globalConfig,
+      platform: chain.launchlabPlatform,
+      restricted: platform.restrictGlobalConfig !== 0 || platform.restrictCurveParam !== 0,
     });
     const foundIx = await imagine.found({
       creator,
@@ -671,12 +703,12 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
       foundIx,
     ];
     if (table && fits(atomic, creator, [table])) {
-      steps.push({ label: "Launch on StonkFun, buy the first bag and lock it", instructions: atomic, lookupTables: [table], mintSigns: true });
+      steps.push({ label: "Launch on Raydium, buy the first bag and lock it", instructions: atomic, lookupTables: [table], mintSigns: true });
     } else {
       console.warn("launch: launch + dev buy + found does not fit one transaction; set LAUNCH_ALT (scripts/create-alt.ts). Splitting the launch");
       const create = [...budgetInstructions(request.priorityFeeMicroLamports, STEP_UNITS), launchIx];
       const rest = [...budgetInstructions(request.priorityFeeMicroLamports, STEP_UNITS), ...buyInstructions(minOut), foundIx];
-      steps.push({ label: "Launch the coin on StonkFun", instructions: create, lookupTables: tablesFor(create, creator, table ? [table] : []), mintSigns: true });
+      steps.push({ label: "Launch the coin on Raydium", instructions: create, lookupTables: tablesFor(create, creator, table ? [table] : []), mintSigns: true });
       steps.push({ label: "Buy the first bag and lock it", instructions: rest, lookupTables: tablesFor(rest, creator, table ? [table] : []), mintSigns: false });
     }
     return {

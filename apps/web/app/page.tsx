@@ -78,7 +78,7 @@ async function LiveCoins() {
         <p className="max-w-[46ch] text-[14px] text-fg-soft">
           {result.failed
             ? "The index didn't answer. Coins and vaults live on-chain either way; try again in a moment."
-            : "Launch a coin on StonkFun through IMAGINE, lock first, and it shows up here."}
+            : "Launch a coin on Raydium through IMAGINE, lock first, and it shows up here."}
         </p>
         <Link href={result.failed ? "/coins" : "/launch"} className="btn btn-primary btn-sm">
           {result.failed ? "Open coins" : "Launch a coin"}
@@ -99,8 +99,8 @@ async function LiveCoins() {
 const STEPS = [
   {
     n: "01",
-    title: "Launch on StonkFun",
-    body: "Pick what your coin is paired with: a stock like NVDAx, a currency like USDC, or SOL. The coin goes live on StonkFun, and its creator address is the coin's IMAGINE vault. The creator locks first.",
+    title: "Launch on Raydium",
+    body: "Pick what your coin is paired with: a stock like NVDAx, a currency like USDC, or SOL. It goes live on Raydium LaunchLab under the IMAGINE platform, wired to its IMAGINE pool. The creator locks first.",
   },
   {
     n: "02",
@@ -110,7 +110,7 @@ const STEPS = [
   {
     n: "03",
     title: "Every trade pays the stream",
-    body: "The 1% app fee on trades through imagine.fun and StonkFun's forwarded creator share land in the vault. 90% streams to lockers by weight, in the pair asset.",
+    body: "Every trade anywhere pays 0.5% into the coin's pool, on-chain. Trades on imagine.fun add 1.5% more, so 2% goes to the pool. 90% streams to lockers by weight, in the pair asset.",
   },
 ];
 
@@ -177,9 +177,9 @@ function Pairs() {
             <span className="eyebrow">Paired with anything</span>
             <h2 className="t-h1 mt-4 max-w-[13ch]">Paid in its pair, not promises.</h2>
             <p className="t-lede mt-5">
-              StonkFun prices every coin in a pair asset. Its trades pay in that asset, so its
-              lockers do too. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin
-              pays SOL; a USDC-paired coin pays USDC.
+              Every coin is priced in a pair asset, and its trades pay in that asset, so its lockers
+              do too. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin pays SOL;
+              a USDC-paired coin pays USDC.
             </p>
           </Reveal>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -206,7 +206,7 @@ function Pairs() {
               >
                 <span className="eyebrow">Your pick</span>
                 <span className="text-[17px] font-bold leading-snug text-fg">
-                  Any pair StonkFun opens for launch →
+                  Anything Raydium LaunchLab supports →
                 </span>
               </Link>
             </Reveal>
@@ -233,10 +233,12 @@ function FeeFlow() {
       </Reveal>
       <Reveal delay={200}>
         <p className="mt-10 max-w-[68ch] text-[15px] leading-relaxed text-fg-soft">
-          The split is frozen when the pool is created. The creator takes 0% by default and earns
-          the way everyone else does, by locking. StonkFun&apos;s 1% fee on curve trades and the
-          Raydium LaunchLab protocol fee are theirs; what reaches the vault is the app fee on
-          trades imagine.fun routes, the creator share StonkFun forwards, and donations.
+          Every trade anywhere — Raydium, Jupiter, any bot — pays the coin&apos;s 0.5% on-chain
+          trading fee, which Raydium LaunchLab sends straight to the coin&apos;s pool. Trades on
+          imagine.fun add a 1.5% app fee, so 2% reaches the pool. After graduation the Raydium
+          pool&apos;s fee share keeps flowing to it. Raydium&apos;s own 0.25% LaunchLab protocol fee
+          is theirs. The split is frozen when the pool is created. The creator earns nothing from
+          fees — they earn only by locking, like everyone else.
         </p>
       </Reveal>
     </section>
@@ -257,8 +259,8 @@ const GUARANTEES = [
     body: "Multiplier curve, size tiers, the 90/10 split, the early-exit penalty, the stream window: written once when the pool is made.",
   },
   {
-    title: "The creator locks first",
-    body: "A pool opens with the creator's own lock, public on the coin's page before anyone else can join.",
+    title: "Fees enforced on-chain",
+    body: "The 0.5% trading fee is charged by Raydium LaunchLab itself, on every trade anywhere, and paid straight to the coin's pool.",
   },
 ];
 
@@ -309,7 +311,7 @@ function Cta() {
           Selling is free. It just costs you <span className="dream-text">the stream.</span>
         </h2>
         <p className="t-lede mx-auto mt-5 text-center">
-          Launch a coin on StonkFun with its vault already wired, or find one worth locking.
+          Launch a coin on Raydium with its vault already wired, or find one worth locking.
         </p>
         <div className="mt-9 flex flex-wrap justify-center gap-3">
           <Link href="/launch" className="btn btn-dream btn-lg">

@@ -40,7 +40,7 @@ export function LockPanel({
   mint: string;
   symbol: string;
   decimals: number;
-  /** The coin's token program (Token-2022 for StonkFun coins). */
+  /** The coin's token program (Token-2022 for IMAGINE coins). */
   tokenProgram: string;
   quote: QuoteInfo;
   terms: PoolDetail["pool"]["terms"];

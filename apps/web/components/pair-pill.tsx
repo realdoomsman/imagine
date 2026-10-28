@@ -1,7 +1,7 @@
 import type { QuoteInfo } from "@/lib/api";
 
 /**
- * StonkFun's "Paired with ● NVDAx": what the coin is priced in, and so what
+ * "Paired with ● NVDAx": what the coin is priced in, and so what
  * its lockers are paid in. The pair's logo stands in for the dot when the
  * API has one.
  */

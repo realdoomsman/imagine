@@ -8,19 +8,19 @@ import { Reveal } from "./motion";
 const FAQ: Array<{ q: string; a: string }> = [
   {
     q: "What is IMAGINE?",
-    a: "Lock-to-earn for coins launched on StonkFun. Every IMAGINE coin has a vault. Trading fees flow into it, and 90% of what arrives streams to the holders who locked, weighted by how much they locked and for how long.",
+    a: "Lock-to-earn for coins launched on Raydium LaunchLab under the IMAGINE platform. Every IMAGINE coin has a pool. Trading fees flow into it, and 90% of what arrives streams to the holders who locked, weighted by how much they locked and for how long.",
   },
   {
     q: "Why do lockers earn the pair asset and not the coin?",
-    a: "Every StonkFun coin is paired with an asset: a tokenized stock like NVDAx or SPYx, a currency like USDC, or SOL. Fees are taken from that side of each trade, so lockers are paid in it. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin pays SOL; a USDC-paired coin pays USDC. Nothing is minted.",
+    a: "Every coin is paired with an asset: a tokenized stock like NVDAx or SPYx, a currency like USDC, SOL, or anything else Raydium LaunchLab supports. Fees are taken from that side of each trade, so lockers are paid in it. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin pays SOL; a USDC-paired coin pays USDC. Nothing is minted.",
   },
   {
     q: "Where does the money come from?",
-    a: "Three places, all landing in the coin's vault. imagine.fun adds a 1% app fee to trades it routes, paid into that coin's pool in the same transaction. StonkFun forwards a creator share to each coin's creator address, and for IMAGINE coins that address is the vault itself. And anyone can donate. How much StonkFun forwards is StonkFun's policy, so we don't promise an amount.",
+    a: "Trading fees, all landing in the coin's pool. Every trade anywhere — Raydium, Jupiter, any bot — pays the coin's 0.5% on-chain trading fee, which Raydium LaunchLab sends to the pool. Trades on imagine.fun add a 1.5% app fee, so 2% reaches the pool. After the coin graduates, the Raydium pool's fee share keeps flowing to it. Anyone can donate too.",
   },
   {
-    q: "Is it a normal StonkFun coin?",
-    a: "Yes. It launches on StonkFun through Raydium LaunchLab and trades like any other StonkFun coin. StonkFun charges 1% on curve trades and the Raydium LaunchLab protocol fee applies, the same as for every coin there. IMAGINE adds the vault and the locks.",
+    q: "Is it a normal Raydium coin?",
+    a: "Yes. It launches on Raydium LaunchLab and trades like any other LaunchLab coin, on Raydium, Jupiter and anywhere that routes through them. Raydium's 0.25% LaunchLab protocol fee applies as it does to every LaunchLab coin. IMAGINE adds the pool and the locks.",
   },
   {
     q: "How is my share worked out?",
@@ -36,7 +36,7 @@ const FAQ: Array<{ q: string; a: string }> = [
   },
   {
     q: "What does the creator get?",
-    a: "Nothing by default. Pools split 90% to lockers and 10% to the treasury, frozen when the pool is created. The creator has to lock first, before anyone else can, and that founding lock is public on the coin's page.",
+    a: "Nothing from fees. The creator earns only by locking, like everyone else. Pools split 90% to lockers and 10% to the treasury, frozen when the pool is created. The creator has to lock first, before anyone else can, and that founding lock is public on the coin's page.",
   },
   {
     q: "What stops anyone taking the vault?",

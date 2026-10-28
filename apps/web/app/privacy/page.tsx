@@ -43,8 +43,8 @@ export default function PrivacyPage() {
         <p>
           Launches, locks, claims, trades and their amounts are Solana transactions, visible to
           anyone on any block explorer, tied to the address that signed them. Coins launched through
-          IMAGINE also appear on StonkFun like any other StonkFun coin. Nobody can hide or delete
-          on-chain history.
+          IMAGINE also appear on Raydium and anywhere else that lists LaunchLab coins. Nobody can
+          hide or delete on-chain history.
         </p>
       </DocSection>
 

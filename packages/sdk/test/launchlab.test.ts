@@ -34,26 +34,26 @@ import {
   sellExactIn,
   sellExactOut,
   splitFee,
-  stonkfunTokenUrl,
+  raydiumTokenUrl,
   type CpmmAmmConfig,
   type CpmmPool,
   type CurveFeeRates,
 } from "../src/launchlab.ts";
 import { QUOTES, QUOTE_CATEGORIES, WSOL_MINT, findQuote, isNativeQuote, parseQuotesJson, quoteByMint, quoteMintViolations, readMintRisk, readUiMultiplier } from "../src/quotes.ts";
-import { ammConfigStonkfun, globalConfigSpyx, mintSpyx, mintWsol, platformRaydium } from "./fixtures/launchlab.ts";
+import { ammConfigIndex11, globalConfigSpyx, mintSpyx, mintWsol, platformRaydium } from "./fixtures/launchlab.ts";
 
 /** LaunchLab's standard curve: 1B coins (6 decimals), 793.1M sold on the curve. */
 const TOTAL_SUPPLY = 1_000_000_000_000_000n;
 const TOTAL_SELL = 793_100_000_000_000n;
 const SPYX = new PublicKey("XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W");
-/** StonkFun's SPYx raise (`/launchlab/pricing?quoteMint=SPYx`, 2026-10-26). */
+/** A SPYx raise of 1,119,761,750 base units (11.2 SPYx), a mainnet-captured curve. */
 const SPYX_F = 1_119_761_750n;
 /** protocol 0.25% + platform 0.5% + creator 0.5%. */
 const RATES: CurveFeeRates = { protocol: 2_500n, platform: 5_000n, creator: 5_000n, share: 0n };
 
 // ---------------- LaunchLab ----------------
 
-test("init virtual reserves match StonkFun's SPYx curve", () => {
+test("init virtual reserves match a mainnet SPYx curve", () => {
   const v = initVirtualReserves({ supply: TOTAL_SUPPLY, totalBaseSell: TOTAL_SELL, totalQuoteFundRaising: SPYX_F });
   assert.equal(v.virtualBase, 1_073_025_605_642_766n);
   assert.equal(v.virtualQuote, 395_221_265n);
@@ -142,14 +142,14 @@ test("splitFee with a share fee", () => {
   assert.deepEqual(s, { platform: 333n, share: 166n, creator: 333n, protocol: 169n });
 });
 
-test("spot price, progress and StonkFun URL", () => {
+test("spot price, progress and Raydium URL", () => {
   const c = freshCurve({ supply: TOTAL_SUPPLY, totalBaseSell: TOTAL_SELL, totalQuoteFundRaising: SPYX_F });
   assert.equal(curveSpotPrice(c), 395_221_265 / 1_073_025_605_642_766);
   const half = { status: POOL_STATUS.fund, realQuote: SPYX_F / 2n, totalQuoteFundRaising: SPYX_F };
   assert.ok(Math.abs(curveProgress(half) - 0.5) < 1e-9);
   assert.equal(curveProgress({ ...half, realQuote: SPYX_F * 2n }), 1);
   assert.equal(curveProgress({ ...half, status: POOL_STATUS.trade }), 1);
-  assert.equal(stonkfunTokenUrl(SPYX), `https://www.stonkfun.xyz/token/${SPYX.toBase58()}`);
+  assert.equal(raydiumTokenUrl(SPYX), `https://raydium.io/launchpad/token/?mint=${SPYX.toBase58()}`);
 });
 
 test("trade instruction: 15 accounts plus the mandatory remaining accounts", () => {
@@ -184,8 +184,8 @@ test("trade instruction: 15 accounts plus the mandatory remaining accounts", () 
 
 // ---------------- CPMM ----------------
 
-/** StonkFun's graduation config: trade 0.25% (protocol 12%, fund 4% of it), creator 1%. */
-const CONFIG: CpmmAmmConfig = decodeCpmmAmmConfig(ammConfigStonkfun);
+/** A mainnet CPMM AmmConfig (index 11): trade 0.25% (protocol 12%, fund 4% of it), creator 1%. */
+const CONFIG: CpmmAmmConfig = decodeCpmmAmmConfig(ammConfigIndex11);
 const MINTS = cpmmTokenOrder(Keypair.generate().publicKey, Keypair.generate().publicKey);
 
 function cpmmPool(creatorFeeOn: number, [m0, m1]: [PublicKey, PublicKey]): CpmmPool {

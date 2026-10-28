@@ -13,7 +13,7 @@ import { connection } from "../solana.ts";
  * description and socials. We store the image and a Metaplex-shaped JSON
  * document in Postgres and serve both from `API_PUBLIC_ORIGIN`; the JSON's
  * URI is what `imagine.launch` writes into the Token-2022 mint, which is what
- * StonkFun, Raydium, Jupiter and wallets read.
+ * Raydium, Jupiter, explorers and wallets read.
  *
  * The coin's website is always its IMAGINE page, so the document is keyed by
  * a mint chosen up front, and a launch only accepts this document's URI for

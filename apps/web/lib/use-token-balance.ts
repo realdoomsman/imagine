@@ -9,7 +9,7 @@ import { CHAIN_CHANGED } from "./signer.ts";
 /**
  * What `owner` holds of `mint` (base units), kept current across actions.
  *
- * `tokenProgram` is the mint's program: Token-2022 for a StonkFun coin, either
+ * `tokenProgram` is the mint's program: Token-2022 for an IMAGINE coin, either
  * one for a pair asset. For the wrapped-SOL mint the wallet's native SOL is
  * read instead, since that is what a SOL-paired trade spends.
  *

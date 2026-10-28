@@ -35,6 +35,7 @@ import {
   fundedKeypair,
   fundQuote,
   fundRaising,
+  IMAGINE_PLATFORM,
   lamports,
   launchCoin,
   mintSupply,
@@ -104,7 +105,7 @@ async function deposit(w: World, amount: bigint, kind: number = FeeKind.Buy, pay
   return trader;
 }
 
-/** Land quote in the reward vault without touching the pool (StonkFun's forwarded creator share does this). */
+/** Land quote in the reward vault without touching the pool (a direct transfer, or a creator fee claimed straight to the vault, does this). */
 function landUnsynced(svm: LiteSVM, mint: PublicKey, q: Quote, amount: bigint) {
   if (q === WSOL) {
     svm.airdrop(rewardVaultPda(mint), amount);
@@ -188,6 +189,7 @@ async function launchIx(
     name: "Imagine Test",
     symbol: "IMGT",
     uri: "https://imagine.fun/test.json",
+    platform: IMAGINE_PLATFORM,
     supply: SUPPLY,
     totalSell: TOTAL_SELL,
     fundRaising: fundRaise,
@@ -495,7 +497,7 @@ for (const q of QUOTES) {
       // inflow exercises every branch: release, fold, restart.
       const trader = await deposit(w, 3n * q.unit);
       warp(w.svm, Math.floor(STREAM_SECS / 3));
-      // Land quote without touching the pool, the way StonkFun's creator share does.
+      // Land quote without touching the pool, the way a direct transfer to the vault does.
       const untouched = (7n * q.unit) / 10n;
       landUnsynced(w.svm, w.mint, q, untouched);
       warp(w.svm, 17);
@@ -1411,7 +1413,7 @@ describe("economics", () => {
       initialLockDuration: 365 * DAY,
       extraHolders: [{ owner: big.publicKey, amount: 20_000_000n * TOKEN }],
     });
-    assert.equal(mintSupply(w.svm, w.mint), supply, "a StonkFun coin's supply is one billion");
+    assert.equal(mintSupply(w.svm, w.mint), supply, "a LaunchLab coin's supply is one billion");
     w.svm.airdrop(big.publicKey, 10n * WSOL.unit);
 
     // 0.5% of supply for a year: the 4.0x ceiling scaled by the +25% tier.
@@ -1447,7 +1449,7 @@ describe("economics", () => {
       ctx.svm,
       [
         await client.program.methods
-          .initializeConfig(ImagineClient.configArgs({ treasury: ctx.treasury.publicKey }) as never)
+          .initializeConfig(ImagineClient.configArgs({ treasury: ctx.treasury.publicKey, launchlabPlatform: IMAGINE_PLATFORM }) as never)
           .accountsPartial({
             admin: ctx.admin.publicKey,
             config: configPda(),

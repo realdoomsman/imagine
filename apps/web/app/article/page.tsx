@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { IMAGINE_PROGRAM_ID } from "@imagine/sdk";
 import { DocPage, DocSection } from "@/components/doc-page";
+import { RAYDIUM_LAUNCHPAD_URL } from "@/components/site-header-links";
 
 const TITLE = "Imagine everyone locks.";
 const DESCRIPTION =
-  "Why every memecoin pays the people who leave, and what happens when a StonkFun coin pays the people who stay — in whatever it's paired with.";
+  "Why every memecoin pays the people who leave, and what happens when a coin launched on Raydium pays the people who stay — in whatever it's paired with.";
 
 export const metadata = {
   title: TITLE,
@@ -21,7 +22,7 @@ export default function ArticlePage() {
     <DocPage
       eyebrow="The idea"
       title={TITLE}
-      lede="Imagine the chart if nobody sold. Every platform in this market pays for the exit and charges for staying. IMAGINE turns that around, and pays the holders who stay in whatever their coin is paired with: a stock, SOL, USDC or any StonkFun pair."
+      lede="Imagine the chart if nobody sold. Every platform in this market pays for the exit and charges for staying. IMAGINE turns that around, and pays the holders who stay in whatever their coin is paired with: a stock, SOL, USDC or anything else Raydium LaunchLab supports."
     >
       <DocSection title="The only revenue a memecoin has">
         <p>
@@ -38,9 +39,12 @@ export default function ArticlePage() {
 
       <DocSection title="Paired with anything">
         <p>
-          <a href="https://www.stonkfun.xyz" target="_blank" rel="noreferrer">StonkFun</a> launches
-          coins paired with something: a tokenized stock like NVDAx, SPYx or TSLAx, a currency like
-          USDC, or SOL. The pair is what the coin is priced in, and what every trade pays in.
+          <a href={RAYDIUM_LAUNCHPAD_URL} target="_blank" rel="noreferrer">
+            Raydium LaunchLab
+          </a>{" "}
+          launches coins paired with something: a tokenized stock like NVDAx, SPYx or TSLAx, a
+          currency like USDC, or SOL. The pair is what the coin is priced in, and what every trade
+          pays in.
         </p>
         <p>
           That gives a holder something new to be paid in. If the fees from trading a coin are in
@@ -51,29 +55,30 @@ export default function ArticlePage() {
 
       <DocSection title="What IMAGINE adds">
         <p>
-          An IMAGINE coin is an ordinary StonkFun coin, launched through Raydium LaunchLab, with one
-          difference: it has a vault, and its creator address on StonkFun is that vault. The creator
-          opens the first lock, in public, before anyone else can join.
+          An IMAGINE coin is an ordinary Raydium LaunchLab coin, launched under the IMAGINE
+          platform, with one difference: it has a pool, and the coin&apos;s fees are paid into it.
+          The creator opens the first lock, in public, before anyone else can join.
         </p>
-        <p>Three things flow into the vault, all in the pair asset:</p>
+        <p>What flows into the pool, all in the pair asset:</p>
         <ul>
           <li>
-            <strong>A 1% app fee on trades routed through imagine.fun</strong>, paid into that
-            coin&apos;s pool inside the same transaction as the trade.
+            <strong>A 0.5% on-chain trading fee on every trade, anywhere.</strong> Raydium
+            LaunchLab charges it and sends it to the coin&apos;s pool, whether the trade comes from
+            Raydium, Jupiter or a bot.
           </li>
           <li>
-            <strong>StonkFun&apos;s creator share.</strong> StonkFun charges 1% on curve trades and
-            forwards a creator share to the coin&apos;s creator address, which for an IMAGINE coin is
-            the vault. How much it forwards is StonkFun&apos;s call.
+            <strong>A 1.5% app fee on trades through imagine.fun</strong>, paid into the pool inside
+            the same transaction as the trade. On imagine.fun, 2% of every trade reaches the pool.
           </li>
           <li>
-            <strong>Donations</strong> from anyone.
+            <strong>After graduation</strong>, the Raydium pool&apos;s fee share, and{" "}
+            <strong>donations</strong> from anyone.
           </li>
         </ul>
         <p>
-          The vault splits what arrives one way for the life of the pool: <strong>90% to the
-          people who locked, 10% to the treasury</strong>, nothing to the creator by default. A
-          creator earns the way everyone else does, by locking.
+          The pool splits what arrives one way for its whole life: <strong>90% to the people who
+          locked, 10% to the treasury</strong>. The creator earns nothing from fees — they earn
+          only by locking, like everyone else.
         </p>
       </DocSection>
 

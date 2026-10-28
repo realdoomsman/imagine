@@ -3,8 +3,8 @@
 /*
  * IMAGINE design tokens.
  *
- * StonkFun-native dark teal for structure, so a coin feels at home next to the
- * launchpad it trades on; one signature of our own on top — the `--dream`
+ * Dark teal for structure, so a coin feels at home next to the trading
+ * terminals it lives on; one signature of our own on top — the `--dream`
  * gradient — reserved for the mark, the hero, and anything that is "yours"
  * (active state, earnings, the primary dream call to action).
  */
@@ -274,7 +274,7 @@
     font-size: 15.5px;
   }
 
-  /* StonkFun's primary: flat steel blue, ink text. */
+  /* Primary: flat steel blue, ink text. */
   .btn-primary {
     background: var(--steel);
     color: var(--ink);
@@ -395,7 +395,7 @@
   }
 
   /*
-   * StonkFun's "Paired with ● NVDAx". Markup:
+   * The "Paired with ● NVDAx" pill. Markup:
    *   <span class="pill pill-pair"><span class="pill-label">Paired with</span>
    *   <i class="pill-dot"></i><b>NVDAx</b></span>
    */

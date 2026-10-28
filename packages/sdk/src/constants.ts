@@ -25,9 +25,12 @@ export const DAY = 86_400;
  * and integration suites open pools with them, and the UI previews with them;
  * a number that lives anywhere else is a number that will drift.
  *
- * App fee: 1% of the quote leg of every trade routed through imagine.fun,
- * deposited into that coin's pool in the same transaction (advisory on
- * chain; the API applies it). The pool-creation fee is charged in SOL.
+ * Fees into the pool: every curve trade anywhere pays the IMAGINE platform's
+ * LaunchLab creator fee, 0.5% (`poolFeeBps`, the LaunchLab maximum), on-chain
+ * to the coin's reward vault (the coin's LaunchLab "creator"); trades routed
+ * through imagine.fun add a 1.5% app fee (`tradeFeeBps`, deposited in the
+ * same transaction; advisory on chain, the API applies it) — 2% in all. The
+ * pool-creation fee is charged in SOL.
  *
  * Split: lockers 90%, treasury 10%, creator 0%. The creator's reward is the
  * coin having a reason to be held, not a cut of its lockers.
@@ -45,6 +48,8 @@ export const DAY = 86_400;
  */
 export interface Economics {
   tradeFeeBps: number;
+  /** LaunchLab creator fee of the IMAGINE platform, in bps (informational). */
+  poolFeeBps: number;
   treasuryShareBps: number;
   maxCreatorShareBps: number;
   minLockSecs: number;
@@ -60,7 +65,8 @@ export interface Economics {
 }
 
 export const ECONOMICS: Readonly<Economics> = {
-  tradeFeeBps: 100,
+  tradeFeeBps: 150,
+  poolFeeBps: 50,
   treasuryShareBps: 1_000,
   maxCreatorShareBps: 0,
   minLockSecs: 4 * HOUR,

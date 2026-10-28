@@ -150,7 +150,7 @@ export interface ConfigAccount {
   admin: PublicKey;
   pendingAdmin: PublicKey;
   treasury: PublicKey;
-  /** StonkFun's LaunchLab PlatformConfig every launch is created under. */
+  /** IMAGINE's LaunchLab PlatformConfig every launch is created under. */
   launchlabPlatform: PublicKey;
   tradeFeeBps: number;
   defaultTreasuryShareBps: number;

@@ -14,20 +14,23 @@ import { sql } from "./db.ts";
 import { env } from "./env.ts";
 import { rawToUsd, usdPrice } from "./quotes.ts";
 import { connection, imagine } from "./solana.ts";
-import { unsyncedRewards } from "./stonk.ts";
+import { collectFeesInstructions, readMarket, uncollectedFees, unsyncedRewards } from "./raydium.ts";
 import { budgetInstructions } from "./transactions.ts";
 
 /**
  * The keeper. Permissionless cranks, paid for by `KEEPER_KEYPAIR`.
  *
- * Syncs. StonkFun forwards a coin's creator share to the LaunchLab pool's
- * creator — for an IMAGINE coin, the pool's reward vault — as plain transfers
- * that no program sees. Those funds join the lockers' stream only when
- * someone calls `sync`, and nobody has a reason to do that promptly, so the
- * keeper does: once a pool's vault holds at least `SYNC_MIN_USD` more than it
- * did at the last sync. Each pool is synced at most once per
- * `SYNC_SPACING_MS`, and a sync that folded nothing in backs that pool off
- * exponentially, so no pool can make the keeper burn fees.
+ * Fee collection. Every curve trade on a coin, wherever it happens, pays the
+ * platform's on-chain trading fee into LaunchLab's creator-fee vault for that
+ * coin — whose "creator" is the pool's reward vault — and after graduation
+ * CPMM keeps its creator fees in the pool state. Those sit there until someone
+ * calls `collect_creator_fee`, which moves them into the vault and syncs; app
+ * fees and donations are already in the vault and need only `sync`. Nobody
+ * has a reason to crank this promptly, so the keeper does, once a pool's
+ * uncollected plus unsynced value reaches `SYNC_MIN_USD`. Each pool is
+ * cranked at most once per `SYNC_SPACING_MS`, and a crank that folded nothing
+ * in backs that pool off exponentially, so no pool can make the keeper burn
+ * fees.
  *
  * Matured unlocks. A position past its `lock_end` keeps its full weight — and
  * keeps diluting every live locker — until someone closes it. `unlock` is
@@ -108,8 +111,8 @@ function settle(backoff: Map<string, Backoff>, key: string, ok: boolean, now: nu
 
 const syncBackoff = new Map<string, Backoff>();
 
-/** Sync every pool whose vault took in at least `SYNC_MIN_USD` since its last sync. */
-async function syncPools(keeper: Keypair): Promise<{ synced: number; skipped: number }> {
+/** Collect and sync every pool whose uncollected + unsynced rewards reach `SYNC_MIN_USD`. */
+async function collectPools(keeper: Keypair): Promise<{ synced: number; skipped: number }> {
   const pools = await sql`SELECT mint, quote_mint, quote_decimals FROM pools`;
   let synced = 0;
   let skipped = 0;
@@ -124,11 +127,13 @@ async function syncPools(keeper: Keypair): Promise<{ synced: number; skipped: nu
     const mint = new PublicKey(key);
     try {
       const pool = await imagine.fetchPool(mint);
-      if (!pool) {
+      if (!pool?.founded) {
         skipped += 1;
         continue;
       }
-      const pending = await unsyncedRewards(pool);
+      const market = await readMarket(mint, pool.quoteMint);
+      const [uncollected, unsynced] = await Promise.all([uncollectedFees(pool, market), unsyncedRewards(pool)]);
+      const pending = uncollected + unsynced;
       if (pending === 0n) {
         skipped += 1;
         continue;
@@ -138,13 +143,12 @@ async function syncPools(keeper: Keypair): Promise<{ synced: number; skipped: nu
         skipped += 1;
         continue;
       }
-      const signature = await send(
-        keeper,
-        new Transaction().add(
-          ...budgetInstructions(20_000, 150_000),
-          await imagine.sync({ mint, quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram } }),
-        ),
-      );
+      // Collecting syncs inline; with nothing to collect, a plain sync is cheaper.
+      const instructions =
+        uncollected > 0n
+          ? await collectFeesInstructions(keeper.publicKey, pool, market)
+          : [await imagine.sync({ mint, quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram } })];
+      const signature = await send(keeper, new Transaction().add(...budgetInstructions(20_000, 300_000), ...instructions));
       const after = await imagine.fetchPool(mint);
       const gained = after ? after.lifetimeInflow - pool.lifetimeInflow : 0n;
       settle(syncBackoff, key, gained > 0n, Date.now(), usd === null ? UNPRICED_SYNC_SPACING_MS : SYNC_SPACING_MS);
@@ -154,12 +158,12 @@ async function syncPools(keeper: Keypair): Promise<{ synced: number; skipped: nu
         VALUES (${key}, ${pending.toString()}::NUMERIC, ${signature})
       `;
       console.log(
-        `synced ${pending} unsynced quote units for ${key} in ${signature}; inflow +${gained}` +
+        `${uncollected > 0n ? "collected" : "synced"} ${uncollected} uncollected + ${unsynced} unsynced quote units for ${key} in ${signature}; inflow +${gained}` +
           (gained > 0n ? "" : `, backing off (strike ${syncBackoff.get(key)?.strikes})`),
       );
     } catch (error) {
       settle(syncBackoff, key, false, Date.now());
-      console.error("sync failed", key, error);
+      console.error("fee collection failed", key, error);
     }
   }
   return { synced, skipped };
@@ -357,7 +361,7 @@ export async function runOnce(
 ): Promise<{ synced: number; skipped: number; unlocked: number; harvested: number; treasuries: number }> {
   const idle = { synced: 0, skipped: 0, unlocked: 0, harvested: 0, treasuries: 0 };
   if (!(await aboveFloor(keeper))) return idle;
-  const { synced, skipped } = await syncPools(keeper);
+  const { synced, skipped } = await collectPools(keeper);
   // Re-checked before each crank: the ones before spent from the same balance.
   const unlocked = (await aboveFloor(keeper)) ? await unlockMatured(keeper) : 0;
   const harvested = (await aboveFloor(keeper)) ? await retireCapped(keeper) : 0;

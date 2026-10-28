@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-/// A coin was created on LaunchLab under StonkFun's platform with this pool's
+/// A coin was created on LaunchLab under the IMAGINE platform with this pool's
 /// reward vault as its creator. The pool opens for locks once `found` runs.
 #[event]
 pub struct PoolLaunched {
@@ -30,7 +30,8 @@ pub struct PoolCreated {
 }
 
 /// Emitted on every sync that absorbed new quote, whatever its source: routed
-/// app fees, StonkFun's forwarded creator share, or plain donations. Amounts
+/// app fees, the on-chain LaunchLab / CPMM creator fee collected by
+/// `collect_creator_fee`, or plain donations. Amounts
 /// are quote base units.
 #[event]
 pub struct RewardsSynced {

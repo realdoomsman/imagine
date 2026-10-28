@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ActionError, ActionSchema, baseUnits, buildAction, lockDuration, pubkey } from "../actions.ts";
 import { quoteInfo } from "../quotes.ts";
-import { buildLaunch } from "../stonk.ts";
+import { buildLaunch } from "../raydium.ts";
 import { serialize } from "../transactions.ts";
 
 export const LaunchSchema = z.object({

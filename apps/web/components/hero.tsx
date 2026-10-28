@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ImagineChart } from "./imagine-chart";
-import { STONKFUN_URL } from "@imagine/sdk";
+import { RAYDIUM_LAUNCHPAD_URL } from "./site-header-links";
 
 const PAIRS = ["NVDAx", "SPYx", "TSLAx", "USDC", "SOL"];
 
@@ -17,14 +17,14 @@ export function Hero() {
         <div className="grid items-center gap-10 p-5 sm:p-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-12 lg:p-14">
           <div>
             <a
-              href={STONKFUN_URL}
+              href={RAYDIUM_LAUNCHPAD_URL}
               target="_blank"
               rel="noreferrer"
               className="pill pill-pair h-8 px-3 transition-colors hover:border-line-strong"
             >
               <i className="pill-dot pulse-dot" aria-hidden="true" />
-              <span className="pill-label">Lock-to-earn for coins on</span>
-              <b className="font-sans">StonkFun</b>
+              <span className="pill-label">Coins launch on</span>
+              <b className="font-sans">Raydium LaunchLab</b>
             </a>
 
             <h1 className="t-hero mt-6">
@@ -34,8 +34,8 @@ export function Hero() {
             </h1>
 
             <p className="t-lede mt-6">
-              Launch a coin on StonkFun, paired with anything. Every trade pays the holders who
-              lock it — in whatever it&apos;s paired with. Lock longer, earn a bigger cut.
+              Launch a coin on Raydium, paired with anything. Every trade pays the holders who lock
+              it — in whatever it&apos;s paired with. Lock longer, earn a bigger cut.
             </p>
 
             <div className="mt-8 flex items-center gap-3">

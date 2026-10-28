@@ -12,21 +12,10 @@ import { AccountReader, BorshWriter, disc } from "./layout.ts";
 export const LAUNCHLAB_PROGRAM_ID = new PublicKey("LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj");
 export const CPMM_PROGRAM_ID = new PublicKey("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
 
-// ---------------- StonkFun ----------------
-
-/** StonkFun's standard LaunchLab PlatformConfig. */
-export const STONKFUN_PLATFORM = new PublicKey("4E876qZTE9FJMrBzgVtBrSrzz2TLivB5Y5QXPjB4gZL7");
-/** StonkFun's `platform_cp_creator`: it creates (and keeps the creator fees of) graduated StonkFun pools. */
-export const STONKFUN_CP_CREATOR = new PublicKey("5CEbueQnq1Ym2uSSx2xXds3jQAqT1BDnkA59RZobSPAG");
-/** StonkFun's `cpswap_config` (CPMM AmmConfig index 11). */
-export const STONKFUN_CPMM_CONFIG = new PublicKey("CRRS5ieQmBrZjWhcj99JuGrT5tyuWDaGAXLXLFjbAtjQ");
-export const STONKFUN_URL = "https://www.stonkfun.xyz";
 export const RAYDIUM_LAUNCHPAD_URL = "https://raydium.io/launchpad";
 
-/** The coin's page on StonkFun. */
-export const stonkfunTokenUrl = (mint: PublicKey | string): string => `${STONKFUN_URL}/token/${mint.toString()}`;
 /** The coin's page on Raydium's launchpad. */
-export const raydiumTokenUrl = (mint: PublicKey | string): string => `${RAYDIUM_LAUNCHPAD_URL}/token?mint=${mint.toString()}`;
+export const raydiumTokenUrl = (mint: PublicKey | string): string => `${RAYDIUM_LAUNCHPAD_URL}/token/?mint=${mint.toString()}`;
 
 /** Rates are in millionths. */
 export const FEE_RATE_DENOMINATOR = 1_000_000n;
@@ -521,6 +510,59 @@ export interface PlatformConfigParams {
   /** Creator trade fee, millionths (≤ 5,000). */
   creatorFeeRate: bigint;
   platformVestingScale: bigint;
+}
+
+/**
+ * LaunchLab's ceilings on a platform's fee rates (millionths), enforced by
+ * `create_platform_config`: verified against the mainnet build in this
+ * package's tests (5,001 creator / 50,001 platform are rejected).
+ */
+export const LAUNCHLAB_MAX_CREATOR_FEE_RATE = 5_000n;
+export const LAUNCHLAB_MAX_PLATFORM_FEE_RATE = 50_000n;
+
+/**
+ * The IMAGINE platform: no platform fee, the maximum creator fee (paid to each
+ * coin's creator, which is its pool's reward vault), all graduated LP locked
+ * with the Fee-Key NFT to `platform_nft_wallet`, no vesting.
+ */
+export const IMAGINE_PLATFORM_PARAMS: Readonly<PlatformConfigParams> = {
+  platformScale: 1_000_000n,
+  creatorScale: 0n,
+  burnScale: 0n,
+  feeRate: 0n,
+  name: "IMAGINE",
+  web: "https://imagine.fun",
+  img: "https://imagine.fun/brand/imagine-512.png",
+  creatorFeeRate: LAUNCHLAB_MAX_CREATOR_FEE_RATE,
+  platformVestingScale: 0n,
+};
+
+/**
+ * `create_platform_config` for the IMAGINE platform (`IMAGINE_PLATFORM_PARAMS`)
+ * under `admin`; its address is `platformConfigPda(admin)`. `cpswapConfig` is
+ * the CPMM AmmConfig graduated pools are created under (pick one with a
+ * creator fee: the pool's vault collects it after graduation).
+ * `platform_cp_creator` stays default, so the CPMM pool creator is each coin's
+ * LaunchLab creator — its reward vault.
+ */
+export function imaginePlatformConfigIx(p: {
+  admin: PublicKey;
+  nftWallet: PublicKey;
+  cpswapConfig: PublicKey;
+  /** Receives the (zero) platform fee; defaults to `admin`. */
+  feeWallet?: PublicKey;
+  programId?: PublicKey;
+}): TransactionInstruction {
+  return createPlatformConfigIx({
+    programId: p.programId,
+    platformAdmin: p.admin,
+    platformFeeWallet: p.feeWallet ?? p.admin,
+    platformNftWallet: p.nftWallet,
+    cpswapConfig: p.cpswapConfig,
+    transferFeeExtensionAuthority: p.admin,
+    platformVestingWallet: p.admin,
+    params: IMAGINE_PLATFORM_PARAMS,
+  });
 }
 
 /** `create_platform_config` by `platformAdmin` (signer, payer): the PlatformConfig PDA of that admin. */

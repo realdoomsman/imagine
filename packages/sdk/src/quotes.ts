@@ -12,7 +12,7 @@ import {
 import mainnetQuotes from "./quotes/mainnet.json" with { type: "json" };
 
 /**
- * Quote assets StonkFun coins raise in and trade against (one LaunchLab GlobalConfig each): names,
+ * Quote assets IMAGINE coins raise in and trade against on LaunchLab (one GlobalConfig each): names,
  * logos, picker category, issuer risk flags and the Pyth fallback feed. `quotes/mainnet.json` is the
  * registry; what was left out and why is in `quotes/mainnet-excluded.json`.
  */
@@ -21,7 +21,7 @@ import mainnetQuotes from "./quotes/mainnet.json" with { type: "json" };
 export type QuoteIssuer = "native" | "stable" | "xstocks" | "ondo" | "backpack" | "other";
 export const QUOTE_ISSUERS: readonly QuoteIssuer[] = ["native", "stable", "xstocks", "ondo", "backpack", "other"];
 
-/** Picker tab of a quote (StonkFun's categories, with tokenized ETFs and commodities split out of stocks). */
+/** Picker tab of a quote (tokenized ETFs and commodities split out of stocks). */
 export type QuoteCategory = "crypto" | "currencies" | "stocks" | "etfs" | "commodities" | "leverage" | "baskets" | "collectibles" | "community";
 /** Every category in picker order, with its tab label. */
 export const QUOTE_CATEGORIES: readonly { id: QuoteCategory; label: string }[] = [

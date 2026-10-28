@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Create (once) and fund the mainnet keeper key, then print what to put in
-# KEEPER_KEYPAIR on the indexer service. The key file is gitignored.
+# KEEPER_KEYPAIR on the indexer service. Default key: .mainnet/keeper.json (gitignored; KEY=<path> overrides).
 #
 #   bash scripts/keeper.sh [sol]    # RPC from $RPC_URL or apps/api/.mainnet-rpc.tmp
 #
@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
 RPC="${RPC_URL:-$(cat "$ROOT/apps/api/.mainnet-rpc.tmp")}"
-KEY="$ROOT/apps/api/.keeper-mainnet.json"
+KEY="${KEY:-$ROOT/.mainnet/keeper.json}"
 [ -f "$KEY" ] || solana-keygen new --no-bip39-passphrase -s -o "$KEY" >/dev/null
 PUB=$(solana-keygen pubkey "$KEY")
 echo "keeper $PUB"

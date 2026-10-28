@@ -1,8 +1,8 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
 /**
- * A StonkFun pair asset: what a coin is priced in, what its trades pay in, and
- * so what its lockers earn. SOL, USDC, an xStock like NVDAx, a currency…
+ * A pair asset on Raydium LaunchLab: what a coin is priced in, what its trades
+ * pay in, and so what its lockers earn. SOL, USDC, an xStock like NVDAx…
  */
 export interface QuoteInfo {
   mint: string;
@@ -56,7 +56,8 @@ export interface PoolDetail {
   tokenSupply: string | null;
   tokenDecimals: number;
   quote: QuoteInfo;
-  links: { stonkfun: string; raydium: string | null };
+  /** The coin's Raydium launchpad page; the Raydium swap once it has graduated. */
+  links: { raydium: string; raydiumSwap: string | null };
   /** Quote base units at spot; null when the price is unknown. */
   marketCapQuote: string | null;
   marketCapUsd: number | null;
@@ -113,6 +114,8 @@ export interface PoolDetail {
     feesPerDay: string;
     /** Sitting in the vault, not yet booked by `sync`. */
     unsynced: string;
+    /** The coin's on-chain trading fee waiting in Raydium's fee vault, not yet collected into the pool. */
+    uncollected: string;
     siteVolume: string;
     trades: number;
   };
@@ -225,6 +228,19 @@ export type Leaderboard =
   | { board: "earners"; rows: LeaderboardEarner[] }
   | { board: "coins"; rows: LeaderboardCoin[] }
   | { board: "diamond"; rows: LeaderboardDiamond[] };
+
+export interface ImagineConfig {
+  cluster: string;
+  treasury: string;
+  /** Extra fee trades through imagine.fun pay into the coin's pool, bps. */
+  tradeFeeBps: number;
+  /** The on-chain trading fee Raydium LaunchLab sends to the coin's pool on every trade, bps. */
+  poolFeeBps: number;
+  /** IMAGINE's LaunchLab PlatformConfig. */
+  platform: string;
+  launchAlt: string | null;
+  googleClientId: string;
+}
 
 export interface Stats {
   pools: number;
@@ -377,15 +393,14 @@ export const api = {
     get<{ lockers: Locker[]; totalWeight: string }>(`/api/pools/${mint}/lockers`),
   rewards: (mint: string) => get<RewardHistory>(`/api/pools/${mint}/rewards`),
   activity: (mint: string) => get<{ activity: ActivityRow[] }>(`/api/pools/${mint}/activity`),
-  /** Every pair StonkFun can launch against right now. */
+  /** Every pair asset a coin can launch against on Raydium LaunchLab. */
   quotes: () => get<QuoteInfo[]>("/api/quotes"),
   portfolio: (owner: string) =>
     get<{ positions: PortfolioPosition[]; totals: PortfolioTotals }>(`/api/portfolio/${owner}`),
   leaderboard: <B extends Leaderboard["board"]>(board: B) =>
     get<Extract<Leaderboard, { board: B }>>(`/api/leaderboard?board=${board}`),
   stats: () => get<Stats>("/api/stats"),
-  config: () =>
-    get<{ cluster: string; treasury: string; tradeFeeBps: number; googleClientId: string }>("/config"),
+  config: () => get<ImagineConfig>("/config"),
 
   /** Imagine wallet: Google sign-in and the wallet the API holds for it. */
   me: () => get<{ account: AccountInfo }>("/api/me"),

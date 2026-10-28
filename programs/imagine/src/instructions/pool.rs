@@ -20,9 +20,10 @@ use anchor_spl::token_interface::{
 /// Index of the creator's mandatory founding lock.
 pub const FIRST_POSITION_INDEX: [u8; 4] = 0u32.to_le_bytes();
 
-/// Remaining accounts of `launch`, in this order, read-only. Always passed;
-/// forwarded to LaunchLab's `initialize` only while the platform restricts
-/// global configs or curve params (LaunchLab validates them then).
+/// Remaining accounts of `launch`, in this order, read-only, needed only when
+/// the configured platform restricts global configs or curve params: they are
+/// then pinned here and forwarded to LaunchLab's `initialize`, which validates
+/// them. Ignored otherwise (IMAGINE's own platform restricts nothing).
 pub mod launch_accounts {
     /// `platform_allow_config_pda(config.launchlab_platform, global_config)`;
     /// may not exist.
@@ -38,8 +39,8 @@ pub struct LaunchArgs {
     pub name: String,
     pub symbol: String,
     pub uri: String,
-    /// Curve shape, as StonkFun's pricing API and curve rule require it;
-    /// LaunchLab validates the combination.
+    /// Curve shape; LaunchLab validates the combination against the quote's
+    /// GlobalConfig (and the platform's curve rule, if it has one).
     pub supply: u64,
     pub total_sell: u64,
     pub fund_raising: u64,
@@ -89,7 +90,7 @@ pub struct Launch<'info> {
 
     /// CHECK: the quote's LaunchLab GlobalConfig; LaunchLab validates it.
     pub global_config: UncheckedAccount<'info>,
-    /// CHECK: StonkFun's PlatformConfig, pinned to the config.
+    /// CHECK: IMAGINE's LaunchLab PlatformConfig, pinned to the config.
     #[account(address = config.launchlab_platform @ ImagineError::PlatformMismatch)]
     pub launchlab_platform: UncheckedAccount<'info>,
     /// CHECK: LaunchLab `["vault_auth_seed"]`; LaunchLab validates it.
@@ -117,15 +118,17 @@ pub struct Launch<'info> {
     pub system_program: Program<'info, System>,
 }
 
-/// Create the coin on StonkFun and its pool here, in one instruction.
+/// Create the coin on Raydium LaunchLab under the IMAGINE platform, and its
+/// pool here, in one instruction.
 ///
 /// The pool's terms are frozen from the config. Its reward vault PDA is made
-/// the LaunchLab pool's creator, so StonkFun's forwarded creator share lands
-/// where `sync` counts it. LaunchLab's `initialize_with_token_2022` runs with
-/// the creator as payer and the mint keypair as signer (both propagate), under
-/// `config.launchlab_platform`, and is read back to prove it is exactly that
-/// pool. The client buys the dev bag on LaunchLab and calls `found` in the
-/// same transaction.
+/// the LaunchLab pool's creator, so the platform's on-chain creator fee on
+/// every curve trade (and the CPMM creator fee after migration) accrues to the
+/// pool, collected by `collect_creator_fee`. LaunchLab's
+/// `initialize_with_token_2022` runs with the creator as payer and the mint
+/// keypair as signer (both propagate), under `config.launchlab_platform`, and
+/// is read back to prove it is exactly that pool. The client buys the dev bag
+/// on LaunchLab and calls `found` in the same transaction.
 pub fn launch<'info>(
     ctx: Context<'_, '_, 'info, 'info, Launch<'info>>,
     args: LaunchArgs,
@@ -142,21 +145,23 @@ pub fn launch<'info>(
     quote_mint::decimals(&ctx.accounts.quote_mint, &quote_program_key)?;
     quote_mint::require_plain_transfers(&ctx.accounts.quote_mint)?;
 
-    let r = ctx.remaining_accounts;
-    require!(r.len() >= launch_accounts::LEN, ImagineError::InvalidLaunchLabAccount);
     let platform_key = config.launchlab_platform;
     let global_config_key = ctx.accounts.global_config.key();
-    require_keys_eq!(
-        r[launch_accounts::ALLOW_CONFIG].key(),
-        launchlab::platform_allow_config_pda(&platform_key, &global_config_key),
-        ImagineError::InvalidLaunchLabAccount
-    );
-    require_keys_eq!(
-        r[launch_accounts::CURVE_RULE].key(),
-        launchlab::platform_curve_rule_pda(&platform_key, &global_config_key),
-        ImagineError::InvalidLaunchLabAccount
-    );
     let platform = PlatformConfig::load(&ctx.accounts.launchlab_platform)?;
+    let r = ctx.remaining_accounts;
+    if platform.restricted() {
+        require!(r.len() >= launch_accounts::LEN, ImagineError::InvalidLaunchLabAccount);
+        require_keys_eq!(
+            r[launch_accounts::ALLOW_CONFIG].key(),
+            launchlab::platform_allow_config_pda(&platform_key, &global_config_key),
+            ImagineError::InvalidLaunchLabAccount
+        );
+        require_keys_eq!(
+            r[launch_accounts::CURVE_RULE].key(),
+            launchlab::platform_curve_rule_pda(&platform_key, &global_config_key),
+            ImagineError::InvalidLaunchLabAccount
+        );
+    }
 
     let now = Clock::get()?.unix_timestamp;
     let terms = PoolTerms {
@@ -494,7 +499,7 @@ pub struct Sync<'info> {
 }
 
 /// Permissionless crank. Anyone may fold newly arrived quote into the
-/// accumulator, StonkFun's forwarded creator share included; it is also called
+/// accumulator, creator fees collected into the vault included; it is also called
 /// inline by every other instruction. A no-op before the pool is founded.
 pub fn sync(ctx: Context<Sync>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;

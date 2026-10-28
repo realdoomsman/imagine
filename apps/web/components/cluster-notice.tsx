@@ -3,7 +3,7 @@ const CLUSTER = process.env.NEXT_PUBLIC_CLUSTER ?? "localnet";
 /**
  * Says which network the site is on until it is on the real one.
  *
- * StonkFun runs on mainnet only, so anything else is either devnet or a local
+ * IMAGINE's platform lives on mainnet only, so anything else is either devnet or a local
  * mainnet fork; a visitor should never mistake a coin from either for a real
  * one. On mainnet-beta this renders nothing.
  */

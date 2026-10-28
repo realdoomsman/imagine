@@ -10,7 +10,7 @@ import { imageUrl, metadataUri } from "./files.ts";
 import { startKeeper } from "./keeper.ts";
 import { quoteDisplay } from "./quotes.ts";
 import { connection, imagine } from "./solana.ts";
-import { marketCapQuote, readMarket } from "./stonk.ts";
+import { marketCapQuote, readMarket } from "./raydium.ts";
 
 /**
  * Builds the read model from program logs.

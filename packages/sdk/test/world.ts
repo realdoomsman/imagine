@@ -10,6 +10,7 @@ import {
   curveBuy,
   DAY,
   fundedKeypair,
+  IMAGINE_PLATFORM,
   launchCoin,
   PROGRAM_ID,
   programDataAddress,
@@ -49,7 +50,7 @@ export const STREAM_SECS = ECONOMICS.rewardStreamSecs;
 
 export function configArgs(treasury: PublicKey, overrides: Record<string, unknown> = {}) {
   return {
-    ...ImagineClient.configArgs({ treasury, overrides: TEST_OVERRIDES }),
+    ...ImagineClient.configArgs({ treasury, launchlabPlatform: IMAGINE_PLATFORM, overrides: TEST_OVERRIDES }),
     ...overrides,
   };
 }
@@ -99,7 +100,7 @@ export interface World extends Ctx {
 export const RICH_VIRTUAL_QUOTE = 1_000_000_000_000_000_000n;
 
 /**
- * Launch a coin on StonkFun (real LaunchLab), dev-buy, hand coins out, and
+ * Launch a coin on Raydium LaunchLab under the IMAGINE platform, dev-buy, hand coins out, and
  * found the pool with the creator's lock.
  *
  * Every holder gets an exact coin amount from a whale who bought on the curve

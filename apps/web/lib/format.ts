@@ -61,6 +61,11 @@ export function usdSuffix(base: Amount, quote: Pick<QuoteInfo, "decimals" | "usd
   return usd === null ? "" : `≈ ${formatUsd(usd)}`;
 }
 
+/** A fee in bps as a percentage: 50 → "0.5%", 200 → "2%". */
+export function formatBps(bps: number): string {
+  return `${(bps / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
+}
+
 /** A per-coin price in pair units: keeps four significant digits however small. */
 export function formatPrice(value: number | null, symbol: string): string {
   if (value === null || !Number.isFinite(value) || value <= 0) return "—";

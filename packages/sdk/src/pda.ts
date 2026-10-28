@@ -19,7 +19,7 @@ export function poolPda(
 
 /**
  * System-owned PDA that holds a pool's SOL rewards and is the coin's LaunchLab
- * pool creator, so StonkFun forwards the creator share here. It depends only
+ * pool creator, so the coin's LaunchLab creator fee is paid to it. It depends only
  * on the mint, so it is known before the coin exists.
  */
 export function rewardVaultPda(

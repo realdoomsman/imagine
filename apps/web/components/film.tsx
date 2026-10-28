@@ -27,7 +27,7 @@ export function Film() {
             <h2 className="t-h1 mt-4 max-w-[16ch]">Imagine the chart if nobody sold.</h2>
           </div>
           <p className="max-w-[44ch] text-[15px] leading-relaxed text-fg-soft">
-            A coin on StonkFun, a stock it&apos;s paired with, and the holders who lock it — the
+            A coin on Raydium, the asset it&apos;s paired with, and the holders who lock it — the
             whole idea in under a minute.
           </p>
         </div>

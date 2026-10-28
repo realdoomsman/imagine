@@ -13,7 +13,7 @@ import {
 import { z } from "zod";
 import { ActionError } from "./errors.ts";
 import { imagine, connection } from "./solana.ts";
-import { buildTrade, readMarket, unsyncedRewards, valuationAccounts } from "./stonk.ts";
+import { buildTrade, collectFeesInstructions, readMarket, uncollectedFees, unsyncedRewards, valuationAccounts } from "./raydium.ts";
 import { budgetInstructions } from "./transactions.ts";
 
 export { ActionError };
@@ -233,15 +233,21 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
       });
 
     case "sync": {
+      // Pull the pool's trading fee out of Raydium (collect_creator_fee syncs
+      // inline); with nothing to collect, fold in what already sits in the vault.
       const pool = await imagine.fetchPool(mint);
       if (!pool || !pool.founded) throw new ActionError(404, "this coin has no IMAGINE pool");
-      const unsynced = await unsyncedRewards(pool);
-      if (unsynced === 0n) throw new ActionError(409, "nothing new has arrived in this pool's vault");
-      const ix = await imagine.sync({ mint, quote: quoteOf(pool) });
+      const market = await readMarket(mint, pool.quoteMint);
+      const [uncollected, unsynced] = await Promise.all([uncollectedFees(pool, market), unsyncedRewards(pool)]);
+      if (uncollected === 0n && unsynced === 0n) throw new ActionError(409, "no new fees for this pool yet");
+      const ixs =
+        uncollected > 0n
+          ? await collectFeesInstructions(owner, pool, market)
+          : [await imagine.sync({ mint, quote: quoteOf(pool) })];
       return {
-        instructions: [...budgetInstructions(50_000, 150_000), ix],
+        instructions: [...budgetInstructions(50_000, 300_000), ...ixs],
         lookupTables: [],
-        meta: { unsynced: unsynced.toString() },
+        meta: { uncollected: uncollected.toString(), unsynced: unsynced.toString() },
       };
     }
   }

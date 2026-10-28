@@ -33,3 +33,4 @@ tmp/
 
 # mainnet admin/keeper keys
 .mainnet/
+__pycache__/

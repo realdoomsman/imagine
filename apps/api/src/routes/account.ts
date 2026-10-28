@@ -38,7 +38,7 @@ import { env } from "../env.ts";
 import { sql } from "../db.ts";
 import { quoteDisplay, usdPrices, withPrices } from "../quotes.ts";
 import { connection, imagine } from "../solana.ts";
-import { buildLaunch } from "../stonk.ts";
+import { buildLaunch } from "../raydium.ts";
 import { budgetInstructions, compileV0 } from "../transactions.ts";
 import { describePositions } from "./portfolio.ts";
 import { launchRequest, LaunchSchema } from "./tx.ts";

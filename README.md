@@ -1,15 +1,17 @@
 # IMAGINE
 
-**Imagine everyone locks.** Lock-to-earn vaults for coins launched on
-[StonkFun](https://www.stonkfun.xyz), paid in each coin's pair asset.
+**Imagine everyone locks.** Lock-to-earn vaults for coins launched on Raydium
+LaunchLab under the IMAGINE platform, paid in each coin's pair asset.
 
-**Lock the meme. Earn its pair.** Every StonkFun coin is paired with an asset —
-a tokenized stock like NVDAx or SPYx, a stablecoin, or SOL. Every trade on an
-IMAGINE coin pays a fee into that coin's pool, and the pool pays the holders who
-locked, by how long each of them committed, in the asset the coin is paired
-with. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin pays SOL.
+**Lock the meme. Earn its pair.** Every coin is paired with an asset LaunchLab
+supports — SOL, USDC, tokenized stocks like NVDAx and SPYx. Every trade of an
+IMAGINE coin, anywhere, pays a fee into that coin's pool, and the pool pays the
+holders who locked, by how long each of them committed, in the asset the coin is
+paired with. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin
+pays SOL. The creator earns nothing from fees — they earn only by locking, like
+everyone else.
 
-Site: imagine.fun · API: api.imagine.fun ·
+Site: imagine.fun · API: api.imagine.fun · X: [@LockImagine](https://x.com/LockImagine) ·
 Program: `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa`
 
 ---
@@ -18,53 +20,57 @@ Program: `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa`
 
 ```mermaid
 flowchart LR
-  T[Trader] -->|buy / sell| L[LaunchLab curve<br/>StonkFun platform]
-  T -->|1% app fee, same tx<br/>deposit_reward| V[(Coin's reward vault)]
-  L -->|1% StonkFun platform fee| S[StonkFun]
-  S -.->|creator share, forwarded off-chain<br/>to the pool creator = the vault| V
+  T[Trader, anywhere] -->|buy / sell| L[LaunchLab curve<br/>IMAGINE platform]
+  W[Trader on imagine.fun] -->|buy / sell| L
+  W -->|1.5% app fee, same tx<br/>deposit_reward| V[(Coin's pool vault)]
+  L -->|0.5% on-chain trading fee<br/>LaunchLab creator-fee vault| F[collect_creator_fee<br/>permissionless]
+  M[CPMM pool after graduation] -->|CPMM fee share| F
+  F --> V
+  L -->|0.25% protocol fee| R[Raydium]
   V -->|sync: split by frozen terms| K[Lockers, 90% by weight]
   V -->|10%| Y[Treasury]
-  V -.->|0% by default| C[Creator]
 ```
 
-Everything that reaches a vault is in the coin's **quote (pair) asset** and is
+Everything that reaches a pool is in the coin's **quote (pair) asset** and is
 paid out in it:
 
-1. **App fee** — 1% of the quote leg of every trade routed through imagine.fun,
-   a `deposit_reward` instruction in the same transaction as the swap. The rate
-   is the config's `trade_fee_bps = 100`; the API applies it, the program does
-   not enforce it.
-2. **StonkFun creator share** — StonkFun charges 1% on curve trades and forwards
-   a creator share to the LaunchLab pool's `creator`. For an IMAGINE coin that
-   creator *is* the pool's reward vault PDA, so forwarded shares land in the
-   vault (native SOL for SOL-paired coins, the vault's token account otherwise).
-   Forwarding is StonkFun's off-chain policy; the program counts what arrives
-   and promises nothing about how much.
+1. **On-chain trading fee, 0.5%.** The IMAGINE LaunchLab platform sets
+   LaunchLab's `creator_fee_rate` to its maximum (0.5%) and its platform fee to
+   0, and every coin's LaunchLab "creator" is the pool's vault PDA. So 0.5% of
+   every curve trade — on Raydium, through Jupiter, any terminal or bot —
+   accrues on chain to the coin's pool. After graduation to Raydium CPMM, the
+   CPMM pool's fee share goes to the same vault. Anyone can call
+   `collect_creator_fee` to pull it into the pool; the keeper does.
+2. **App fee, 1.5%** of the quote leg of every trade routed through imagine.fun,
+   a `deposit_reward` instruction in the same transaction as the swap
+   (`trade_fee_bps = 150`; applied by the API, not enforced by the program).
+   **A trade on imagine.fun puts 2% into the pool.**
 3. **Donations** — anyone can `deposit_reward`.
 
 The pool detects arrivals by balance difference (`sync`), so every stream above
-is credited the same way. Raydium LaunchLab's protocol fee applies to curve
-trades as well; it goes to Raydium, not to the pool.
+is credited the same way. Raydium's 0.25% LaunchLab protocol fee is Raydium's.
+On graduation the LP is locked; its Fee-Key NFT goes to the treasury.
 
 ## Repository
 
 ```
-programs/imagine/  Anchor program: config, launch (LaunchLab CPI), pools, positions, reward accumulator, pricing
-packages/sdk/      @imagine/sdk: PDAs, decoders, LaunchLab/CPMM math + builders, ImagineClient, math mirror, LiteSVM suites
-apps/api/          @imagine/api: Fastify API, transaction builders, read models, indexer + keeper, Google accounts
+programs/imagine/  Anchor program: config, launch (LaunchLab CPI), creator-fee collection, pools, positions, reward accumulator, pricing
+packages/sdk/      @imagine/sdk: PDAs, decoders, LaunchLab/CPMM math + builders, quote registry, ImagineClient, math mirror, LiteSVM suites
+apps/api/          @imagine/api: Fastify API, transaction builders, read models, indexer + keeper, RPC proxy, Google accounts
 apps/web/          @imagine/web: Next.js front-end
-video/             Remotion films, X cards, profile images
+video/             Remotion films, X cards and launch package, profile images
 docs/              Spec, security review, brand, runbook, launch content
 scripts/           Mainnet-fork validator, build/deploy/test wrappers (WSL), image push, renders
-tests/fixtures/    Mainnet LaunchLab / CPMM / Token-2022 builds and StonkFun accounts for LiteSVM
+tests/fixtures/    Mainnet LaunchLab / CPMM / Token-2022 builds and accounts for LiteSVM
 ```
 
 ## Running it locally
 
-StonkFun exists on mainnet only, so local development runs against a
-**mainnet fork**: a local validator with the real Raydium LaunchLab, CPMM and
-Token-2022 programs and StonkFun's platform accounts cloned at their mainnet
-addresses. The IMAGINE program is deployed onto it exactly as on mainnet.
+Local development runs against a **mainnet fork**: a local validator with the
+real Raydium LaunchLab, CPMM and Token-2022 programs and the quote mints and
+LaunchLab GlobalConfigs cloned at their mainnet addresses. The IMAGINE program
+is deployed onto it exactly as on mainnet, and the IMAGINE platform is created
+on it by the same script.
 
 The Solana toolchain (Anchor, Solana CLI, cargo) and the test runner live in
 WSL; the workspace's `node_modules` is the Linux tree (LiteSVM has no Windows
@@ -83,11 +89,13 @@ bash scripts/anchor-build.sh
 (cd apps/api && node scripts/fork-fixtures.ts)  # once, or to refresh the snapshot
 bash scripts/mainnet-fork.sh                    # leave running
 
-# 3. Deploy IMAGINE onto the fork and initialise its config
-bash scripts/deploy.sh localnet
+# 3. IMAGINE platform on LaunchLab, then the program and its config
+(cd apps/api && RPC_URL=http://127.0.0.1:8999 CPSWAP_CONFIG=FMmwToGqT9iwDgsqvzLg65vcKSzKme4szbWqX1kyCBCJ \
+  node scripts/setup-platform.ts ~/.config/solana/id.json)  # prints the PlatformConfig address
+LAUNCHLAB_PLATFORM=<printed address> bash scripts/deploy.sh localnet
 bash scripts/config-show.sh                     # prints the on-chain config
-(cd apps/api && LAUNCH_ALT= RPC_URL=http://127.0.0.1:8999 node scripts/create-alt.ts ~/.config/solana/id.json)
-#    set the printed address as LAUNCH_ALT in apps/api/.env.local
+(cd apps/api && RPC_URL=http://127.0.0.1:8999 node scripts/create-alt.ts ~/.config/solana/id.json)
+#    set the printed LAUNCH_ALT in apps/api/.env.local
 
 # 4. Database (DATABASE_URL in apps/api/.env.local)
 createdb imagine
@@ -101,8 +109,8 @@ bash scripts/fund.sh <pubkey> 5                 # airdrop fork SOL to a browser 
 ```
 
 `apps/web/.env.example` points the browser straight at the fork
-(`NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8999`); in production it uses the
-API's `/rpc` and `/rpc-ws` proxy instead.
+(`NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8999`); in production it uses the API's
+`/rpc` and `/rpc-ws` proxy instead.
 
 ## Tests
 
@@ -113,12 +121,12 @@ bash scripts/verify.sh   # everything below, plus clippy and four typechecks (WS
 | Command | What it proves |
 |---|---|
 | `cargo test -p imagine --lib` (or `bash scripts/program-test.sh`, which adds clippy) | Reward math: multiplier curve, accumulator conservation, penalty decay, LaunchLab/CPMM price math, and that many uneven deposits can never make a pool owe more than it received |
-| `bash scripts/sdk-test.sh` (= `pnpm --filter @imagine/sdk test`) | LiteSVM suites against the real mainnet LaunchLab, CPMM and Token-2022 builds in `tests/fixtures/raydium/`: `imagine.test.ts` (the full instruction surface in both the SOL and SPYx paths, every rejection, audit regressions, a randomised churn test asserting solvency after every step), `stonkfun.test.ts` (StonkFun launch → dev buy → found, the one-transaction v0 launch, forwarded creator share picked up by `sync`, app fees, migrated-coin pricing), `launchlab.test.ts` (curve/CPMM math and decoders) |
-| `(cd apps/api && node scripts/e2e.ts sol)` / `… spyx` | End to end through the API on the mainnet fork: metadata upload, launch on StonkFun, trade with the app fee, lock, a simulated StonkFun forward folded in by `sync`, claims in the quote asset, an early exit |
+| `bash scripts/sdk-test.sh` (= `pnpm --filter @imagine/sdk test`) | LiteSVM suites against the real mainnet LaunchLab, CPMM and Token-2022 builds in `tests/fixtures/raydium/`: `imagine.test.ts` (the full instruction surface in the SOL and SPYx paths, every rejection, audit regressions, a randomised churn test asserting solvency after every step), `raydium.test.ts` (launch under the IMAGINE platform → dev buy → found, the one-transaction v0 launch, the 0.5% on-chain trading fee pulled in by `collect_creator_fee` on the curve and after CPMM migration, app fees, migrated-coin pricing), `launchlab.test.ts` (curve/CPMM math and decoders) |
+| `(cd apps/api && node scripts/e2e.ts sol)` / `… spyx` | End to end through the API on the mainnet fork: metadata upload, launch, trade with the app fee, lock, the on-chain trading fee collected and folded in by `sync`, claims in the quote asset, an early exit |
 
 The SDK suites load `target/deploy/imagine-v0.so`, built by
-`scripts/anchor-build.sh`. The e2e run needs the fork, the program deployed
-with its config initialised, and the API running against it.
+`scripts/anchor-build.sh`. The e2e run needs the fork, the platform and program
+set up, and the API running against it.
 
 ## What the program will not do
 
@@ -133,11 +141,12 @@ These are properties of the bytecode, not policy:
   `launch`.
 - **The creator locks first.** No one can lock, deposit or extend until the
   creator's founding position exists (`found`, in the launch transaction), so
-  every pool has weight from its first live slot and no one can scoop an
-  unassigned remainder.
-- **Coins only launch under StonkFun.** `launch` creates the coin through
-  LaunchLab under the configured platform (StonkFun's PlatformConfig) and makes
-  the pool's vault the LaunchLab pool creator.
+  every pool has weight from its first live slot.
+- **The creator gets nothing from fees.** The pool's split is 90% lockers, 10%
+  treasury, 0% creator, and the coin's LaunchLab "creator" is the pool vault.
+- **Coins only launch under the configured platform.** `launch` creates the coin
+  through LaunchLab under `config.launchlab_platform` and makes the pool's vault
+  the LaunchLab pool creator.
 - **Hostile mints are rejected.** The coin must be exactly the Token-2022 shape
   LaunchLab creates (no freeze authority, no transfer fee, no hook, no permanent
   delegate). A quote mint with a transfer fee, an active transfer-hook program,
@@ -162,21 +171,21 @@ curve's virtual + real reserves while it is live, the canonical Raydium CPMM
 pool's vaults once it has migrated.
 
 `reward_debt` is carried in scaled units so each position keeps its sub-unit
-residue. That is what keeps the pool solvent: rounding to whole base units on
-every claim would let positions round up independently until the pool owed more
-than it held. The pool rounds its committed amount *up* from the credit it hands
-out and every claim rounds *down*, so the sum of claims never exceeds it.
+residue. The pool rounds its committed amount *up* from the credit it hands out
+and every claim rounds *down*, so the sum of claims never exceeds it.
 
 ## Deployment
 
-Both apps ship as Dockerfiles with the repository root as build context; images
-are built locally and pushed (`scripts/push-api.sh`, `scripts/push-web.sh`).
+Railway project `imagine`, GitHub-linked to `main` (auto-deploy on push); both
+apps build from their Dockerfiles with the repository root as context.
+`scripts/push-api.sh` / `scripts/push-web.sh` build and push the same images to
+GHCR when a local build is needed.
 
-| Service | Image | Needs |
+| Service | Dockerfile | Needs |
 |---|---|---|
-| `imagine-api` (`ROLE=index`, HTTP) and its indexer (`ROLE=indexer`) | `apps/api/Dockerfile` → `ghcr.io/realdoomsman/imagine-api` | `DATABASE_URL`, `RPC_URL`, `RPC_WS_URL`, `RPC_PROXY_LIMIT_PER_MIN`, `CLUSTER`, `CORS_ORIGINS`, `SITE_ORIGIN`, `API_PUBLIC_ORIGIN`, `COOKIE_SECURE`, `LAUNCH_ALT`, `IMAGINE_INTERNAL_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `WALLET_MASTER_KEY`, `SESSION_SECRET`; indexer: `KEEPER_KEYPAIR`, `KEEPER_INTERVAL_MS`, `SYNC_MIN_USD` |
-| `imagine-web` | `apps/web/Dockerfile` → `ghcr.io/realdoomsman/imagine-web` | Build args `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_RPC_URL` (`https://api.imagine.fun/rpc`), `NEXT_PUBLIC_WS_URL` (`wss://api.imagine.fun/rpc-ws`), `NEXT_PUBLIC_CLUSTER`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_OFFICIAL_MINT`, `NEXT_PUBLIC_X_URL`; runtime `IMAGINE_INTERNAL_KEY` |
+| `imagine-api` (`ROLE=index`, HTTP) and `imagine-indexer` (`ROLE=indexer`, keeper) | `apps/api/Dockerfile` | `DATABASE_URL`, `RPC_URL`, `RPC_WS_URL`, `RPC_PROXY_LIMIT_PER_MIN`, `CLUSTER`, `CORS_ORIGINS`, `SITE_ORIGIN`, `API_PUBLIC_ORIGIN`, `COOKIE_SECURE`, `LAUNCH_ALT`, `IMAGINE_INTERNAL_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `WALLET_MASTER_KEY`, `SESSION_SECRET`; indexer: `KEEPER_KEYPAIR`, `KEEPER_INTERVAL_MS`, `SYNC_MIN_USD` |
+| `imagine-web` | `apps/web/Dockerfile` | Build args `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_RPC_URL` (`https://api.imagine.fun/rpc`), `NEXT_PUBLIC_WS_URL` (`wss://api.imagine.fun/rpc-ws`), `NEXT_PUBLIC_CLUSTER`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_OFFICIAL_MINT`, `NEXT_PUBLIC_X_URL`; runtime `IMAGINE_INTERNAL_KEY` |
 
-See `docs/RUNBOOK.md` for the program deployment, DNS, OAuth and the mainnet
-checklist; `docs/SPEC.md` for the mechanism; `docs/AUDIT.md` for the security
-review; `docs/BRAND.md` for the brand system.
+See `docs/RUNBOOK.md` for the platform setup, the program upgrade, DNS, OAuth
+and the mainnet checklist; `docs/SPEC.md` for the mechanism; `docs/AUDIT.md`
+for the security review; `docs/BRAND.md` for the brand system.

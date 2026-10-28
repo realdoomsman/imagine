@@ -3,7 +3,7 @@ import { DocLinks, DocPage, DocSection } from "@/components/doc-page";
 
 export const metadata = {
   title: "Security",
-  description: "What the IMAGINE program cannot do, how it treats StonkFun coins, and what can still go wrong.",
+  description: "What the IMAGINE program cannot do, how fees are enforced on-chain by Raydium LaunchLab, and what can still go wrong.",
 };
 
 export default function SecurityPage() {
@@ -50,11 +50,13 @@ export default function SecurityPage() {
         </p>
       </DocSection>
 
-      <DocSection title="StonkFun coins, checked on-chain">
+      <DocSection title="Fees enforced on-chain by Raydium LaunchLab">
         <p>
-          Launching goes through the program, which creates the coin on Raydium LaunchLab under
-          StonkFun&apos;s platform config and requires that config to be the one it has on file.
-          The coin&apos;s creator address on LaunchLab is the pool&apos;s vault.
+          Launching goes through the program, which creates the coin on Raydium LaunchLab under the
+          IMAGINE platform config it has on file, and checks after the launch that the coin&apos;s fee
+          recipient on LaunchLab is the pool&apos;s vault. From then on the 0.5% trading fee on every
+          curve trade is charged by LaunchLab itself and accrues to that vault, whoever routes the
+          trade. Collecting it into the pool is permissionless and can only pay the pool.
         </p>
         <p>
           When a lock&apos;s ceiling is priced, the program reads the coin&apos;s own LaunchLab pool,
@@ -91,8 +93,8 @@ export default function SecurityPage() {
             is paired with, and that asset&apos;s price moves on its own.
           </li>
           <li>
-            <strong>StonkFun&apos;s forwarding is StonkFun&apos;s.</strong> The creator share is
-            forwarded by StonkFun off-chain; the program cannot make it arrive.
+            <strong>Raydium is a dependency.</strong> The 0.5% trading fee and the bonding curve are
+            Raydium LaunchLab&apos;s programs; IMAGINE relies on them behaving as deployed.
           </li>
           <li>
             <strong>The app fee depends on our front-end.</strong> It is attached by the transaction

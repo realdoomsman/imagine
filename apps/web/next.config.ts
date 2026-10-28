@@ -5,7 +5,7 @@ import type { NextConfig } from "next";
  * for signed-in accounts, can reveal a wallet's secret key, so the policy's
  * job is containment: no script from anywhere but this origin and no network
  * request to anywhere but the API and the RPC. Images may come from any https
- * host: coin art lives wherever its creator pinned it and StonkFun pair logos
+ * host: coin art lives wherever its creator pinned it and pair-asset logos
  * span dozens of issuer CDNs, and an image cannot run code. Inline scripts
  * stay allowed because the App Router hydrates through them; `'unsafe-eval'`
  * is added in development only, where React's dev runtime needs it.
@@ -39,8 +39,6 @@ const config: NextConfig = {
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "www.stonkfun.xyz" },
-      { protocol: "https", hostname: "stonkfun.xyz" },
       { protocol: "https", hostname: "ipfs.io" },
       { protocol: "https", hostname: "**.ipfs.io" },
       { protocol: "https", hostname: "**.pinata.cloud" },

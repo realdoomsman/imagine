@@ -1,13 +1,15 @@
 //! # IMAGINE
 //!
-//! Time-weighted lock-to-earn vaults for coins launched on StonkFun (Raydium
-//! LaunchLab), paid in each coin's pair asset.
+//! Time-weighted lock-to-earn vaults for coins launched on Raydium LaunchLab
+//! under the IMAGINE platform, paid in each coin's pair asset.
 //!
-//! `launch` creates the coin on LaunchLab under StonkFun's platform with the
-//! pool's reward vault PDA as its creator, so StonkFun's forwarded creator
-//! share lands in the pool. Every unit of the coin's quote that reaches the
-//! vault — that forwarded share, app fees from trades routed through the
-//! IMAGINE front-end, or plain donations — is split by the pool's frozen terms
+//! `launch` creates the coin on LaunchLab under IMAGINE's PlatformConfig with
+//! the pool's reward vault PDA as its creator, so the platform's on-chain
+//! creator fee on every curve trade (and the CPMM creator fee after
+//! graduation) belongs to the pool; `collect_creator_fee` pulls it in. Every
+//! unit of the coin's quote that reaches the vault — that fee, app fees from
+//! trades routed through the IMAGINE front-end, or plain donations — is split
+//! by the pool's frozen terms
 //! and spread across locked weight. Weight is principal times a duration
 //! multiplier, so a longer commitment earns a larger slice of the same fee
 //! stream. A SOL-paired coin pays lamports; a coin paired with NVDAx pays
@@ -79,6 +81,12 @@ pub mod imagine {
 
     pub fn sync(ctx: Context<Sync>) -> Result<()> {
         instructions::pool::sync(ctx)
+    }
+
+    pub fn collect_creator_fee<'info>(
+        ctx: Context<'_, '_, 'info, 'info, CollectCreatorFee<'info>>,
+    ) -> Result<()> {
+        instructions::collect::collect_creator_fee(ctx)
     }
 
     pub fn deposit_reward(ctx: Context<DepositReward>, amount: u64, kind: u8) -> Result<()> {

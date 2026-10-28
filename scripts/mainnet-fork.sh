@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # Mainnet-fork validator for local development and the end-to-end run (WSL/Linux/macOS).
 #
-# StonkFun is mainnet-only, so IMAGINE runs locally against a fork: the real Raydium LaunchLab,
-# CPMM and Token-2022 programs, cloned from mainnet at start, plus the accounts a launch and a
-# trade read (StonkFun's PlatformConfig, the SOL and SPYx LaunchLab GlobalConfigs with StonkFun's
-# allow-config / curve-rule PDAs and fee vaults, the SPYx mint, StonkFun's CPMM AmmConfig) and
-# real SPYx for the test wallets, all written by apps/api/scripts/fork-fixtures.ts. The IMAGINE
-# program is NOT preloaded: deploy it onto the fork exactly as on mainnet
-# (scripts/deploy.sh localnet), so its upgrade authority can initialise the config.
+# IMAGINE runs locally against a fork of mainnet: the real Raydium LaunchLab, CPMM and Token-2022
+# programs, cloned from mainnet at start, plus the accounts a launch and a trade read (the SOL and
+# SPYx LaunchLab GlobalConfigs, the SPYx mint, the CPMM AmmConfigs a platform graduates into) and
+# real SPYx for the test wallets, all written by apps/api/scripts/fork-fixtures.ts. Nothing else is
+# preloaded: deploy the IMAGINE program (scripts/deploy.sh localnet), create the IMAGINE LaunchLab
+# platform (apps/api/scripts/setup-platform.ts) and initialise the config, exactly as on mainnet.
 #
 #   (cd apps/api && node scripts/fork-fixtures.ts)       # once, or to refresh the snapshot
 #   bash scripts/mainnet-fork.sh

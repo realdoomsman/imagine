@@ -6,7 +6,7 @@ import { IMAGINE_MINT } from "@/lib/official";
 import { PairPill } from "./pair-pill";
 
 /**
- * One coin in the grid, laid out the way StonkFun lists them — image, name,
+ * One coin in the grid, laid out the way launchpads list them — image, name,
  * ticker, the pair it trades against, market cap — with the IMAGINE number on
  * top: how much of the supply is locked, and what the lockers have been paid.
  */

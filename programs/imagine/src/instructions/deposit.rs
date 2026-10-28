@@ -51,8 +51,9 @@ pub struct DepositReward<'info> {
 ///
 /// This is the app-fee leg appended to every trade routed through the IMAGINE
 /// front-end, but it is fully permissionless: anyone can top up any founded
-/// pool, and StonkFun's forwarded creator share reaches the vault directly
-/// without calling this at all — the balance-diff sync picks that up too.
+/// pool, and the coin's LaunchLab creator fee reaches the vault through
+/// `collect_creator_fee` without calling this at all — the balance-diff sync
+/// picks that up too.
 ///
 /// `kind` is metadata for indexers: 0 buy fee, 1 sell fee, 2 creator share,
 /// 3 donation.

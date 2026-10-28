@@ -4,44 +4,60 @@
  *
  *   1. upload the coin's image and details (/api/metadata), read them back
  *      from /files/*;
- *   2. launch on StonkFun: imagine.launch + LaunchLab dev buy + imagine.found
- *      (/api/tx/launch), signed by the creator and the mint;
- *   3. a trader buys with the 1% app fee paid into the pool, then sells part;
- *   4. the trader locks;
- *   5. a StonkFun creator-share forward is simulated — a plain transfer into
- *      the pool's vault (native SOL, or SPYx to the vault's token account) —
- *      and `sync` folds it into the lockers' stream;
- *   6. both lockers claim real quote; the trader breaks their lock early.
+ *   2. launch on Raydium LaunchLab under the IMAGINE platform: imagine.launch
+ *      + LaunchLab dev buy + imagine.found (/api/tx/launch), signed by the
+ *      creator and the mint;
+ *   3. a trader buys on imagine.fun — the app fee (config trade_fee_bps) goes
+ *      straight into the pool — then sells part;
+ *   4. a direct LaunchLab buy, as Raydium's own UI or any bot would send it:
+ *      no app fee, but the platform's on-chain trading fee (0.5%) accrues to
+ *      the pool in LaunchLab's creator-fee vault (the vault PDA is the
+ *      LaunchLab "creator");
+ *   5. the trader locks;
+ *   6. `collect_creator_fee` (the API's sync action) pulls those fees into the
+ *      vault and syncs them into the lockers' stream;
+ *   7. both lockers claim real quote; the trader breaks their lock early.
  *
- * Every transaction is built by the API and signed here, exactly as a wallet
- * would. Needs the API running against the fork with a database, the IMAGINE
- * program deployed there and its config initialised (scripts/init-config.ts).
+ * Every API transaction is signed here, exactly as a wallet would. Needs the
+ * API running against the fork with a database, the IMAGINE program deployed
+ * there, the IMAGINE platform created (scripts/setup-platform.ts) and the
+ * config pointing at it (scripts/init-config.ts).
  *
  *   API_URL=http://localhost:8080 RPC_URL=http://127.0.0.1:8999 node scripts/e2e.ts [sol|spyx]
  */
 import { setTimeout as sleep } from "node:timers/promises";
 import {
-  createTransferCheckedInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
+  createCloseAccountInstruction,
+  createSyncNativeInstruction,
   getAssociatedTokenAddressSync,
   NATIVE_MINT,
   TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
+  sendAndConfirmTransaction,
   SystemProgram,
   Transaction,
   VersionedTransaction,
 } from "@solana/web3.js";
 import {
+  buyExactIn,
+  creatorFeeVaultPda,
+  curveFeeRates,
+  decodeGlobalConfig,
   decodeLaunchLabPool,
+  decodePlatformConfig,
   ECONOMICS,
   ImagineClient,
+  LAUNCHLAB_PROGRAM_ID,
   launchLabPoolPda,
+  launchLabTradeIx,
   rewardVaultPda,
-  STONKFUN_PLATFORM,
 } from "@imagine/sdk";
 import { forkWallet, SPYX_MINT } from "./fork-fixtures.ts";
 
@@ -100,12 +116,16 @@ async function airdrop(to: PublicKey, sol: number) {
   await connection.confirmTransaction({ signature, ...latest }, "confirmed");
 }
 
-async function tokenBalance(mint: PublicKey, owner: PublicKey, program: PublicKey): Promise<bigint> {
-  const ata = getAssociatedTokenAddressSync(mint, owner, true, program);
+/** Balance of a token account by address; 0 when it does not exist. */
+async function tokenBalanceOf(account: PublicKey): Promise<bigint> {
   return connection
-    .getTokenAccountBalance(ata, "confirmed")
+    .getTokenAccountBalance(account, "confirmed")
     .then((b) => BigInt(b.value.amount))
     .catch(() => 0n);
+}
+
+async function tokenBalance(mint: PublicKey, owner: PublicKey, program: PublicKey): Promise<bigint> {
+  return tokenBalanceOf(getAssociatedTokenAddressSync(mint, owner, true, program));
 }
 
 /** What a wallet holds of a quote: native lamports for SOL, else its token balance. */
@@ -154,7 +174,7 @@ async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
   check("its website is the coin's IMAGINE page", doc.website === `https://imagine.fun/coins/${mint.publicKey.toBase58()}`);
   check("image round-trips byte for byte", image.equals(PNG_1X1), uploaded.image);
 
-  step(`[${label}] 2. launch on StonkFun`);
+  step(`[${label}] 2. launch on Raydium LaunchLab (IMAGINE platform)`);
   const config = await imagine.fetchConfig();
   if (!config) throw new Error("config not initialised; run scripts/init-config.ts");
   const devBuy = native ? LAMPORTS_PER_SOL / 2 : Number(one / 20n);
@@ -183,7 +203,7 @@ async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
   check("pool is paid in the pair asset", pool?.quoteMint.equals(quoteMint) === true, pool?.quoteMint.toBase58());
   const llInfo = await connection.getAccountInfo(launchLabPoolPda(mint.publicKey, quoteMint));
   const ll = llInfo ? decodeLaunchLabPool(llInfo.data) : null;
-  check("LaunchLab pool is under StonkFun's platform", ll?.platformConfig.equals(STONKFUN_PLATFORM) === true);
+  check("LaunchLab pool is under the IMAGINE platform", ll?.platformConfig.equals(config.launchlabPlatform) === true, config.launchlabPlatform.toBase58());
   check(
     "LaunchLab creator is the pool's reward vault",
     ll?.creator.equals(rewardVaultPda(mint.publicKey)) === true,
@@ -193,17 +213,17 @@ async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
   check("founding lock opened position 0", founding?.amount === BigInt(launch.lockAmount), `${founding?.amount} locked`);
   if (!pool || !founding) return;
 
-  const detail = await api<{ quote: { mint: string }; curve: { status: string } | null; links: { stonkfun: string } }>(
+  const detail = await api<{ quote: { mint: string }; curve: { status: string } | null; links: { raydium: string } }>(
     `/api/pools/${mint.publicKey.toBase58()}`,
   );
-  check("/api/pools/:mint reads the curve", detail.curve?.status === "curve", detail.links.stonkfun);
+  check("/api/pools/:mint reads the curve", detail.curve?.status === "curve", detail.links.raydium);
 
-  step(`[${label}] 3. trade with the app fee`);
+  step(`[${label}] 3. trade on imagine.fun (app fee into the pool)`);
   const inflowBefore = pool.lifetimeInflow;
   const buyAmount = native ? LAMPORTS_PER_SOL / 5 : Number(one / 50n);
   const buy = await action(trader, { kind: "swap", mint: mint.publicKey.toBase58(), side: "buy", amount: String(buyAmount) }, "buy");
   const fee = BigInt(buy.meta.appFee as string);
-  check("app fee is 1% of the buy", fee === (BigInt(buyAmount) * BigInt(config.tradeFeeBps)) / 10_000n, `${fee} of ${buyAmount}`);
+  check(`app fee is ${config.tradeFeeBps / 100}% of the buy`, fee === (BigInt(buyAmount) * BigInt(config.tradeFeeBps)) / 10_000n, `${fee} of ${buyAmount}`);
   const afterBuy = await imagine.fetchPool(mint.publicKey);
   check("fee reached the pool", afterBuy !== null && afterBuy.lifetimeInflow - inflowBefore === fee, `inflow +${afterBuy && afterBuy.lifetimeInflow - inflowBefore}`);
   const held = await tokenBalance(mint.publicKey, trader.publicKey, TOKEN_2022_PROGRAM_ID);
@@ -211,7 +231,51 @@ async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
   const sell = await action(trader, { kind: "swap", mint: mint.publicKey.toBase58(), side: "sell", amount: String(held / 4n) }, "sell");
   check("sell paid an app fee too", BigInt(sell.meta.appFee as string) > 0n, `${sell.meta.appFee}`);
 
-  step(`[${label}] 4. lock`);
+  step(`[${label}] 4. a direct LaunchLab buy (no app fee; the pool's on-chain trading fee only)`);
+  const feeVault = creatorFeeVaultPda(pool.rewardVault, quoteMint, LAUNCHLAB_PROGRAM_ID);
+  const uncollectedBefore = await tokenBalanceOf(feeVault);
+  const curveInfo = await connection.getAccountInfo(launchLabPoolPda(mint.publicKey, quoteMint));
+  const curveState = decodeLaunchLabPool(curveInfo!.data);
+  const [globalInfo, platformInfo] = await connection.getMultipleAccountsInfo([curveState.globalConfig, curveState.platformConfig]);
+  const rates = curveFeeRates(decodeGlobalConfig(globalInfo!.data), decodePlatformConfig(platformInfo!.data));
+  check("pool trading fee is 0.5% (LaunchLab creator_fee_rate 5,000)", rates.creator === 5_000n && rates.platform === 0n, `creator ${rates.creator}, platform ${rates.platform}`);
+  const directAmount = native ? BigInt(LAMPORTS_PER_SOL / 10) : one / 100n;
+  const fill = buyExactIn(curveState, directAmount, rates);
+  const coinAta = getAssociatedTokenAddressSync(mint.publicKey, trader.publicKey, true, TOKEN_2022_PROGRAM_ID);
+  const wsolAta = getAssociatedTokenAddressSync(NATIVE_MINT, trader.publicKey, true);
+  const directTx = new Transaction().add(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }),
+    createAssociatedTokenAccountIdempotentInstruction(trader.publicKey, coinAta, trader.publicKey, mint.publicKey, TOKEN_2022_PROGRAM_ID),
+    ...(native
+      ? [
+          createAssociatedTokenAccountIdempotentInstruction(trader.publicKey, wsolAta, trader.publicKey, NATIVE_MINT),
+          SystemProgram.transfer({ fromPubkey: trader.publicKey, toPubkey: wsolAta, lamports: directAmount }),
+          createSyncNativeInstruction(wsolAta),
+        ]
+      : []),
+    launchLabTradeIx({
+      programId: LAUNCHLAB_PROGRAM_ID,
+      kind: "buyExactIn",
+      pool: { ...curveState, address: launchLabPoolPda(mint.publicKey, quoteMint) },
+      payer: trader.publicKey,
+      amount: directAmount,
+      limit: (fill.base * 97n) / 100n,
+    }),
+    ...(native ? [createCloseAccountInstruction(wsolAta, trader.publicKey, trader.publicKey)] : []),
+  );
+  const inflowBeforeDirect = (await imagine.fetchPool(mint.publicKey))!.lifetimeInflow;
+  const directSig = await sendAndConfirmTransaction(connection, directTx, [trader], { commitment: "confirmed" });
+  console.log(`       direct LaunchLab buy: ${directSig}`);
+  const uncollectedAfter = await tokenBalanceOf(feeVault);
+  const accrued = uncollectedAfter - uncollectedBefore;
+  check(
+    "direct buy paid the pool 0.5% on-chain",
+    accrued === fill.split.creator,
+    `+${accrued} in the LaunchLab fee vault (expected ${fill.split.creator} of ${directAmount})`,
+  );
+  check("direct buy took no app fee", (await imagine.fetchPool(mint.publicKey))!.lifetimeInflow === inflowBeforeDirect);
+
+  step(`[${label}] 5. lock`);
   const lockAmount = await tokenBalance(mint.publicKey, trader.publicKey, TOKEN_2022_PROGRAM_ID);
   await action(
     trader,
@@ -221,36 +285,21 @@ async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
   const traderLock = await imagine.fetchPosition(mint.publicKey, trader.publicKey, 0);
   check("trader's lock is open", traderLock?.amount === lockAmount, `${traderLock?.amount}`);
 
-  step(`[${label}] 5. a forwarded creator share, then sync`);
-  const forward = native ? BigInt(LAMPORTS_PER_SOL / 100) : one / 100n;
-  const forwardTx = new Transaction().add(
-    native
-      ? SystemProgram.transfer({ fromPubkey: creator.publicKey, toPubkey: pool.rewardVault, lamports: forward })
-      : createTransferCheckedInstruction(
-          getAssociatedTokenAddressSync(quoteMint, creator.publicKey, false, quoteProgram),
-          quoteMint,
-          pool.rewardTokenAccount,
-          creator.publicKey,
-          forward,
-          quote.decimals,
-          [],
-          quoteProgram,
-        ),
-  );
-  const forwardSig = await connection.sendTransaction(forwardTx, [creator]);
-  await connection.confirmTransaction(forwardSig, "confirmed");
-  console.log(`       forward: ${forwardSig}`);
+  step(`[${label}] 6. collect_creator_fee + sync`);
+  const toCollect = await tokenBalanceOf(feeVault);
   const beforeSync = await imagine.fetchPool(mint.publicKey);
-  const synced = await action(trader, { kind: "sync", mint: mint.publicKey.toBase58() }, "sync");
-  check("API saw the unsynced forward", BigInt(synced.meta.unsynced as string) === forward, `${synced.meta.unsynced}`);
+  const collected = await action(trader, { kind: "sync", mint: mint.publicKey.toBase58() }, "collect_creator_fee");
+  check("API saw the uncollected trading fees", BigInt(collected.meta.uncollected as string) === toCollect, `${collected.meta.uncollected}`);
   const afterSync = await imagine.fetchPool(mint.publicKey);
+  const gained = afterSync && beforeSync ? afterSync.lifetimeInflow - beforeSync.lifetimeInflow : -1n;
   check(
-    "sync folded the forward into inflow",
-    beforeSync !== null && afterSync !== null && afterSync.lifetimeInflow - beforeSync.lifetimeInflow === forward,
-    `inflow +${afterSync && beforeSync && afterSync.lifetimeInflow - beforeSync.lifetimeInflow}`,
+    "collected fees joined the pool's inflow",
+    gained === toCollect + BigInt(collected.meta.unsynced as string),
+    `inflow +${gained} (dev buy + imagine.fun trades + direct buy, 0.5% each)`,
   );
+  check("LaunchLab fee vault emptied", (await tokenBalanceOf(feeVault)) === 0n);
 
-  step(`[${label}] 6. claim and break a lock`);
+  step(`[${label}] 7. claim and break a lock`);
   await sleep(5_000); // let the stream release something
   for (const [who, wallet] of [
     ["creator", creator],

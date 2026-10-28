@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { IMAGINE_PROGRAM_ID, STONKFUN_URL } from "@imagine/sdk";
+import { IMAGINE_PROGRAM_ID } from "@imagine/sdk";
 import { IMAGINE_MINT } from "@/lib/official";
 import { OfficialCa } from "./official-coin";
 import { ImagineLogo } from "./imagine-mark";
-import { NAV, X_URL } from "./site-header-links";
+import { NAV, RAYDIUM_LAUNCHPAD_URL, X_URL } from "./site-header-links";
 
 export function SiteFooter() {
   const elsewhere = [
-    { href: STONKFUN_URL, label: "StonkFun" },
+    { href: RAYDIUM_LAUNCHPAD_URL, label: "Raydium LaunchLab" },
     ...(X_URL ? [{ href: X_URL, label: "X" }] : []),
   ];
 
@@ -21,14 +21,14 @@ export function SiteFooter() {
             locked it, in the asset it&apos;s paired with.
           </p>
           <a
-            href={STONKFUN_URL}
+            href={RAYDIUM_LAUNCHPAD_URL}
             target="_blank"
             rel="noreferrer"
             className="pill pill-pair mt-6 h-8 px-3 transition-colors hover:border-line-strong"
           >
             <i className="pill-dot" aria-hidden="true" />
             <span className="pill-label">Coins launch on</span>
-            <b className="font-sans">StonkFun</b>
+            <b className="font-sans">Raydium LaunchLab</b>
             <span aria-hidden="true" className="text-muted">
               ↗
             </span>

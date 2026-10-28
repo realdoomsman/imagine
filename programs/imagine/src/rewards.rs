@@ -1,10 +1,10 @@
 //! Where a pool's rewards sit and how they leave.
 //!
 //! A WSOL-quoted pool holds rewards as native lamports on its `reward_vault`
-//! PDA, above the rent `vault_reserve`; StonkFun's forwarded SOL creator share
-//! is a plain transfer to that address. Any other quote is held in
-//! `reward_token_account`, the vault PDA's associated token account, which is
-//! where StonkFun's forwarded quote-token share lands. Every instruction reads
+//! PDA, above the rent `vault_reserve` (`collect_creator_fee` unwraps WSOL
+//! creator fees into it). Any other quote is held in `reward_token_account`,
+//! the vault PDA's associated token account, which is where LaunchLab and
+//! CPMM pay the coin's creator fee. Every instruction reads
 //! the distributable balance through `Rewards::balance` and pays through
 //! `Rewards::pay`, so the two paths cannot drift apart.
 

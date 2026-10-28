@@ -34,8 +34,12 @@ import {
   platformAllowConfigPda,
   platformCurveRulePda,
   LAUNCHLAB_PROGRAM_ID,
-  STONKFUN_CPMM_CONFIG,
-  STONKFUN_PLATFORM,
+  CPMM_PROGRAM_ID,
+  cpmmAuthorityPda,
+  cpmmCreatorFeeSharePda,
+  cpmmTokenOrder,
+  creatorFeeVaultAuthorityPda,
+  creatorFeeVaultPda,
 } from "./launchlab.ts";
 import { distributableBalance, projectSync, type PoolTerms } from "./math.ts";
 import {
@@ -61,14 +65,14 @@ export interface QuoteRef {
 /**
  * Remaining accounts that price a lock once the coin has migrated off its
  * LaunchLab curve: the canonical CPMM pool of (coin, quote) under
- * `ammConfig` (StonkFun's `cpswap_config` by default) and its coin and quote
+ * `ammConfig` (the platform's `cpswap_config`) and its coin and quote
  * vaults, in the order `price::valuation_accounts` reads them. Pass nothing
  * while the coin is still on its curve.
  */
 export function valuationAccounts(
   mint: PublicKey,
   quoteMint: PublicKey,
-  ammConfig: PublicKey = STONKFUN_CPMM_CONFIG,
+  ammConfig: PublicKey,
 ): [PublicKey, PublicKey, PublicKey] {
   const pool = cpmmPoolPda(ammConfig, mint, quoteMint);
   return [pool, cpmmVaultPda(pool, mint), cpmmVaultPda(pool, quoteMint)];
@@ -201,14 +205,15 @@ export class ImagineClient {
    */
   static configArgs(params: {
     treasury: PublicKey;
-    launchlabPlatform?: PublicKey;
+    /** IMAGINE's LaunchLab PlatformConfig (`platformConfigPda(platformAdmin)`). */
+    launchlabPlatform: PublicKey;
     paused?: boolean;
     overrides?: Partial<Economics>;
   }) {
     const e = { ...ECONOMICS, ...params.overrides };
     return {
       treasury: params.treasury,
-      launchlabPlatform: params.launchlabPlatform ?? STONKFUN_PLATFORM,
+      launchlabPlatform: params.launchlabPlatform,
       tradeFeeBps: e.tradeFeeBps,
       defaultTreasuryShareBps: e.treasuryShareBps,
       maxCreatorShareBps: e.maxCreatorShareBps,
@@ -280,12 +285,16 @@ export class ImagineClient {
   }
 
   /**
-   * Create a coin on StonkFun and its pool in one instruction.
+   * Create a coin on Raydium LaunchLab under the IMAGINE platform, and its
+   * pool, in one instruction.
    *
    * `mint` is a fresh keypair's public key; it must sign the transaction with
-   * `creator`. The curve shape (`supply`, `totalSell`, `fundRaising`) must be
-   * what StonkFun's pricing API returns for the quote, or LaunchLab rejects
-   * it. Follow with a LaunchLab `buy_exact_in` for the dev buy and `found`.
+   * `creator`. The curve shape (`supply`, `totalSell`, `fundRaising`) must
+   * pass the quote's GlobalConfig, or LaunchLab rejects it. Follow with a
+   * LaunchLab `buy_exact_in` for the dev buy and `found`. `restricted`: the
+   * platform restricts global configs or curve params (its decoded
+   * `restrictGlobalConfig || restrictCurveParam`); only then are its
+   * allow-config and curve-rule accounts appended.
    */
   async launch(params: {
     creator: PublicKey;
@@ -301,9 +310,11 @@ export class ImagineClient {
     creatorShareBps?: number;
     /** The quote's LaunchLab GlobalConfig; defaults to curve type 0, index 0. */
     globalConfig?: PublicKey;
-    platform?: PublicKey;
+    /** The config's `launchlabPlatform`. */
+    platform: PublicKey;
+    restricted?: boolean;
   }): Promise<TransactionInstruction> {
-    const platform = params.platform ?? STONKFUN_PLATFORM;
+    const platform = params.platform;
     const globalConfig = params.globalConfig ?? globalConfigPda(params.quote.mint);
     const llPool = launchLabPoolPda(params.mint, params.quote.mint);
     const native = isNativeQuote(params.quote.mint);
@@ -342,10 +353,12 @@ export class ImagineClient {
         systemProgram: SystemProgram.programId,
       })
       .remainingAccounts(
-        readonlyMetas([
-          platformAllowConfigPda(platform, globalConfig),
-          platformCurveRulePda(platform, globalConfig),
-        ]),
+        params.restricted
+          ? readonlyMetas([
+              platformAllowConfigPda(platform, globalConfig),
+              platformCurveRulePda(platform, globalConfig),
+            ])
+          : [],
       )
       .instruction();
   }
@@ -648,6 +661,63 @@ export class ImagineClient {
         ),
       })
       .instruction();
+  }
+
+  /**
+   * Permissionless: pull the coin's on-chain creator fee (LaunchLab curve,
+   * and the CPMM pool's once graduated) into its pool and sync it. The pool's
+   * reward vault is the coin's creator, so every trade anywhere accrues it.
+   * `payer` funds any missing vault token account (a WSOL quote's transient
+   * account is refunded). `graduated.ammConfig`: the CPMM AmmConfig the coin
+   * migrated under (the platform's `cpswap_config`); omit while on the curve.
+   */
+  async collectCreatorFee(params: {
+    payer: PublicKey;
+    mint: PublicKey;
+    quote: QuoteRef;
+    graduated?: { ammConfig: PublicKey };
+  }): Promise<TransactionInstruction[]> {
+    const vault = rewardVaultPda(params.mint, this.programId);
+    let remaining: AccountMeta[] = [];
+    if (params.graduated) {
+      const { ammConfig } = params.graduated;
+      const pool = cpmmPoolPda(ammConfig, params.mint, params.quote.mint);
+      const [token0, token1] = cpmmTokenOrder(params.mint, params.quote.mint);
+      const w = (pubkey: PublicKey): AccountMeta => ({ pubkey, isSigner: false, isWritable: true });
+      remaining = [
+        w(pool),
+        ...readonlyMetas([cpmmAuthorityPda(), ammConfig]),
+        w(cpmmVaultPda(pool, token0)),
+        w(cpmmVaultPda(pool, token1)),
+        w(getAssociatedTokenAddressSync(params.mint, vault, true, TOKEN_2022_PROGRAM_ID)),
+        ...readonlyMetas([cpmmCreatorFeeSharePda(vault, ammConfig), CPMM_PROGRAM_ID]),
+      ];
+    }
+    const ix = await this.program.methods
+      .collectCreatorFee()
+      .accountsPartial({
+        payer: params.payer,
+        pool: poolPda(params.mint, this.programId),
+        rewardVault: vault,
+        vaultQuoteAccount: getAssociatedTokenAddressSync(
+          params.quote.mint,
+          vault,
+          true,
+          params.quote.tokenProgram,
+        ),
+        mint: params.mint,
+        quoteMint: params.quote.mint,
+        quoteTokenProgram: params.quote.tokenProgram,
+        creatorFeeVault: creatorFeeVaultPda(vault, params.quote.mint),
+        creatorFeeVaultAuthority: creatorFeeVaultAuthorityPda(),
+        launchlabProgram: LAUNCHLAB_PROGRAM_ID,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts(remaining)
+      .instruction();
+    return [ix];
   }
 
   /** Permissionless: push the treasury's share to the pool's treasury. */

@@ -78,7 +78,7 @@ pub const TOKEN_VAULT_SEED: &[u8] = b"token-vault";
 #[constant]
 pub const POSITION_SEED: &[u8] = b"position";
 
-/// Raydium LaunchLab, the bonding-curve program StonkFun launches run on.
+/// Raydium LaunchLab, the bonding-curve program every coin launches on.
 pub const LAUNCHLAB_PROGRAM_ID: Pubkey = pubkey!("LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj");
 /// Raydium CPMM, where LaunchLab's `migrate_to_cpswap` moves a graduated curve.
 pub const CPMM_PROGRAM_ID: Pubkey = pubkey!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C");
@@ -86,7 +86,7 @@ pub const CPMM_PROGRAM_ID: Pubkey = pubkey!("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHK
 /// reward vault; every other quote is held in the vault's token account.
 pub const WSOL_MINT: Pubkey = pubkey!("So11111111111111111111111111111111111111112");
 
-/// Decimals of every coin LaunchLab creates for StonkFun.
+/// Decimals of every coin `launch` creates on LaunchLab.
 pub const COIN_DECIMALS: u8 = 6;
 
 /// A lock paid to within this many quote base units of its cap is treated as

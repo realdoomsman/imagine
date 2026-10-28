@@ -28,6 +28,6 @@ export function ShareButton({
 export function coinShare(mint: string, name: string, pair: string): { url: string; text: string } {
   return {
     url: `https://imagine.fun/coins/${mint}`,
-    text: `${name} is live on StonkFun — lock it, earn ${pair}`,
+    text: `${name} launched on Raydium — lock it, earn ${pair}`,
   };
 }

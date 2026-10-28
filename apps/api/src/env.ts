@@ -86,9 +86,9 @@ export const env = {
   /** JSON-RPC calls (and `/rpc-ws` connections + subscriptions) per minute per client IP through the proxy. */
   rpcProxyPerMin: Number(process.env.RPC_PROXY_LIMIT_PER_MIN ?? 600),
   /**
-   * StonkFun is mainnet-only, so IMAGINE runs on mainnet-beta or on a local
-   * mainnet fork (scripts/mainnet-fork.sh), which carries the same programs
-   * and accounts at the same addresses.
+   * IMAGINE runs on mainnet-beta, or locally on a mainnet fork
+   * (scripts/mainnet-fork.sh) carrying the real Raydium LaunchLab, CPMM and
+   * Token-2022 programs and quote accounts at their mainnet addresses.
    */
   cluster: (process.env.CLUSTER ?? "localnet") as "localnet" | "mainnet-beta",
   corsOrigins: (process.env.CORS_ORIGINS ?? "*").split(",").map((s) => s.trim()),
@@ -99,8 +99,6 @@ export const env = {
    * (https://api.imagine.fun in production).
    */
   apiPublicOrigin: origin("API_PUBLIC_ORIGIN", "http://localhost:8080"),
-  /** StonkFun's public API (launchable pairs, curve pricing). */
-  stonkfunApi: origin("STONKFUN_API", "https://www.stonkfun.xyz"),
   /** Jupiter Swap API v1 (SOL → quote swaps for buyers paying in SOL). */
   jupiterSwapUrl: (process.env.JUPITER_SWAP_URL ?? "https://lite-api.jup.ag/swap/v1").replace(/\/+$/, ""),
   /** Jupiter Price API v3 (USD prices of quote assets). */
@@ -108,17 +106,19 @@ export const env = {
   /** Required only with an api.jup.ag base URL; the lite API is keyless. */
   jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
   /**
-   * The keeper signs the permissionless cranks — pool syncs, matured unlocks,
-   * capped-lock harvests, treasury claims. Optional: without it the indexer
-   * runs read-only and someone else has to crank, which nobody does promptly.
+   * The keeper signs the permissionless cranks — fee collection and pool
+   * syncs, matured unlocks, capped-lock harvests, treasury claims. Optional:
+   * without it the indexer runs read-only and someone else has to crank,
+   * which nobody does promptly.
    */
   keeperKeypair: process.env.KEEPER_KEYPAIR ?? "",
-  /** Sync a pool once its unsynced reward balance is worth at least this many USD. */
+  /** Collect and sync a pool once its uncollected trading fees plus unsynced vault balance are worth this many USD. */
   syncMinUsd: Number(process.env.SYNC_MIN_USD ?? 1),
   keeperIntervalMs: Number(process.env.KEEPER_INTERVAL_MS ?? 60_000),
   /**
    * Address lookup table holding the static accounts of a launch (programs,
-   * StonkFun platform, per-quote LaunchLab configs; scripts/create-alt.ts).
+   * IMAGINE LaunchLab platform and its fee vaults, per-quote mints and
+   * GlobalConfigs; scripts/create-alt.ts).
    * It lets imagine.launch, the dev buy and imagine.found share one
    * transaction. Unset: the launch is split in two and the dev buy is exposed
    * to anyone buying between them.

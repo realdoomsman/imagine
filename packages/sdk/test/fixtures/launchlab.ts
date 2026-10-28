@@ -26,8 +26,8 @@ export const platformRaydium = Buffer.from(
   "base64",
 );
 
-/** CRRS5ieQmBrZjWhcj99JuGrT5tyuWDaGAXLXLFjbAtjQ (cpmm_ammconfig_stonkfun_standard.json) */
-export const ammConfigStonkfun = Buffer.from(
+/** CRRS5ieQmBrZjWhcj99JuGrT5tyuWDaGAXLXLFjbAtjQ (CPMM AmmConfig index 11, read from mainnet) */
+export const ammConfigIndex11 = Buffer.from(
   "2vQhaMvLK2/+AAsAxAkAAAAAAADA1AEAAAAAAECcAAAAAAAAgNHwCAAAAAAF2xU6D/SH9pzeiQAf7ExGlbbUIV6iRLh71Otyh/hXqNcGSjj20XsRPl9m3PtjuHN//OJkSr8KALmLNDVtY4WDECcAAAAAAABQwwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
   "base64",
 );

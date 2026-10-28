@@ -45,7 +45,8 @@ import {
   launchLabPoolPda,
   launchLabTradeIx,
   LAUNCHLAB_PROGRAM_ID,
-  STONKFUN_PLATFORM,
+  imaginePlatformConfigIx,
+  platformConfigPda,
   type LaunchLabPool,
   type LaunchLabPoolRef,
 } from "../src/launchlab.ts";
@@ -61,12 +62,22 @@ export const PROGRAM_SO = resolve(ROOT, "target/deploy/imagine-v0.so");
  * Mainnet builds and accounts read over JSON-RPC (see tests/fixtures/raydium):
  * LaunchLab, CPMM, LP-Lock, Metaplex, Token-2022 (litesvm's bundled
  * Token-2022 predates the xStocks' ScaledUiAmount / Pausable extensions), the
- * WSOL and SPYx LaunchLab GlobalConfigs, StonkFun's PlatformConfig and curve
- * rules, its CPMM AmmConfig, and both quote mints.
+ * WSOL and SPYx LaunchLab GlobalConfigs, Raydium's index-0 CPMM AmmConfig and
+ * both quote mints. The IMAGINE PlatformConfig is created in each test through
+ * the real `create_platform_config`.
  */
 const FIXTURES = resolve(ROOT, "tests/fixtures/raydium");
 
 export const PROGRAM_ID = IMAGINE_PROGRAM_ID;
+
+/**
+ * Raydium's index-0 CPMM AmmConfig (trade 0.25%, creator 0.05%): the
+ * `cpswap_config` of the test platform, so graduated pools carry a creator fee.
+ */
+export const CPMM_AMM_CONFIG = new PublicKey("D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2");
+/** Fixed admin of the test IMAGINE platform, so its address is a constant. */
+export const PLATFORM_ADMIN = Keypair.fromSeed(Buffer.alloc(32, 7));
+export const IMAGINE_PLATFORM = platformConfigPda(PLATFORM_ADMIN.publicKey);
 export const DAY = 86_400;
 export const TOKEN = 1_000_000n; // one whole coin at 6 decimals
 
@@ -112,7 +123,7 @@ export const SPYX: Quote = {
 
 export const QUOTES_UNDER_TEST = [WSOL, SPYX] as const;
 
-/** StonkFun's curve shape: 1e15 supply, 79.31% sold on the curve. */
+/** IMAGINE's curve shape: 1e15 supply, 79.31% sold on the curve. */
 export const SUPPLY = 1_000_000_000_000_000n;
 export const TOTAL_SELL = 793_100_000_000_000n;
 /** 85 whole units of the quote raised per curve (above both configs' floors). */
@@ -159,12 +170,8 @@ export function setup(): Ctx {
     "mint_wsol.json",
     "mint_spyx.json",
     "cpmm_ammconfig_raydium.json",
-    "cpmm_ammconfig_stonkfun.json",
     "cpmm_permission_launchlab.json",
     "cpmm_support_mint_spyx.json",
-    "platform_stonkfun.json",
-    "curverule_stonkfun_wsol.json",
-    "curverule_stonkfun_spyx.json",
   ]) {
     const a = fixtureAccount(name);
     svm.setAccount(a.pubkey, { lamports: a.lamports, data: a.data, owner: a.owner, executable: false });
@@ -200,6 +207,12 @@ export function setup(): Ctx {
   svm.airdrop(admin.publicKey, BigInt(1_000 * LAMPORTS_PER_SOL));
   svm.airdrop(treasury.publicKey, BigInt(LAMPORTS_PER_SOL));
   svm.airdrop(migrateWallet.publicKey, BigInt(100 * LAMPORTS_PER_SOL));
+  svm.airdrop(PLATFORM_ADMIN.publicKey, BigInt(10 * LAMPORTS_PER_SOL));
+  send(
+    svm,
+    [imaginePlatformConfigIx({ admin: PLATFORM_ADMIN.publicKey, nftWallet: treasury.publicKey, cpswapConfig: CPMM_AMM_CONFIG })],
+    [PLATFORM_ADMIN],
+  );
   return { svm, admin, treasury, migrateWallet };
 }
 
@@ -524,6 +537,7 @@ export async function launchCoin(
     name: opts.name ?? "Imagine Test",
     symbol: "IMGT",
     uri: "https://imagine.fun/test.json",
+    platform: IMAGINE_PLATFORM,
     supply: SUPPLY,
     totalSell: TOTAL_SELL,
     fundRaising: fundRaising(q),
@@ -616,4 +630,4 @@ export function migrateToCpmm(ctx: Ctx, mint: PublicKey, q: Quote): PublicKey {
   return cpPool;
 }
 
-export { rewardVaultPda, STONKFUN_PLATFORM, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, LiteSVM };
+export { rewardVaultPda, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, LiteSVM };

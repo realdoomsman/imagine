@@ -41,7 +41,7 @@ else
   echo "   ok"
 fi
 
-step "end to end on the mainnet fork (real LaunchLab, StonkFun platform, SOL + SPYx)"
+step "end to end on the mainnet fork (real LaunchLab under the IMAGINE platform, SOL + SPYx)"
 if solana -u "${RPC_URL:-http://127.0.0.1:8999}" cluster-version >/dev/null 2>&1; then
   (cd "$ROOT/apps/api" && "$NODE" scripts/e2e.ts 2>&1 | tail -40)
   check "${PIPESTATUS[0]:-0}"

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Stats } from "@/lib/api";
-import { formatUsd } from "@/lib/format";
+import { formatBps, formatUsd } from "@/lib/format";
 
 /**
  * The marquee's moving part. The track is rendered twice and translated by
@@ -14,12 +14,14 @@ import { formatUsd } from "@/lib/format";
 export function StatMarqueeTrack({
   terms,
   defaultTradeFeeBps,
+  defaultPoolFeeBps,
 }: {
   terms: Array<{ label: string; value: string }>;
   defaultTradeFeeBps: number;
+  defaultPoolFeeBps: number;
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [tradeFeeBps, setTradeFeeBps] = useState(defaultTradeFeeBps);
+  const [fees, setFees] = useState({ tradeFeeBps: defaultTradeFeeBps, poolFeeBps: defaultPoolFeeBps });
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +33,7 @@ export function StatMarqueeTrack({
     );
     api.config().then(
       (config) => {
-        if (!cancelled) setTradeFeeBps(config.tradeFeeBps);
+        if (!cancelled) setFees({ tradeFeeBps: config.tradeFeeBps, poolFeeBps: config.poolFeeBps });
       },
       () => undefined,
     );
@@ -52,7 +54,8 @@ export function StatMarqueeTrack({
       : [];
   const items = [
     ...live,
-    { label: "App fee, to the pool", value: `${(tradeFeeBps / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}%` },
+    { label: "Every trade, on-chain, to the pool", value: formatBps(fees.poolFeeBps) },
+    { label: "Trades on imagine.fun, to the pool", value: formatBps(fees.poolFeeBps + fees.tradeFeeBps) },
     ...terms,
   ];
 

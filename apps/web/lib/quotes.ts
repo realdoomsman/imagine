@@ -12,7 +12,7 @@ export function categoryLabel(category: string): string {
     .join(" ");
 }
 
-/** Pair assets grouped by category, in StonkFun's picker order, unknown categories last. */
+/** Pair assets grouped by category, in picker order, unknown categories last. */
 export function groupQuotes(quotes: QuoteInfo[]): Array<{ category: string; label: string; quotes: QuoteInfo[] }> {
   const groups = new Map<string, { category: string; label: string; quotes: QuoteInfo[] }>();
   for (const quote of quotes) {

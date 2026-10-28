@@ -7,7 +7,8 @@ import { DAY, durationMultiplierBps, ECONOMICS, formatMultiplier, formatPercent 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, post, type QuoteInfo } from "@/lib/api";
-import { decimalInput, formatAmount, formatQuote, parseAmount, usdSuffix } from "@/lib/format";
+import { loadFees, LAUNCHLAB_PROTOCOL_FEE_BPS, type PoolFees } from "@/lib/fees";
+import { decimalInput, formatAmount, formatBps, formatQuote, parseAmount, usdSuffix } from "@/lib/format";
 import { signAndSend, type BuiltTransaction } from "@/lib/send";
 import { useActor } from "@/lib/signer";
 import { useTokenBalance } from "@/lib/use-token-balance";
@@ -48,7 +49,7 @@ export function LaunchForm() {
   const [devBuy, setDevBuy] = useState("");
   const [lockPercent, setLockPercent] = useState(50);
   const [lockSeconds, setLockSeconds] = useState(30 * DAY);
-  const [tradeFeeBps, setTradeFeeBps] = useState(ECONOMICS.tradeFeeBps);
+  const [fees, setFees] = useState<PoolFees>({ poolFeeBps: ECONOMICS.poolFeeBps, tradeFeeBps: ECONOMICS.tradeFeeBps });
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<string[]>([]);
   const [result, setResult] = useState<{ mint: string } | null>(null);
@@ -68,7 +69,7 @@ export function LaunchForm() {
       .quotes()
       .then((list) => {
         setQuotes(list);
-        // SOL first if StonkFun offers it; the creator picks anything else.
+        // SOL first when it's offered; the creator picks anything else.
         setQuote((current) => current ?? list.find((entry) => entry.mint === NATIVE_MINT.toBase58()) ?? list[0] ?? null);
       })
       .catch((cause: unknown) => setQuotesError(cause instanceof Error ? cause.message : "unavailable"));
@@ -76,10 +77,7 @@ export function LaunchForm() {
 
   useEffect(() => {
     loadQuotes();
-    api.config().then(
-      (config) => setTradeFeeBps(config.tradeFeeBps),
-      () => undefined,
-    );
+    void loadFees().then(setFees);
   }, [loadQuotes]);
 
   const nativeQuote = quote?.mint === NATIVE_MINT.toBase58();
@@ -171,7 +169,7 @@ export function LaunchForm() {
       }
       const mint = mintKeypair.publicKey.toBase58();
       // One plan: an optional SOL→pair swap, then the launch itself — create
-      // the coin on StonkFun, the first buy and the founding lock, atomically.
+      // the coin on Raydium LaunchLab, the first buy and the founding lock, atomically.
       // Re-posting the same mint after a partial run returns only what is left.
       const plan = await post<LaunchPlan>("/api/tx/launch", { ...request, creator: wallet.publicKey.toBase58(), mint });
       for (const built of plan.transactions) {
@@ -220,7 +218,7 @@ export function LaunchForm() {
   if (phase === "done" && result) {
     return (
       <section className="card card-dream mt-10 p-8">
-        <h2 className="t-h2">Live on StonkFun.</h2>
+        <h2 className="t-h2">Launched on Raydium.</h2>
         <p className="mt-3 text-[14.5px] text-fg-soft">Your founding lock is in. Opening your coin page…</p>
         <p className="num mt-4 break-all text-[12px] text-muted">{result.mint}</p>
         <a href={`/coins/${result.mint}`} className="btn btn-dream mt-6">
@@ -275,7 +273,7 @@ export function LaunchForm() {
           <Field label="Telegram (optional)" value={telegram} onChange={setTelegram} placeholder="https://t.me/…" maxLength={200} />
         </div>
         <p className="mt-3 text-[12px] leading-relaxed text-muted">
-          The coin&apos;s website is set to its page on imagine.fun, so anyone who finds it on StonkFun or a chart
+          The coin&apos;s website is set to its page on imagine.fun, so anyone who finds it on Raydium or a chart
           lands where it can be locked. The image and details are written onto the coin when it&apos;s created and
           can&apos;t be changed afterwards.
         </p>
@@ -284,7 +282,7 @@ export function LaunchForm() {
       <section className="card p-6">
         <Step n={2} title="Pick the pair" />
         <p className="mt-2 text-[13px] leading-relaxed text-fg-soft">
-          What your coin is priced in on StonkFun — and what everyone who locks it gets paid in.
+          What your coin is priced in on Raydium LaunchLab — and what everyone who locks it gets paid in.
         </p>
         <div className="mt-4">
           <QuotePicker quotes={quotes} error={quotesError} onRetry={loadQuotes} selected={quote} onSelect={(next) => {
@@ -402,17 +400,20 @@ export function LaunchForm() {
       <section className="card p-6">
         <Step n={4} title="Fees, plainly" />
         <ul className="mt-4 space-y-2.5 text-[13px] leading-relaxed text-fg-soft">
-          <Fee label="StonkFun curve fee" value="1%">
-            StonkFun charges 1% on trades while the coin is on its bonding curve; the Raydium LaunchLab protocol fee
-            applies too.
+          <Fee label="On-chain pool fee" value={formatBps(fees.poolFeeBps)}>
+            Every trade of your coin, wherever it happens — Raydium, Jupiter, bots — pays {formatBps(fees.poolFeeBps)}{" "}
+            that Raydium LaunchLab sends to the coin&apos;s pool. Enforced on-chain; after graduation the Raydium pool&apos;s
+            fee goes to the same place.
           </Fee>
-          <Fee label="Imagine app fee" value={formatPercent(tradeFeeBps / 10_000, 0)}>
-            Added to trades routed through imagine.fun and paid straight into this coin&apos;s pool, in{" "}
-            {quote?.symbol ?? "the pair asset"}.
+          <Fee label="Imagine app fee" value={formatBps(fees.tradeFeeBps)}>
+            Added to trades through imagine.fun and paid straight into the same pool, so those trades pay{" "}
+            {formatBps(fees.poolFeeBps + fees.tradeFeeBps)} in all, in {quote?.symbol ?? "the pair asset"}.
           </Fee>
-          <Fee label="Creator share" value="→ pool">
-            StonkFun forwards a creator share to the coin&apos;s creator address. For Imagine coins that address is the
-            pool&apos;s vault, so it streams to lockers too.
+          <Fee label="Raydium protocol fee" value={formatBps(LAUNCHLAB_PROTOCOL_FEE_BPS)}>
+            Raydium LaunchLab&apos;s own fee on curve trades, the same for every coin there.
+          </Fee>
+          <Fee label="Creator" value="0%">
+            You earn nothing from fees. You earn only by locking, like everyone else.
           </Fee>
           <Fee label="Pool creation" value={`${formatAmount(ECONOMICS.poolCreationFeeLamports, 9)} SOL`}>
             Charged once when the pool opens, plus network fees and account rent.
@@ -437,8 +438,8 @@ export function LaunchForm() {
             : partial
               ? "Finish launching this coin"
               : quote && devBuyBase > 0n && !solPays
-                ? `Launch on StonkFun · buy ${formatQuote(devBuyBase, quote)}`
-                : "Launch on StonkFun"}
+                ? `Launch on Raydium · buy ${formatQuote(devBuyBase, quote)}`
+                : "Launch on Raydium"}
         </button>
       ) : (
         <SignInPrompt what="launch" />
@@ -523,7 +524,7 @@ const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /**
  * The coin's image, straight from disk. Click or drop; a square preview shows
- * what StonkFun will display. Rejections are explained inline rather than
+ * what wallets and charts will display. Rejections are explained inline rather than
  * after a round trip to the API.
  */
 function ImagePicker({

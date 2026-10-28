@@ -1,9 +1,10 @@
-import { ECONOMICS, formatDuration, formatMultiplier, formatPercent, formatTokenAmount, shortAddress } from "@imagine/sdk";
+import { formatDuration, formatMultiplier, formatPercent, formatTokenAmount, shortAddress } from "@imagine/sdk";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, ApiError, type PoolDetail, type RewardHistory } from "@/lib/api";
-import { formatPrice, formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
+import { loadFees } from "@/lib/fees";
+import { formatBps, formatPrice, formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
 import { IMAGINE_MINT } from "@/lib/official";
 import { CopyButton } from "@/components/copy-button";
 import { ImagineMark } from "@/components/imagine-mark";
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: { params: Promise<{ mint: str
   }
   const symbol = detail.metadata?.symbol ?? shortAddress(mint);
   const name = detail.metadata?.name ?? symbol;
-  const description = `${name} is live on StonkFun, paired with ${detail.quote.symbol}. ${formatPercent(lockedFraction(detail), 1)} of supply locked, ${formatQuote(detail.pool.lifetimeRewards, detail.quote)} paid to lockers so far. Lock it, earn ${detail.quote.symbol}.`;
+  const description = `${name} launched on Raydium, paired with ${detail.quote.symbol}. ${formatPercent(lockedFraction(detail), 1)} of supply locked, ${formatQuote(detail.pool.lifetimeRewards, detail.quote)} paid to lockers so far. Lock it, earn ${detail.quote.symbol}.`;
   return {
     title: `$${symbol} · ${name}`,
     description,
@@ -71,10 +72,10 @@ export default async function CoinPage({
     createdAt: null,
     buckets: [],
   };
-  const [lockers, rewards, tradeFeeBps] = await Promise.all([
+  const [lockers, rewards, fees] = await Promise.all([
     api.lockers(mint).catch(() => null),
     api.rewards(mint).catch(() => emptyHistory),
-    api.config().then((config) => config.tradeFeeBps, () => ECONOMICS.tradeFeeBps),
+    loadFees(),
   ]);
 
   const { pool, metadata, curve, rewardRate, quote, links } = detail;
@@ -101,12 +102,13 @@ export default async function CoinPage({
       {launched.launched === "1" ? (
         <section className="card card-dream mb-8 flex flex-wrap items-center justify-between gap-4 p-5">
           <div>
-            <h2 className="t-h3">Live on StonkFun. Your lock is in.</h2>
+            <h2 className="t-h3">Launched on Raydium. Your lock is in.</h2>
             <p className="mt-1 text-[13.5px] text-fg-soft">
               {launched.pct && launched.term
                 ? `You locked ${launched.pct}% of your first buy for ${launched.term}. `
                 : ""}
-              Every trade through Imagine now pays this pool in {quote.symbol}.
+              Every trade now pays this pool in {quote.symbol}: {formatBps(fees.poolFeeBps)} on-chain wherever it
+              trades, {formatBps(fees.poolFeeBps + fees.tradeFeeBps)} through Imagine.
             </p>
           </div>
           <ShareButton text={share.text} url={share.url} label="Tell X" />
@@ -148,12 +150,12 @@ export default async function CoinPage({
               </p>
             ) : null}
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <a href={links.stonkfun} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
-                StonkFun ↗
+              <a href={links.raydium} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+                Raydium ↗
               </a>
-              {links.raydium ? (
-                <a href={links.raydium} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
-                  Raydium ↗
+              {links.raydiumSwap ? (
+                <a href={links.raydiumSwap} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+                  Raydium swap ↗
                 </a>
               ) : null}
               {metadata?.website ? <Social href={metadata.website} label="Website" /> : null}
@@ -205,20 +207,23 @@ export default async function CoinPage({
           <section className="card p-6">
             <h2 className="t-h3">The stream runs on this coin&apos;s volume</h2>
             <p className="mt-2 text-[13.5px] leading-relaxed text-fg-soft">
-              Every trade routed through Imagine pays a {formatPercent(tradeFeeBps / 10_000, 0)} fee into this pool,
-              and StonkFun forwards a creator share to the pool&apos;s vault. What lockers earn rises and falls with
-              how much ${symbol} trades — realised over the last 24 hours, not projected.
+              Every trade of ${symbol}, wherever it happens, pays a {formatBps(fees.poolFeeBps)} on-chain trading fee
+              that Raydium LaunchLab sends to this pool; trades through Imagine add {formatBps(fees.tradeFeeBps)}, so{" "}
+              {formatBps(fees.poolFeeBps + fees.tradeFeeBps)} in all. The creator earns nothing from fees. What lockers
+              earn rises and falls with how much ${symbol} trades — realised over the last 24 hours, not projected.
             </p>
-            <dl className="mt-5 grid grid-cols-1 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-3">
+            <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-4">
               <Term label="Fees, 24h" value={formatQuote(rewardRate.feesPerDay, quote)} />
               <Term label="To lockers, 24h" value={formatQuote(rewardRate.lockersPerDay, quote)} accent />
               <Term label="In the vault, unsynced" value={formatQuote(rewardRate.unsynced, quote)} />
+              <Term label="Pool fee, uncollected" value={formatQuote(rewardRate.uncollected, quote)} />
             </dl>
             <p className="mt-4 text-[12.5px] leading-relaxed text-muted">
               {streaming
                 ? `${formatQuote(pool.undistributed, quote)} is streaming to lockers over the next ${formatDuration(pool.streamEnd - now)}. `
                 : "Nothing is streaming right now; the next fee starts a new stream. "}
-              Anything that lands in the vault is booked by the next sync and streamed the same way.{" "}
+              The on-chain fee waits in Raydium&apos;s fee vault until anyone collects it into the pool; anything in the
+              vault is booked by the next sync and streamed the same way.{" "}
               {rewardRate.trades > 0
                 ? `${rewardRate.trades} trade${rewardRate.trades === 1 ? "" : "s"} (${formatQuote(rewardRate.siteVolume, quote)}) went through Imagine in this window.`
                 : null}
@@ -281,9 +286,10 @@ export default async function CoinPage({
             coinTokenProgram={pool.tokenProgram}
             quote={quote}
             priceQuote={priceQuote}
-            tradeFeeBps={tradeFeeBps}
+            tradeFeeBps={fees.tradeFeeBps}
+            poolFeeBps={fees.poolFeeBps}
             migrating={curve?.status === "migrating"}
-            stonkfunUrl={links.stonkfun}
+            raydiumUrl={links.raydium}
           />
           <LockPanel
             mint={mint}

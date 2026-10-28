@@ -3,7 +3,7 @@ import { LaunchForm } from "@/components/launch-form";
 export const metadata = {
   title: "Launch a coin",
   description:
-    "Launch a coin on StonkFun, paired with a stock, a currency, SOL or any StonkFun pair asset. Every trade through Imagine pays the holders who lock it — in the asset it's paired with.",
+    "Launch a coin on Raydium LaunchLab, paired with SOL, USDC, a tokenized stock like NVDAx or any pair asset LaunchLab supports. Every trade pays the holders who lock it — in the asset it's paired with.",
 };
 
 export default function LaunchPage() {
@@ -16,8 +16,9 @@ export default function LaunchPage() {
             Imagine a coin people <span className="dream-text">hold.</span>
           </h1>
           <p className="t-lede mt-5">
-            Your coin launches on StonkFun like any other, paired with the asset you pick. What changes is where its
-            fees go: into a pool that pays whoever locks it, in that asset.
+            Your coin launches on Raydium LaunchLab under the IMAGINE platform, paired with the asset you pick. Every
+            trade anywhere pays an on-chain fee into a pool for whoever locks it, in that asset — and you earn
+            nothing from fees, only by locking like everyone else.
           </p>
           <LaunchForm />
         </div>
@@ -26,7 +27,7 @@ export default function LaunchPage() {
           <Explainer
             step="What you sign"
             items={[
-              "Create the coin on StonkFun (Raydium LaunchLab), paired with your pick, with the pool's vault as its creator address.",
+              "Create the coin on Raydium LaunchLab, paired with your pick, with its on-chain trading fee pointed at the coin's pool.",
               "Your first buy, in the same transaction, so nobody buys between creation and you.",
               "Open the Imagine pool with your founding lock.",
             ]}

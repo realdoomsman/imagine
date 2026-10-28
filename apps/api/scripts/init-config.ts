@@ -1,17 +1,19 @@
 /**
- * Initialise the singleton platform config, or bring an existing one in line
- * with `ECONOMICS` and the StonkFun platform.
+ * Initialise the singleton IMAGINE config, or bring an existing one in line
+ * with `ECONOMICS` and the IMAGINE LaunchLab platform.
  *
  * Idempotent: a config that already matches is printed and left alone; one
  * that differs gets a single `update_config` signed by the admin, keeping its
  * treasury and pause flag. Live pools are untouched either way — their terms
- * are frozen — so this only changes what pools launched afterwards get.
+ * are frozen — so this only changes what pools launched afterwards get. This
+ * is also the update path for `trade_fee_bps` (the app fee, ECONOMICS: 150)
+ * and `launchlab_platform`.
  *
- * `launchlab_platform` is StonkFun's LaunchLab PlatformConfig
- * (4E876qZTE9FJMrBzgVtBrSrzz2TLivB5Y5QXPjB4gZL7): `launch` only creates coins
- * under it, which is what puts every IMAGINE coin on stonkfun.xyz.
+ * `launchlab_platform` is IMAGINE's own Raydium LaunchLab PlatformConfig
+ * (created by scripts/setup-platform.ts): `launch` only creates coins under
+ * it, which is what makes its on-chain trading fee accrue to each coin's pool.
  *
- * Usage: RPC_URL=… node scripts/init-config.ts [path/to/admin.json]
+ * Usage: RPC_URL=… LAUNCHLAB_PLATFORM=<PlatformConfig> node scripts/init-config.ts [path/to/admin.json]
  *
  * The treasury of a new config is `TREASURY_PUBKEY` (defaults to the admin).
  * This is the one place a treasury is chosen; the API itself reads it back
@@ -20,13 +22,22 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, Transaction } from "@solana/web3.js";
-import { configPda, ECONOMICS, ImagineClient, STONKFUN_PLATFORM } from "@imagine/sdk";
+import { configPda, decodePlatformConfig, ECONOMICS, ImagineClient, LAUNCHLAB_PROGRAM_ID } from "@imagine/sdk";
 
 const keypairPath = process.argv[2] ?? `${homedir()}/.config/solana/id.json`;
 const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(keypairPath, "utf8")) as number[]));
 
 const connection = new Connection(process.env.RPC_URL ?? "http://127.0.0.1:8999", "confirmed");
 const imagine = new ImagineClient(connection);
+
+if (!process.env.LAUNCHLAB_PLATFORM) throw new Error("set LAUNCHLAB_PLATFORM (printed by scripts/setup-platform.ts)");
+const LAUNCHLAB_PLATFORM = new PublicKey(process.env.LAUNCHLAB_PLATFORM);
+const platformInfo = await connection.getAccountInfo(LAUNCHLAB_PLATFORM);
+if (!platformInfo || !platformInfo.owner.equals(LAUNCHLAB_PROGRAM_ID)) {
+  throw new Error(`${LAUNCHLAB_PLATFORM.toBase58()} is not a LaunchLab PlatformConfig on this cluster`);
+}
+const platform = decodePlatformConfig(platformInfo.data);
+console.log(`LaunchLab platform ${platform.name} (${LAUNCHLAB_PLATFORM.toBase58()}): pool trading fee ${Number(platform.creatorFeeRate) / 1e4}%, platform fee ${Number(platform.feeRate) / 1e4}%`);
 
 const existing = await imagine.fetchConfig();
 const summary = (config: NonNullable<typeof existing>) => ({
@@ -58,7 +69,7 @@ async function send(transaction: Transaction): Promise<string> {
 
 if (existing) {
   const drift =
-    !existing.launchlabPlatform.equals(STONKFUN_PLATFORM) ||
+    !existing.launchlabPlatform.equals(LAUNCHLAB_PLATFORM) ||
     existing.tradeFeeBps !== ECONOMICS.tradeFeeBps ||
     existing.defaultTreasuryShareBps !== ECONOMICS.treasuryShareBps ||
     existing.maxCreatorShareBps !== ECONOMICS.maxCreatorShareBps ||
@@ -83,7 +94,7 @@ if (existing) {
   console.log("before:", summary(existing));
   const update = await imagine.program.methods
     .updateConfig(
-      ImagineClient.configArgs({ treasury: existing.treasury, launchlabPlatform: STONKFUN_PLATFORM, paused: existing.paused }),
+      ImagineClient.configArgs({ treasury: existing.treasury, launchlabPlatform: LAUNCHLAB_PLATFORM, paused: existing.paused }),
     )
     .accountsPartial({ admin: admin.publicKey, config: configPda() })
     .instruction();
@@ -105,7 +116,7 @@ const programData = PublicKey.findProgramAddressSync(
   new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"),
 )[0];
 const instruction = await imagine.program.methods
-  .initializeConfig(ImagineClient.configArgs({ treasury, launchlabPlatform: STONKFUN_PLATFORM }))
+  .initializeConfig(ImagineClient.configArgs({ treasury, launchlabPlatform: LAUNCHLAB_PLATFORM }))
   .accountsPartial({ admin: admin.publicKey, program: imagine.programId, programData })
   .instruction();
 const signature = await send(new Transaction().add(instruction));

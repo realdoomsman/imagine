@@ -54,6 +54,6 @@ pub enum ImagineError {
     QuoteHookActive,
     #[msg("Quote mint is not freely transferable")]
     QuoteNotTransferable,
-    #[msg("LaunchLab platform is not the configured StonkFun platform")]
+    #[msg("LaunchLab platform is not the configured IMAGINE platform")]
     PlatformMismatch,
 }

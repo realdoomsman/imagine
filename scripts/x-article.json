@@ -3,104 +3,390 @@
   "blocks": [
     [
       "p",
-      "Every memecoin has one recurring revenue stream: the fee people pay to trade it. On most launchpads that fee goes to the platform and the creator, and none of it to the people whose holding is the reason there is a price at all. IMAGINE changes where it lands. The site is imagine.fun."
+      "**IMAGINE is live on Solana mainnet. Coins launch on Raydium, and their trading fees are paid on-chain to the holders who lock them, in whatever each coin is paired with.**"
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\cover.png",
+      "Imagine everyone locks."
     ],
     [
       "h",
-      "Imagine everyone locks"
+      "Holders are exit liquidity"
     ],
     [
       "p",
-      "If the only action that pays a holder is selling, everybody sells, and the chart looks like it. IMAGINE pays the other action. Every trade on an IMAGINE coin pays a fee into that coin's pool, and the pool pays the holders who locked it, weighted by how long each of them committed."
+      "Every memecoin has one recurring source of money: the fee people pay to trade it. On most launchpads that fee goes to the platform and to the creator. None of it goes to the people whose holding is the reason there is a price at all."
+    ],
+    [
+      "p",
+      "So the only way a holder ever gets paid is by selling. Everyone knows it, everyone acts on it, and the chart looks the way you'd expect. The holder who stays ends up as the liquidity for the holder who left first."
+    ],
+    [
+      "p",
+      "Pairing helps a little. A LaunchLab coin can be priced in SOL, USDC or a tokenized stock like NVDAx or SPYx, which makes it more interesting to hold. It still pays nothing for holding it."
+    ],
+    [
+      "p",
+      "IMAGINE pays the other action."
     ],
     [
       "h",
-      "Paired with anything, paid in its pair"
+      "What IMAGINE is"
     ],
     [
       "p",
-      "IMAGINE coins launch on StonkFun, the Solana launchpad where every coin is paired with an asset: a tokenized stock such as NVDAx, SPYx or TSLAx, a stablecoin, or SOL. The coin is created on StonkFun's Raydium LaunchLab platform like any other StonkFun coin, trades on the same curve, and shows up in the same places."
+      "IMAGINE is a launchpad and lock-to-earn layer on Raydium LaunchLab. A coin launched from imagine.fun is created on LaunchLab under IMAGINE's own platform config, trades on a LaunchLab bonding curve, and graduates to a Raydium CPMM pool like any other LaunchLab coin. You can trade it on Raydium, through Jupiter, or anywhere else that routes LaunchLab and Raydium pools."
     ],
     [
       "p",
-      "Because the coin trades against its pair, the fees are in its pair, and so are the rewards. A coin paired with NVDAx pays its lockers NVDAx. A SOL-paired coin pays SOL. A USDC-paired coin pays USDC. Lock the meme; earn its pair."
+      "What's different is where its fees go. Each IMAGINE coin has its own pool, and the account Raydium pays the coin's trading fee to is that pool's vault, not a person. Fees flow into the pool, and the pool pays the holders who locked the coin, weighted by how much they locked and for how long. They are paid in the coin's pair asset: a coin paired with NVDAx pays its lockers NVDAx, a SOL-paired coin pays SOL, a USDC-paired coin pays USDC."
+    ],
+    [
+      "p",
+      "The creator earns nothing from fees. They earn only by locking, like everyone else."
+    ],
+    [
+      "p",
+      "There is no emission, no reward token and no subsidy. Lockers are paid from real fees on real trades, or not at all."
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a01-hero.png",
+      "imagine.fun, live on mainnet. The chart is a simulation, labelled illustrative: one slider, \"How many holders lock?\""
     ],
     [
       "h",
-      "Where the money comes from"
+      "Fees enforced on-chain"
     ],
     [
       "p",
-      "Two streams land in one vault per coin, both in the pair asset. First, imagine.fun adds a 1% app fee on trades it routes, paid into that coin's pool inside the swap transaction: if the trade fails, no fee is taken; if it lands, the fee is already in the pool. Second, StonkFun charges 1% on curve trades and forwards a creator share to the coin's creator address. For an IMAGINE coin, that creator address is the pool's vault, so whatever StonkFun forwards arrives where the lockers are paid from. How much it forwards, and when, is StonkFun's policy; IMAGINE counts what arrives."
+      "IMAGINE's platform config on LaunchLab sets a 0.5% trading fee on every curve trade, and LaunchLab charges it on-chain whoever builds the trade: the Raydium site, Jupiter, a trading terminal, a bot. It is paid to the coin's IMAGINE pool vault. Nobody has to choose to pass it along, and nobody can choose not to."
     ],
     [
       "p",
-      "The pool splits what it receives one way, frozen at launch: 90% to the people who locked, by weight, and 10% to the treasury. The creator's share is zero by default. A creator earns the way everyone else does, by locking, and their founding lock opens in the same transaction that launches the coin."
+      "Trades made on imagine.fun add a 1.5% app fee, paid into the same pool in the same transaction as the trade. On imagine.fun, then, 2% of every trade goes to the coin's pool. Elsewhere, 0.5% does."
+    ],
+    [
+      "p",
+      "When a coin graduates, its Raydium CPMM pool pays its fee share to the same vault, so the pool keeps earning after the curve is gone."
+    ],
+    [
+      "p",
+      "IMAGINE charges no platform fee on the curve. Raydium's LaunchLab protocol fee of 0.25% applies, and that is Raydium's."
     ],
     [
       "h",
-      "Locking, and why the curve bends"
+      "How it works, step by step"
     ],
     [
       "p",
-      "You lock for a term you choose, from four hours to a year. Your share of what arrives is your weight over the pool's total weight, and weight is amount times a multiplier on a square-root curve: four hours counts once, a day 1.14×, a week 1.41×, a month 1.86×, ninety days 2.49×, six months 3.11×, a year 4×. Short locks still count; a long one still takes the top."
+      "**1. A coin launches on Raydium.** The creator names the coin, picks its pair, and signs one transaction. It creates the coin on LaunchLab under IMAGINE's platform, makes the creator's first buy, and opens the coin's IMAGINE pool, with the coin's fees pointed at the pool."
     ],
     [
       "p",
-      "Size matters too. Lock a tenth of a percent of the supply and your weight gets 10% more; half a percent, 25%; a full percent, 50%. Size is measured against total supply, so nobody else's lock can move yours."
+      "**2. The creator locks first.** In that same transaction the creator opens the founding lock, at least 10% of their first buy. Until it exists, nobody can lock and nothing can be deposited. Every pool has a committed holder from its first live slot, and the amount and term are public on the coin's page."
     ],
     [
       "p",
-      "Fees do not land on lockers the instant they arrive. They stream in over an hour, so a share is earned by holding through time, not by locking a large bag the second before a payout and leaving the second after. Claiming never touches your lock, and your lock never blocks a claim."
+      "**3. People trade, anywhere.** Every curve trade pays the 0.5% on-chain trading fee to the pool. Trades on imagine.fun also pay the 1.5% app fee. If a trade fails, no fee is taken."
+    ],
+    [
+      "p",
+      "**4. Fees reach the pool.** The app fee lands in the pool directly. The 0.5% accrues on-chain in a LaunchLab fee account for the coin, which only the pool's vault can claim. Collecting it is permissionless: anyone can send the instruction that moves it into the pool, and our keeper does so automatically. Anyone can also donate to a pool."
+    ],
+    [
+      "p",
+      "**5. The pool splits and streams.** Each arrival is split by the pool's frozen terms: 10% to the treasury, 90% to lockers, 0% to the creator. The creator earns nothing from fees; they earn by locking, like everyone else. The lockers' share is not handed out at once; it is released evenly over the following hour, by weight."
+    ],
+    [
+      "p",
+      "**6. Lockers claim in the pair asset.** You can claim whenever you like. Claiming never touches your lock, and your lock never blocks a claim. When your term ends, your tokens come back in full along with anything left to claim."
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a02-flow.png",
+      "Where the money goes: a 0.5% on-chain trading fee on every curve trade anywhere, plus 1.5% on imagine.fun trades (2% in total), and the Raydium pool's fee share after graduation, all land in the coin's pool. 90% streams to lockers by weight, 10% to the treasury, 0% to the creator."
     ],
     [
       "h",
-      "Leaving early"
+      "The math"
+    ],
+    [
+      "h3",
+      "Weight"
     ],
     [
       "p",
-      "You can always break a lock. Selling is free; it just costs you the stream. Your unclaimed rewards go back into the pool for the people who stayed, and a slice of your principal is burned, scaled by how much of your term you did not serve. If you were never going to hold, do not lock. If you were, this pays you for the holding you were already doing."
-    ],
-    [
-      "h",
-      "What the program cannot do"
+      "Your share of what flows through a pool is your weight divided by the pool's total weight."
     ],
     [
       "p",
-      "\"Trust us\" is not a security model, so the parts that matter are properties of the program, checkable against the source."
+      "weight = amount × duration multiplier × (1 + size bonus)"
+    ],
+    [
+      "h3",
+      "Duration"
+    ],
+    [
+      "p",
+      "You pick a term from 4 hours to 365 days. The multiplier follows a square-root curve, so it rises fastest early: short locks still count, and a full year still takes the top."
     ],
     [
       "ul",
       [
-        "There is no admin withdraw path. No instruction moves a pool's funds or locked coins to an admin. Not disabled, not timelocked: absent.",
-        "A pool's terms are frozen at launch: the fee split, the multiplier curve, the size tiers, the lock bounds, the early-exit penalty and the treasury address. Defaults can change for future coins, never for yours.",
-        "Claims and unlocks cannot be paused. The pause switch stops new launches and nothing else.",
-        "The creator locks first. Nobody can lock into a pool before the creator's founding lock exists."
+        "4 hours: 1.00×",
+        "1 day: 1.14×",
+        "7 days: 1.41×",
+        "30 days: 1.86×",
+        "90 days: 2.49×",
+        "180 days: 3.11×",
+        "365 days: 4.00×"
       ]
     ],
     [
       "p",
-      "The source, the tests and the security review are linked from imagine.fun/docs/security, which walks through each claim, including the ones that depend on others: StonkFun's forwarding is its own off-chain policy, and tokenized stocks carry their issuer's controls."
+      "On a straight line, 30 days would be worth about 1.25×. On this curve it is 1.86×."
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a03-curve.png",
+      "The duration multiplier: square-root curve from 1.00× at 4 hours to 4.00× at 365 days."
+    ],
+    [
+      "h3",
+      "Size"
+    ],
+    [
+      "p",
+      "A lock that commits a meaningful share of the supply gets a bonus on top: +10% at 0.1% of total supply, +25% at 0.5%, +50% at 1%. The highest tier you clear applies, and it multiplies the duration multiplier rather than adding to it. A year-long lock of 1% of supply is 4.00 × 1.5 = 6.00×. Tiers are measured against total supply, not against the pool, so nobody else's lock can move yours."
+    ],
+    [
+      "h3",
+      "The stream"
+    ],
+    [
+      "p",
+      "Fees reach lockers over one hour, not the instant they arrive. Otherwise anyone could watch fees build up, lock a large bag just before a payout, take a slice they were never present for, and leave. Each new arrival folds into what is still streaming and restarts the hour, so a steady flow of fees becomes a steady payout. The minimum lock is four hours, so every locker holds through the full release of what arrived while they were in."
+    ],
+    [
+      "h3",
+      "Leaving early"
+    ],
+    [
+      "p",
+      "You can always break a lock. It costs two things. Your unclaimed rewards are forfeited and stream to the people who stayed. And part of your principal is burned: up to 25%, scaled by how much of your term is left. Leave a 100-day lock on day 50 and 12.5% burns; on day 99, almost nothing."
+    ],
+    [
+      "h3",
+      "The earnings cap"
+    ],
+    [
+      "p",
+      "Every lock has a ceiling: the value of its tokens when locked, in the pair asset, times its multiplier. The program reads that price on-chain, from the coin's LaunchLab curve or, after graduation, from its Raydium CPMM pool. Once a lock has earned its ceiling it stops earning, its weight leaves the pool, and the locks still earning split what arrives. Anything a pool's open locks can't use goes to the treasury, so a pool never sits on a pile nobody can claim."
+    ],
+    [
+      "h3",
+      "A worked example"
+    ],
+    [
+      "p",
+      "These numbers are illustrative. They are round on purpose, and they describe no real coin."
+    ],
+    [
+      "p",
+      "Take a USDC-paired coin with a supply of 1,000,000,000. Three people lock:"
+    ],
+    [
+      "ul",
+      [
+        "Ana, the creator, locks 10,000,000 (1% of supply) for 365 days: 4.00 × 1.5 = 6.00×, weight 60,000,000.",
+        "Ben locks 10,000,000 (1%) for 30 days: 1.86 × 1.5 = 2.79×, weight about 27,870,000.",
+        "Cleo locks 500,000 (0.05%, no tier) for 4 hours: 1.00×, weight 500,000."
+      ]
+    ],
+    [
+      "p",
+      "Total weight is about 88,370,000. Ana holds 67.9% of it, Ben 31.5%, Cleo 0.6%."
+    ],
+    [
+      "p",
+      "Now say 1,000 USDC reaches the pool. For scale, that is 2% of 50,000 USDC traded on imagine.fun, or 0.5% of 200,000 USDC traded on the curve anywhere else. 100 USDC goes to the treasury. The other 900 USDC is released over the next hour: about 611 to Ana, 284 to Ben and 5 to Cleo, in USDC."
+    ],
+    [
+      "p",
+      "Caps: if each 10,000,000 bag was worth 500 USDC when locked, Ana can earn at most 500 × 6.00 = 3,000 USDC from her lock, and Ben about 1,393 USDC."
+    ],
+    [
+      "p",
+      "Early exit: if Ben breaks his 30-day lock on day 6, 24 of 30 days are left, so 25% × 24/30 = 20% of his principal burns. He gets 8,000,000 back, 2,000,000 are burned, and his unclaimed USDC streams to Ana and Cleo."
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a04-example.png",
+      "Worked example, illustrative numbers: three locks, their weights, their shares of 900 USDC, Ana's cap, and Ben's early exit."
     ],
     [
       "h",
-      "No wallet? Sign in."
+      "What the program will never do"
     ],
     [
       "p",
-      "Most people who would lock a coin do not have a Solana wallet. IMAGINE takes a Google sign-in: you get an ordinary Solana address, held for you, that you can fund, lock from, claim to, and withdraw from or export whenever you want."
+      "\"Trust us\" is not a security model. The parts that matter are properties of the deployed program, and you can check each one against the source."
+    ],
+    [
+      "ul",
+      [
+        "**No admin withdraw path.** No instruction moves a pool's rewards or locked coins to an admin. It isn't disabled or timelocked; it doesn't exist. Only the pool's own program accounts move its funds: rewards to the locker or treasury that earned them, locked coins back to their owner, and early-exit penalties to the burn.",
+        "**Terms are frozen per pool.** The fee split, multiplier curve, size tiers, lock bounds, exit penalty, stream window and treasury address are copied onto the pool at launch and never rewritten. Defaults can change for coins launched later, never for yours.",
+        "**Claims and unlocks can't be paused.** There is a pause switch, and it stops new launches. Claiming and unlocking don't consult it.",
+        "**The creator locks first.** No pool opens without the creator's founding lock, made in the launch transaction."
+      ]
+    ],
+    [
+      "p",
+      "The program also refuses to create coins under any platform but IMAGINE's or with any fee account but the pool's, and refuses coin or pair mints that would let a third party interfere with locked tokens."
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a05-rules.png",
+      "What the program won't do: no admin withdraw, frozen terms, unpausable claims and unlocks, creator locks first."
     ],
     [
       "h",
-      "The honest version"
+      "Built on Raydium LaunchLab"
     ],
     [
       "p",
-      "None of this makes a bad coin good. A coin nobody trades pays nothing, and a locked bag in a coin going to zero is worse than an unlocked one, because you cannot sell into the decline for free. Every rate on the site is trailing, realised fees over locked value; nothing is projected, and nothing is promised."
+      "An IMAGINE coin is a Raydium LaunchLab coin: a LaunchLab curve, then a Raydium CPMM pool once the curve fills. Raydium's programs call the account its fees are paid to the coin's \"creator\". For an IMAGINE coin that account is the pool, never a person."
     ],
     [
       "p",
-      "What IMAGINE changes is narrow: the person who stays is the person who gets paid, in whatever the coin is paired with. Imagine the chart if nobody sold."
+      "At launch you pick the pair from the quote assets LaunchLab supports: SOL, USDC, and tokenized stocks like NVDAx and SPYx, among others. Whatever you pick is what the coin is priced in and what its lockers are paid in. Buyers who only hold SOL can still buy a coin with another pair on imagine.fun; the site swaps their SOL to the pair asset through Jupiter first."
+    ],
+    [
+      "p",
+      "Fees on an IMAGINE coin:"
+    ],
+    [
+      "ul",
+      [
+        "Pool fee: a 0.5% on-chain trading fee on every curve trade, wherever it is made. Charged by LaunchLab, paid to the coin's pool.",
+        "IMAGINE app fee: 1.5% of trades made on imagine.fun, paid into the coin's pool in the same transaction. With the 0.5%, 2% of an imagine.fun trade goes to the pool.",
+        "Raydium LaunchLab protocol fee: 0.25% of curve trades. Raydium's.",
+        "IMAGINE platform fee: 0%.",
+        "After graduation: Raydium's CPMM fees apply, and the pool's fee share goes to the coin's IMAGINE pool.",
+        "Pool creation: 0.05 SOL, once, at launch."
+      ]
+    ],
+    [
+      "p",
+      "Inside the pool: 90% to lockers by weight, 10% to the treasury, 0% to the creator."
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a06-launch.png",
+      "The launch page on imagine.fun: pick the pair, make the first buy, set the founding lock, and see every fee before you sign (0.5% on-chain trading fee to the pool, 1.5% app fee to the pool, 0.25% Raydium protocol fee, 0.05 SOL pool creation; the creator earns nothing from fees)."
+    ],
+    [
+      "h",
+      "A plain Raydium LaunchLab coin vs an IMAGINE coin"
+    ],
+    [
+      "ul",
+      [
+        "**Where it trades:** the same for both. A LaunchLab curve, then a Raydium CPMM pool after graduation.",
+        "**Who the coin's fee is paid to:** the creator's wallet, vs the coin's pool vault.",
+        "**Trading fee on the curve:** whatever its platform sets, paid to the creator, vs 0.5% of every trade, paid to the pool.",
+        "**After graduation:** the Raydium pool's fee share goes to the creator, vs to the pool.",
+        "**What the creator earns from fees:** that fee, vs nothing. They earn only by locking.",
+        "**Extra fee:** none, vs 1.5% on trades made on imagine.fun, all of it into the pool.",
+        "**What holders earn for holding:** nothing, vs 90% of everything that reaches the pool, by weight, in the pair asset.",
+        "**The creator's commitment:** none required, vs a public founding lock before anyone else can lock.",
+        "**Payout terms:** none to speak of, vs frozen on the pool at launch.",
+        "**Getting out:** sell any time, vs the same for unlocked coins; locked coins wait for their term or pay the early-exit burn."
+      ]
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a08-compare.png",
+      "A plain Raydium LaunchLab coin vs an IMAGINE coin: same curve and same Raydium pool, but the coin's fee goes to the pool instead of the creator, the creator earns only by locking, and holders earn in the pair asset."
+    ],
+    [
+      "h",
+      "Proof"
+    ],
+    [
+      "p",
+      "The program is live on Solana mainnet:"
+    ],
+    [
+      "ul",
+      [
+        "Program: imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa",
+        "Upgrade authority: E1MQZaMhRELUihUffFCUbuARpTy53fJv8hpB98MoYhZc",
+        "Config: FjjucCXttbwBzNdBkxHS6wtQYqaUpwxtAjNLy2RZorHa, which names the IMAGINE platform config on LaunchLab that every launch is checked against"
+      ]
+    ],
+    [
+      "p",
+      "The program's address hasn't changed; it was upgraded in place for the move to IMAGINE's own LaunchLab platform. The code is open source at github.com/realdoomsman/imagine: the program, the SDK, the API and the site."
+    ],
+    [
+      "p",
+      "It is tested against the real thing, not mocks. Rust unit tests cover the reward math: the multiplier curve, accumulator conservation, penalty decay and price math. The integration suites run against the real mainnet builds of Raydium LaunchLab, CPMM and Token-2022, including a randomised test that checks after every step that a pool can still pay everyone it owes."
+    ],
+    [
+      "p",
+      "Before launch we ran the whole system end to end on a mainnet fork. It launched a SOL-paired coin and an SPYx-paired coin and ran buys with the app fee, sells, locks, on-chain trading fees collected into the pool, claims in the pair asset, and an early exit."
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a07-coin.png",
+      "A coin page with its lock panel. Mainnet-fork demo, not a live coin."
+    ],
+    [
+      "img",
+      "C:\\tech\\imagine\\video\\out\\x\\article\\a09-proof.png",
+      "The program on mainnet, and the test suites that run against real Raydium LaunchLab, CPMM and Token-2022 builds."
+    ],
+    [
+      "h",
+      "Risks, plainly"
+    ],
+    [
+      "ul",
+      [
+        "**Memecoins are volatile and can go to zero.** Locking makes that worse: you can't sell into a decline without burning part of your bag.",
+        "**A coin nobody trades pays nothing.** There is no emission and no subsidy. We publish no projected rates; the site shows trailing, realised fees only.",
+        "**The pair asset carries its own risk.** Its price moves on its own. xStocks come with issuer controls, including freeze, pause and a permanent delegate; if an issuer used them on a pool's vault, that pool's payouts would stop. Every xStock holder already carries that risk.",
+        "**The 1.5% depends on our front end.** The 0.5% trading fee is enforced on-chain by Raydium LaunchLab. The 1.5% app fee is added by the transaction imagine.fun builds; the same coin traded elsewhere pays only the 0.5%.",
+        "**Raydium's programs are underneath.** IMAGINE relies on LaunchLab and CPMM behaving as they do today.",
+        "**The 0.5% waits to be collected.** It accrues on-chain in the coin's LaunchLab fee account until someone collects it into the pool. Anyone can; our keeper does it automatically.",
+        "**Locked means locked.** Before the term ends, the only way out is the early-exit burn.",
+        "**The program is upgradeable.** Whoever holds the upgrade authority can change it; the address is above, check it before you lock size. No external audit has been published yet; our internal review is in the repo.",
+        "**The Google wallet is held for you.** Our server holds its key, encrypted. You can withdraw or export it at any time."
+      ]
+    ],
+    [
+      "h",
+      "How to start"
+    ],
+    [
+      "p",
+      "Go to imagine.fun. Connect a wallet you already use, or sign in with Google and get a Solana address held for you."
+    ],
+    [
+      "p",
+      "To launch: name the coin, pick its pair, make your first buy, choose how much of it to lock and for how long, and sign once. The pool creation fee is 0.05 SOL."
+    ],
+    [
+      "p",
+      "To lock: open a coin, choose an amount and a term, and watch your weight before you sign. Then claim whenever you like, in whatever the coin is paired with."
+    ],
+    [
+      "p",
+      "Imagine everyone locks. Imagine the chart if nobody sold."
     ],
     [
       "p",

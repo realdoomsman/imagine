@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 
 const TITLE = "IMAGINE — Imagine everyone locks";
 const DESCRIPTION =
-  "Launch a coin on StonkFun, paired with anything. Every trade pays the holders who lock it — in whatever it's paired with. Lock longer, earn a bigger cut.";
+  "Launch a coin on Raydium, paired with anything. Every trade pays the holders who lock it — in whatever it's paired with. Lock longer, earn a bigger cut.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://imagine.fun"),
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   applicationName: "IMAGINE",
   openGraph: {
     title: TITLE,
-    description: "Lock the meme. Earn its pair. Lock-to-earn vaults for StonkFun coins.",
+    description: "Lock the meme. Earn its pair. Lock-to-earn vaults for coins launched on Raydium LaunchLab.",
     url: "https://imagine.fun",
     siteName: "IMAGINE",
     type: "website",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: TITLE,
-    description: "Lock the meme. Earn its pair. Lock-to-earn vaults for StonkFun coins.",
+    description: "Lock the meme. Earn its pair. Lock-to-earn vaults for coins launched on Raydium LaunchLab.",
     ...(X_HANDLE ? { site: X_HANDLE, creator: X_HANDLE } : {}),
   },
 };

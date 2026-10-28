@@ -5,7 +5,7 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { useMemo } from "react";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-// StonkFun lives on mainnet only. Production points both at the API's proxy
+// IMAGINE coins live on mainnet only. Production points both at the API's proxy
 // (https://api.imagine.fun/rpc, wss://api.imagine.fun/rpc-ws) so no keyed RPC
 // URL ships in the bundle; a local fork sets NEXT_PUBLIC_RPC_URL directly.
 const RPC = process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.mainnet-beta.solana.com";

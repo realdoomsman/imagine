@@ -9,7 +9,7 @@ import { ImagineMark } from "@/components/imagine-mark";
 export const metadata = {
   title: "Coins",
   description:
-    "Every StonkFun coin launched on Imagine, paired with a stock, a currency or SOL. See how much of each is locked and what its lockers have been paid.",
+    "Every coin launched on Raydium through Imagine, paired with SOL, USDC or a tokenized stock. See how much of each is locked and what its lockers have been paid.",
 };
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,7 @@ export default async function CoinsPage({ searchParams }: { searchParams: Promis
     error = poolsResult.reason instanceof Error ? poolsResult.reason.message : "could not reach the indexer";
   }
 
-  // Filter chips for the categories StonkFun actually offers; the full list
+  // Filter chips for the categories actually offered as pairs; the full list
   // when the pair list is unavailable.
   const known: string[] = QUOTE_CATEGORIES.map((entry) => entry.id);
   const offered =
@@ -78,7 +78,7 @@ export default async function CoinsPage({ searchParams }: { searchParams: Promis
             Imagine everyone <span className="dream-text">locks.</span>
           </h1>
           <p className="t-lede mt-4">
-            StonkFun coins with an Imagine pool. Each one pays its lockers in the asset it&apos;s paired with.
+            Coins launched on Raydium with an Imagine pool. Each one pays its lockers in the asset it&apos;s paired with.
           </p>
         </div>
         <form action="/coins" className="flex w-full gap-2 sm:w-auto" role="search">
@@ -136,7 +136,7 @@ export default async function CoinsPage({ searchParams }: { searchParams: Promis
         ) : (
           <EmptyState
             title="No coins yet"
-            body="Nothing has launched through Imagine yet. Pick a pair, launch on StonkFun, and be the first pool."
+            body="Nothing has launched through Imagine yet. Pick a pair, launch on Raydium, and be the first pool."
             action={{ href: "/launch", label: "Launch a coin" }}
           />
         )

@@ -1,49 +1,61 @@
 # Mechanism & Architecture Spec
 
-Status: implemented and tested on LiteSVM against the real mainnet Raydium
-LaunchLab, CPMM and Token-2022 builds, and end to end on a mainnet fork. Not yet
-deployed. Brand: `docs/BRAND.md`. Security review: `docs/AUDIT.md`. Operations:
+Status: program deployed on mainnet (`imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa`);
+this document describes the upgrade that moves launches onto IMAGINE's own Raydium
+LaunchLab platform and adds `collect_creator_fee`. Tested on LiteSVM against the real
+mainnet Raydium LaunchLab, CPMM and Token-2022 builds, and end to end on a mainnet
+fork. Brand: `docs/BRAND.md`. Security review: `docs/AUDIT.md`. Operations:
 `docs/RUNBOOK.md`.
 
 ## 1. The product in one paragraph
 
-A lock-to-earn layer for coins launched on StonkFun, the Solana launchpad where
-every coin is paired with ("priced in") an asset: a tokenized stock (xStocks
-such as NVDAx, SPYx, TSLAx), a stablecoin, SOL or another quote. A coin launched
-through imagine.fun is created on StonkFun's Raydium LaunchLab platform, so it
-trades and shows up wherever StonkFun coins do. Every trade routed through the
-site pays a 1% app fee into a per-coin vault, and StonkFun's forwarded creator
-share lands in the same vault. Holders lock for 4 hours to 365 days; longer
-commitment means more weight, and weight decides each locker's share of what
-flows through the vault — paid in the coin's pair asset. Rewards are claimable
-at any time without unlocking, and nothing depends on the creator continuing to
-exist.
+A lock-to-earn layer for coins launched on Raydium LaunchLab under the IMAGINE
+platform. Every coin is paired with ("priced in") an asset LaunchLab supports —
+SOL, USDC, tokenized stocks such as NVDAx and SPYx. Every trade of the coin,
+anywhere, pays a 0.5% on-chain trading fee that LaunchLab routes to the coin's
+pool; trades through imagine.fun add a 1.5% app fee into the same pool, so 2% of
+an imagine.fun trade reaches the pool. Holders lock for 4 hours to 365 days;
+longer commitment means more weight, and weight decides each locker's share of
+what flows through the pool — paid in the coin's pair asset. The creator earns
+nothing from fees; they earn only by locking, like everyone else. Rewards are
+claimable at any time without unlocking, and nothing depends on the creator
+continuing to exist.
 
 ## 2. Where the money comes from
 
 Every stream is denominated in the coin's **quote mint** and lands in one vault
-per coin:
+per coin.
 
-1. **App fee.** A `deposit_reward(amount, kind)` instruction appended to the
-   swap, in the same transaction: 1% of the quote leg by default
-   (`trade_fee_bps = 100`, admin-adjustable up to 10%). Enforced by the API that
-   builds the transaction, not by the program — trading on StonkFun, Raydium or
-   an aggregator directly bypasses it. `kind` is 0 buy fee, 1 sell fee,
+1. **LaunchLab creator fee (user-facing: the 0.5% on-chain trading fee).** The
+   IMAGINE PlatformConfig sets `creator_fee_rate` to LaunchLab's maximum, 5,000
+   millionths (0.5%; verified against the mainnet `raydium_launchpad.so`, 5,001 is
+   rejected), and the platform fee `fee_rate` to 0. `launch` makes each LaunchLab
+   pool's `creator` the IMAGINE pool's reward-vault PDA. So 0.5% of every curve
+   trade — on Raydium, through Jupiter, any terminal or bot — accrues on chain to
+   the coin's LaunchLab creator-fee vault `[vault PDA, quote_mint]`, claimable only
+   by the vault PDA. `collect_creator_fee` (permissionless) moves it into the
+   reward vault and syncs.
+2. **CPMM creator fee after graduation.** The platform's `cpswap_config` is an
+   open Raydium CPMM AmmConfig with a creator fee, and `platform_cp_creator` is
+   unset, so `migrate_to_cpswap` makes the CPMM pool creator the LaunchLab
+   creator — the vault PDA. `collect_creator_fee` collects those fees too. CPMM
+   keeps a protocol share of its creator fee, set by the AmmConfig, so the
+   pool receives the rest.
+3. **App fee.** A `deposit_reward(amount, kind)` instruction appended to every
+   swap the API builds: 1.5% of the quote leg (`trade_fee_bps = 150`,
+   admin-adjustable up to 10%). Enforced by the API, not the program; trading
+   elsewhere pays only the on-chain 0.5%. `kind` is 0 buy fee, 1 sell fee,
    2 creator share, 3 donation; it only labels the event.
-2. **StonkFun creator share.** StonkFun charges a 1% platform fee on curve
-   trades (the on-chain creator rate is 0%) and forwards a creator share
-   off-chain to the LaunchLab pool's `creator`. `launch` makes that creator the
-   pool's reward vault PDA, so forwards arrive directly: native SOL on the vault
-   for SOL-quoted coins, quote tokens in the vault's associated token account
-   otherwise. The amount and timing are StonkFun's policy; IMAGINE neither
-   controls nor promises them.
-3. **Donations.** Anyone may `deposit_reward`, or simply transfer to the vault.
+4. **Donations.** Anyone may `deposit_reward`, or transfer to the vault.
+
+Raydium's LaunchLab protocol fee (0.25%) also applies to curve trades; it is
+Raydium's. On graduation the whole LP position is locked (`platform_scale` 100%,
+`creator_scale` 0, `burn_scale` 0); its Fee-Key NFT goes to the platform NFT
+wallet, the IMAGINE treasury.
 
 IMAGINE never relies on an instruction to tell it money arrived. `sync` compares
 the vault's distributable balance with `last_vault_balance` and treats the
 difference as inflow, so every stream is credited the same way.
-
-Raydium LaunchLab's protocol fee also applies to curve trades; it is Raydium's.
 
 ## 3. Reward mechanics
 
@@ -75,15 +87,13 @@ the same `isqrt`, and a LiteSVM test asserts the two agree on real positions.
 Fees do **not** land on lockers the instant they arrive. Each inflow is split by
 the pool's frozen terms, and the lockers' share enters `undistributed`, which
 pays out linearly over `reward_stream_secs` (default 1 hour, shorter than the
-4-hour minimum lock, so every locker holds through the whole release of what
-arrived while they were in). New arrivals reprice the stream so a steady fee
-flow becomes a steady payout.
+4-hour minimum lock). New arrivals reprice the stream so a steady fee flow
+becomes a steady payout.
 
 Without the stream, a share would be decided by weight held at one instant:
-anyone could watch the vault fill — StonkFun's forwards arrive with no
-instruction at all — lock a large bag, sync, claim a slice of a backlog they
-were never present for, and leave. With it, a share is earned by weight *held
-over time*.
+anyone could watch creator fees pile up in LaunchLab's vault, lock a large bag,
+collect, claim a slice of a backlog they were never present for, and leave. With
+it, a share is earned by weight *held over time*.
 
 ### Accounting
 
@@ -97,9 +107,8 @@ claimable(position)    = (weight × acc - reward_debt) / SCALE
 `reward_debt` is carried in scaled units, keeping each position's sub-unit
 residue. The pool rounds its committed amount *up* from the credit it hands out
 while each position's claim rounds *down*, so the sum of claims can never exceed
-what was set aside. With nothing locked there is nobody to pay, so the lockers'
-share goes to the treasury rather than parking in a pot the next minimum-size
-lock could take whole.
+what was set aside. With nothing locked the lockers' share goes to the treasury
+rather than parking in a pot the next minimum-size lock could take whole.
 
 ### Earnings limits
 
@@ -124,27 +133,22 @@ The value (`price.rs`) is read on chain from the venue the coin trades on:
 `increase` adds the new tokens' value at today's price times the repriced
 multiplier; `extend` adds the whole bag's value today times any rise in the
 multiplier. A claim pays at most `reward_cap − claimed`; the rest of what the
-lock accrued is already in the vault and becomes `treasury_claimable`. A lock
-paid to within `CAP_DUST` (1,000 quote base units) of its cap is retired: its
-weight leaves the pool, so the locks still earning split what arrives.
-`harvest` (anyone, pays the owner) is how the keeper retires locks the moment
-they are due.
+lock accrued becomes `treasury_claimable`. A lock paid to within `CAP_DUST`
+(1,000 quote base units) of its cap is retired: its weight leaves the pool.
+`harvest` (anyone, pays the owner) is how the keeper retires locks when due.
 
 `reward_capacity` is what the open locks can still earn in total. An inflow's
 lockers' share only joins the stream up to that room; everything beyond goes
-straight to `treasury_claimable`, and a release is capped again in case locks left
-mid-stream. A pool never holds more than its locks can use.
+straight to `treasury_claimable`, and a release is capped again in case locks
+left mid-stream.
 
 The price is spot and can be moved within a transaction. Moving it only moves a
-lock's ceiling; the lock still earns its weight's share and nothing more, so the
-most a manipulator gains is avoiding the ceiling, at the cost of a round trip
-through the venue's fees.
+lock's ceiling; the lock still earns its weight's share and nothing more.
 
 ### Exits
 
 - **Matured.** Full principal, full accrued rewards, position closed. Callable
-  by anyone: everything lands on the recorded owner, and letting a keeper sweep
-  expired positions stops served-out locks from diluting people still committed.
+  by anyone; everything lands on the recorded owner.
 - **Early.** Owner only. Accrued rewards are forfeited back into the stream for
   the remaining weight; a slice of principal is burned, linear in the fraction
   of term left unserved — 5%–50%, default 25% at full remaining term.
@@ -160,10 +164,9 @@ Claiming never touches a lock, and a lock never blocks a claim.
 | WSOL (SOL-paired coins) | native lamports on the reward vault PDA | lamports − `vault_reserve` | system transfer signed by the vault PDA |
 | any other quote (USDC, xStocks, …) | `ATA(reward_vault, quote_mint, quote_token_program)`, the pool's `reward_token_account` | that account's amount | `transfer_checked` signed by the vault PDA to the recipient's quote ATA |
 
-One helper reads the distributable balance and one pays out; every payout
-instruction (`claim`, `harvest`, `claim_creator`, `claim_treasury`, `unlock`,
-`early_unlock`) goes through them. The SDK prepends idempotent ATA creates for
-recipients.
+LaunchLab and CPMM pay creator fees in WSOL for SOL-quoted coins;
+`collect_creator_fee` receives them in the vault's WSOL ATA and closes it into
+the vault, so they arrive as native lamports on the SOL path.
 
 ## 4. On-chain program
 
@@ -172,10 +175,10 @@ Program: `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa` (crate `imagine`,
 
 | Account | Seeds | Role |
 |---|---|---|
-| `Config` | `["config"]` | Platform defaults, treasury, `launchlab_platform`. Read by `launch` |
+| `Config` | `["config"]` | Platform defaults, treasury, `launchlab_platform` (the IMAGINE LaunchLab PlatformConfig). Read by `launch` |
 | `Pool` | `["pool", mint]` | One per coin; quote mint and program, LaunchLab pool, terms frozen at launch, `founded` |
-| reward vault | `["vault", pool]` | System-owned PDA. Holds SOL rewards; signs payouts; **is the LaunchLab pool creator** |
-| reward token account | ATA of the reward vault | Rewards for non-SOL quotes |
+| reward vault | `["vault", pool]` | System-owned PDA. Holds SOL rewards; signs payouts and creator-fee claims; **is the LaunchLab (and later CPMM) pool creator** |
+| reward token account | ATA of the reward vault | Rewards for non-SOL quotes; also the landing account for collected creator fees |
 | token vault | `["token-vault", pool]` | Locked principal, pool PDA authority |
 | `Position` | `["position", pool, owner, index]` | One lock |
 
@@ -192,60 +195,114 @@ Program: `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa` (crate `imagine`,
 | `unlock` | anyone | Matured only; pays the owner's canonical ATAs |
 | `early_unlock` | owner | Forfeit + burn |
 | `deposit_reward` | anyone | Requires `founded`; app fee leg or donation, in the quote |
+| `collect_creator_fee` | anyone | See below; ends with an inline `sync` |
 | `sync` / `claim_treasury` | anyone | Permissionless cranks; `sync` is a no-op before founding |
-| `claim_creator` | pool creator | Only if the pool opted into a creator share |
+| `claim_creator` | pool creator | Only if the pool opted into a creator share (the platform ceiling is 0) |
 
-Guarantees, as properties of the bytecode rather than policy: no admin path to
-pool funds; terms immutable after launch; claims and unlocks unpausable;
-creator locks first; coins created only under the configured StonkFun platform;
-the coin must be exactly LaunchLab's Token-2022 shape (metadata pointer and
-metadata in the mint, no freeze authority, no transfer fee, no hook, no
+### `collect_creator_fee`
+
+Accounts: `payer` (signer; funds missing vault ATAs and receives the transient
+WSOL account's rent back), `pool`, `reward_vault` (the PDA; signs the CPIs),
+`mint`, `quote_mint`, `quote_token_program`,
+`vault_quote_account` (`ATA(vault, quote)`), `creator_fee_vault` (LaunchLab
+`[vault, quote_mint]`), `creator_fee_vault_authority`, `launchlab_program`, the
+coin's token program, the associated-token and system programs. Once the coin
+has migrated, remaining accounts: the CPMM pool state (canonical PDA, its
+`pool_creator` must be the vault), CPMM authority, `amm_config`, the two token
+vaults, the vault's coin ATA, the creator-fee-share PDA and the CPMM program.
+
+Flow:
+
+1. LaunchLab `claim_creator_fee`, signed by the vault PDA — skipped when the
+   creator-fee vault is empty.
+2. If migrated and fees are due: CPMM `collect_creator_fee`, signed by the
+   vault PDA.
+3. WSOL quote: close the vault's WSOL ATA into the vault's lamports (rent to
+   `payer`), so the SOL path sees native lamports.
+4. `sync` inline.
+
+Every account is pinned or derived from the pool; the vault PDA signs only these
+CPIs and the program's own payouts.
+
+### Guarantees
+
+Properties of the bytecode rather than policy: no admin path to pool funds;
+terms immutable after launch; claims and unlocks unpausable; creator locks
+first; coins created only under the configured platform with the vault as their
+creator; the coin must be exactly LaunchLab's Token-2022 shape (metadata pointer
+and metadata in the mint, no freeze authority, no transfer fee, no hook, no
 permanent delegate); a quote mint must have no transfer fee (or authority to set
 one), no transfer-hook program, no frozen-by-default accounts, and be
 transferable.
 
-## 5. Launch ordering
+## 5. The IMAGINE LaunchLab platform
+
+Created once by `apps/api/scripts/setup-platform.ts` (LaunchLab
+`create_platform_config`, PDA `["platform_config", admin]` under LaunchLab;
+with the IMAGINE admin key that is `DYtCiTPJoqCyDApm45b9C7D3xotkSDecJaAtQHaQNULk`):
+
+| Parameter | Value |
+|---|---|
+| `fee_rate` (platform fee) | 0 |
+| `creator_fee_rate` | 5,000 millionths (0.5%), LaunchLab's maximum |
+| `cpswap_config` | a CPMM AmmConfig with a creator fee, highest first (`--list-cpswap-configs`); rehearsed with CPMM index 16 `FMmwToGqT9iwDgsqvzLg65vcKSzKme4szbWqX1kyCBCJ` (trade 0.005%, creator 1.495%) |
+| `platform_cp_creator` | unset, so the CPMM pool creator is the vault PDA |
+| migration LP | `platform_scale` 100% (locked, Fee-Key NFT to the platform NFT wallet), `creator_scale` 0, `burn_scale` 0 |
+| fee / NFT wallet | treasury `DNGM32EBgSwaG2Cj6NhYubzFHC8FTFopqgvPqp7ESY59` |
+| name / web / img | IMAGINE / https://imagine.fun / https://imagine.fun/brand/imagine-512.png |
+
+The platform does not restrict global configs or curve parameters; `launch`
+still forwards the platform's allow-config and curve-rule PDAs as trailing
+accounts whenever a configured platform does restrict them.
+
+## 6. Launch ordering
 
 One v0 transaction with the launch address lookup table (`LAUNCH_ALT`):
 
 1. `imagine.launch` — the pool, the vault and the LaunchLab curve exist, with
    the vault as the curve's creator and the client-generated mint keypair as
-   the coin. Curve parameters (supply, total sell, fund raising, migrate type)
-   come from StonkFun's pricing API so StonkFun's curve rule accepts them.
-2. LaunchLab `buy_exact_in` by the creator — the dev buy. The creator holds no
-   coins until this lands.
+   the coin. Curve parameters, chosen by the API: supply 1e15 base units
+   (1e9 coins at 6 decimals), total sell 793,100,000,000,000 (79.31%), fund
+   raising 85 SOL for SOL-quoted coins and, for other quotes, the USD value of
+   85 SOL at launch (Jupiter), rounded and clamped to the GlobalConfig's
+   minimum; migrate type CPMM.
+2. LaunchLab `buy_exact_in` by the creator — the dev buy.
 3. `imagine.found` — the founding lock, valued on the curve just bought into.
 
 Without the table the three exceed the packet limit and the API splits the
-launch, exposing the dev buy to anyone buying in between. Until `found` lands,
-nobody can lock or deposit; anything forwarded to the vault in the meantime is
-inflow on the first sync after founding.
+launch, exposing the dev buy to anyone buying in between. Until `found` lands
+nobody can lock or deposit.
 
-## 6. Off-chain
+## 7. Off-chain
 
 ```
 apps/web        Next.js, Tailwind v4, wallet-adapter, "Imagine the chart" hero
-apps/api        Fastify: StonkFun pricing/pairs, LaunchLab + CPMM trade builders, read models, indexer, keeper
-packages/sdk    PDAs, decoders, LaunchLab/CPMM math + builders, ImagineClient, math mirror
+apps/api        Fastify: pairs, LaunchLab + CPMM trade builders, read models, indexer, keeper, RPC proxy
+packages/sdk    PDAs, decoders, LaunchLab/CPMM math + builders, quote registry, ImagineClient, math mirror
 video/          Remotion films and cards
 ```
 
-The API builds transactions; the wallet signs (or, for Google accounts, the
-API signs with the account's server-held key). Buyers paying in SOL for a
-non-SOL-paired coin get an optional Jupiter SOL→quote swap prefixed to the
-trade. The chain stays authoritative for every number a user acts on — Postgres
-is a read model for lists, charts and leaderboards, rebuilt from program events
-with a reconciler that re-reads pool accounts.
+Launchable pairs are the SDK's quote registry (LaunchLab GlobalConfigs), priced
+via Jupiter. The API builds transactions; the wallet signs (or, for Google
+accounts, the API signs with the account's server-held key). Buyers paying in
+SOL for a non-SOL-paired coin get an optional Jupiter SOL→quote swap prefixed
+to the trade. The keeper cranks `collect_creator_fee` (or a plain `sync`) per
+pool once the uncollected and unsynced value passes `SYNC_MIN_USD`. The chain
+stays authoritative for every number a user acts on; Postgres is a read model.
 
-Amounts in the API are quote base units; USD figures are derived from Jupiter
-prices and are display only. APR is trailing realised fees over locked value.
-Nothing is projected.
+Coin links: `https://raydium.io/launchpad/token/?mint=<mint>`; after graduation
+also `https://raydium.io/swap/?inputMint=<quote>&outputMint=<mint>`.
 
-## 7. Defaults
+Amounts in the API are quote base units; USD figures come from Jupiter prices
+and are display only. APR is trailing realised fees over locked value. Nothing
+is projected.
+
+## 8. Defaults
 
 | Parameter | Value | Bound |
 |---|---|---|
-| App fee (`trade_fee_bps`) | 1% | ≤ 10% |
+| App fee (`trade_fee_bps`) | 1.5% | ≤ 10% |
+| On-chain trading fee (LaunchLab `creator_fee_rate`) | 0.5% | LaunchLab max 0.5% |
 | Treasury share | 10% of inflow | ≤ 30% |
 | Creator share | 0% — platform ceiling is zero | ≤ 30% of post-treasury |
 | Lock window | 4 hours – 365 days | 1 hour – 4 years |
@@ -256,4 +313,4 @@ Nothing is projected.
 | Reward stream | 1 hour | 1 hour – 7 days |
 | Min lock | 1 token (coins have 6 decimals) | ≥ 1 whole token |
 | Pool creation fee | 0.05 SOL, in SOL whatever the quote | ≤ 5 SOL |
-| LaunchLab platform | StonkFun `4E876qZTE9FJMrBzgVtBrSrzz2TLivB5Y5QXPjB4gZL7` | admin-settable; checked at each `launch`, not stored on pools |
+| LaunchLab platform | the IMAGINE PlatformConfig | admin-settable; checked at each `launch`, not stored on pools |

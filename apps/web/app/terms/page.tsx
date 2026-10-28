@@ -11,20 +11,19 @@ export default function TermsPage() {
     <DocPage
       eyebrow="Terms"
       title="Plain terms"
-      lede="imagine.fun is an interface to a public, permissionless Solana program and to StonkFun. Using it means you accept the following."
+      lede="imagine.fun is an interface to a public, permissionless Solana program and to Raydium. Using it means you accept the following."
     >
       <DocSection title="What IMAGINE is">
         <p>
-          IMAGINE is a website and a Solana program. The program lets holders of a coin launched on
-          StonkFun through IMAGINE lock it for a chosen period and share the fees paid into its
-          pool, in the asset the coin is paired with. The website builds transactions for that
-          program, for StonkFun&apos;s Raydium LaunchLab coins and for Raydium pools; the chain
-          executes them. The program has no admin withdraw path for pooled funds.
+          IMAGINE is a website and a Solana program. The program launches coins on Raydium
+          LaunchLab under the IMAGINE platform and lets holders lock them for a chosen period and
+          share the fees paid into each coin&apos;s pool, in the asset the coin is paired with. The
+          website builds transactions for that program, for Raydium LaunchLab and for Raydium pools;
+          the chain executes them. The program has no admin withdraw path for pooled funds.
         </p>
         <p>
-          StonkFun and Raydium are independent services with their own terms and fees. IMAGINE does
-          not operate them and does not control what StonkFun forwards to a coin&apos;s creator
-          address.
+          Raydium is an independent service with its own terms and fees. IMAGINE does not operate
+          it.
         </p>
       </DocSection>
 
@@ -49,11 +48,13 @@ export default function TermsPage() {
 
       <DocSection title="Fees">
         <p>
-          Trades routed through the site carry a 1% app fee on the pair-asset side, paid into the
-          traded coin&apos;s pool. StonkFun charges 1% on curve trades and the Raydium LaunchLab
-          protocol fee applies. Pools split what they receive 90% to lockers and 10% to the
-          treasury. Launching a coin costs a pool creation fee shown before you sign. All of it is
-          visible in the transaction before it is signed. See{" "}
+          Every trade on an IMAGINE coin&apos;s bonding curve, wherever it is made, pays a 0.5%
+          on-chain trading fee into the coin&apos;s pool, charged by Raydium LaunchLab. Trades routed
+          through the site add a 1.5% app fee on the pair-asset side, also paid into the pool.
+          Raydium&apos;s 0.25% LaunchLab protocol fee applies. Pools split what they receive 90% to
+          lockers and 10% to the treasury; the creator earns nothing from fees. Launching a coin
+          costs a pool creation fee shown before you sign. All of it is visible in the transaction
+          before it is signed. See{" "}
           <Link href="/docs/fees">how fees work</Link>.
         </p>
       </DocSection>

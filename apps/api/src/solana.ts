@@ -12,7 +12,7 @@ export const imagine = new ImagineClient(connection);
 /**
  * The parts of the on-chain `Config` the API builds transactions against.
  *
- * The program pins the treasury, the fee and the StonkFun platform, so the API
+ * The program pins the treasury, the fee and the LaunchLab platform, so the API
  * reads them from the chain rather than carrying a copy in its environment
  * that can drift. Refreshed every minute; the admin instructions that change
  * these are rare and deliberate.
