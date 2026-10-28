@@ -36,7 +36,7 @@ export function LockerTable({
                 <Th align="right">Locked</Th>
                 <Th align="right">Multiplier</Th>
                 <Th align="right">Share</Th>
-                <Th align="right">Unclaimed ({quote.symbol})</Th>
+                <Th align="right">Earned so far ({quote.symbol})</Th>
                 <Th align="right">Unlocks</Th>
               </tr>
             </thead>
@@ -80,7 +80,18 @@ export function LockerTable({
                   </td>
                   <td className="num px-6 py-2.5 text-right text-fg">{formatPercent(locker.share, 2)}</td>
                   <td className="num px-6 py-2.5 text-right text-mint">
-                    {locker.renounced ? <span className="text-muted">—</span> : formatAmount(locker.pending, quote.decimals)}
+                    {locker.renounced ? (
+                      <span className="text-muted">—</span>
+                    ) : (
+                      <>
+                        {formatAmount((BigInt(locker.claimed) + BigInt(locker.pending)).toString(), quote.decimals)}
+                        {BigInt(locker.pending) > 0n ? (
+                          <span className="block text-[11px] text-muted">
+                            {formatAmount(locker.pending, quote.decimals)} unclaimed
+                          </span>
+                        ) : null}
+                      </>
+                    )}
                   </td>
                   <td className="num px-6 py-2.5 text-right text-fg-soft">
                     {locker.forever ? <span title={FOREVER_TOOLTIP}>Never</span> : formatDuration(locker.lockEnd - now)}
