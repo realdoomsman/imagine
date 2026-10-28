@@ -13,7 +13,8 @@ import { GoogleSignIn } from "./google-signin";
  *
  * Signed out: one button opening a small sheet with both ways in. Signed in
  * with an Imagine wallet: the avatar, linking to the account page. Connected
- * with an extension: the address, with disconnect. Deliberately not the
+ * with an extension: the address, opening a menu (account, copy, switch,
+ * disconnect) so a stray click never drops the connection.
  * wallet-adapter default button — that component ships its own purple styling
  * and is one of the clearest "template site" tells.
  */
@@ -57,16 +58,68 @@ export function ConnectButton() {
   }
 
   if (publicKey) {
+    const address = publicKey.toBase58();
     return (
-      <button
-        type="button"
-        onClick={() => void disconnect()}
-        className="btn btn-ghost btn-sm num rounded-full px-4 text-[12.5px]"
-        title="Disconnect"
-      >
-        <span className="size-1.5 rounded-full bg-mint" />
-        {shortAddress(publicKey.toBase58())}
-      </button>
+      <div className="relative" ref={sheet}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="btn btn-ghost btn-sm num rounded-full px-4 text-[12.5px]"
+          aria-expanded={open}
+          aria-haspopup="menu"
+        >
+          <span className="size-1.5 rounded-full bg-mint" />
+          {shortAddress(address)}
+        </button>
+        {open ? (
+          <div
+            role="menu"
+            className="card absolute right-0 top-[calc(100%+10px)] z-50 w-[220px] p-2 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.9)]"
+          >
+            <Link
+              href="/account"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="btn btn-ghost btn-sm w-full justify-start"
+            >
+              Your locks
+            </Link>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                void navigator.clipboard.writeText(address);
+                setOpen(false);
+              }}
+              className="btn btn-ghost btn-sm mt-1 w-full justify-start"
+            >
+              Copy address
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setVisible(true);
+              }}
+              className="btn btn-ghost btn-sm mt-1 w-full justify-start"
+            >
+              Change wallet
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                void disconnect();
+              }}
+              className="btn btn-ghost btn-sm mt-1 w-full justify-start text-rose"
+            >
+              Disconnect
+            </button>
+          </div>
+        ) : null}
+      </div>
     );
   }
 
