@@ -67,7 +67,7 @@ export function CoinCard({ pool }: { pool: PoolSummary }) {
 
       <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-3.5 text-[12px]">
         <div className="min-w-0">
-          <dt className="truncate text-muted">Paid out</dt>
+          <dt className="truncate text-muted">Earned</dt>
           <dd className="num mt-1 truncate text-[13px] text-mint" title={formatQuote(pool.lifetime_rewards, pool.quote)}>
             {paidUsd !== null ? formatUsd(paidUsd) : formatQuote(pool.lifetime_rewards, pool.quote)}
           </dd>

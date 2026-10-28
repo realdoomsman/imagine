@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ mint: str
   }
   const symbol = detail.metadata?.symbol ?? shortAddress(mint);
   const name = detail.metadata?.name ?? symbol;
-  const description = `${name} launched on Raydium, paired with ${detail.quote.symbol}. ${formatPercent(lockedFraction(detail), 1)} of supply locked, ${formatQuote(detail.pool.lifetimeRewards, detail.quote)} paid to lockers so far. Lock it, earn ${detail.quote.symbol}.`;
+  const description = `${name} launched on Raydium, paired with ${detail.quote.symbol}. ${formatPercent(lockedFraction(detail), 1)} of supply locked, ${formatQuote(detail.pool.lifetimeRewards, detail.quote)} earned by lockers so far. Lock it, earn ${detail.quote.symbol}.`;
   const url = `${SITE_URL}/coins/${mint}`;
   return {
     title: `$${symbol} · ${name}`,
@@ -197,7 +197,7 @@ export default async function CoinPage({
             sub={`${formatTokenAmount(BigInt(pool.totalLocked), decimals)} · ${pool.openPositions} lock${pool.openPositions === 1 ? "" : "s"}`}
           />
           <Metric
-            label="Paid to lockers"
+            label="Earned by lockers"
             value={formatQuote(pool.lifetimeRewards, quote)}
             sub={paidUsd !== null ? `≈ ${formatUsd(paidUsd)}` : null}
             accent
@@ -247,7 +247,7 @@ export default async function CoinPage({
             <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-4">
               <Term label="Fees, 24h" value={formatQuote(rewardRate.feesPerDay, quote)} />
               <Term label="To lockers, 24h" value={formatQuote(rewardRate.lockersPerDay, quote)} accent />
-              <Term label="Paid to lockers, all time" value={formatQuote(pool.lifetimeRewards, quote)} accent />
+              <Term label="Earned by lockers, all time" value={formatQuote(pool.lifetimeRewards, quote)} accent />
               <Term
                 label="On its way to lockers"
                 value={formatQuote((BigInt(rewardRate.uncollected) + BigInt(rewardRate.unsynced)).toString(), quote)}

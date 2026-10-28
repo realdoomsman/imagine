@@ -64,7 +64,7 @@ function ProofCard({ summary, coinImage }: { summary: ProofSummary; coinImage: s
       </div>
       <div style={{ display: "flex", gap: 20, marginTop: 44 }}>
         <Stat
-          label="Paid to lockers"
+          label="Paid out to lockers"
           value={formatUsd(totals.paidUsd)}
           sub={`${totals.payouts.toLocaleString("en-US")} payouts`}
           accent

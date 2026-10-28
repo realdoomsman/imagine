@@ -111,7 +111,7 @@ export default async function ProofPageRoute({ searchParams }: { searchParams: S
         <>
           <dl className="mt-8 grid gap-px overflow-hidden rounded-[14px] border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
             <Stat
-              label="Paid to lockers"
+              label="Paid out to lockers"
               value={formatUsd(summary.totals.paidUsd)}
               sub={`${summary.totals.payouts.toLocaleString("en-US")} payouts · ${summary.totals.claims} claims, ${summary.totals.compounds} compounds`}
               accent
@@ -156,7 +156,7 @@ export default async function ProofPageRoute({ searchParams }: { searchParams: S
                   <thead>
                     <tr className="hairline text-left">
                       <Th>Pair</Th>
-                      <Th align="right">Paid to lockers</Th>
+                      <Th align="right">Paid out to lockers</Th>
                       <Th align="right">Claimed / compounded</Th>
                       <Th align="right">Fees into pools</Th>
                       <Th align="right">Locked now</Th>

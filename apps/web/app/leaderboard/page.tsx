@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 const BOARDS = [
   { key: "earners", label: "Top earners", note: "Rewards actually claimed, in every pair asset, ranked by USD value." },
-  { key: "coins", label: "Top coins", note: "Paid to each coin's lockers, in its pair asset, ranked by USD value." },
+  { key: "coins", label: "Top coins", note: "Earned by each coin's lockers (claimed or not), in its pair asset, ranked by USD value." },
   { key: "diamond", label: "Longest locks", note: "Live positions, ranked by the term they committed to." },
 ] as const;
 

@@ -46,7 +46,8 @@ export function StatMarqueeTrack({
     stats && stats.pools > 0
       ? [
           { label: "Coins live", value: stats.pools.toLocaleString("en-US") },
-          ...(stats.paid_to_lockers_usd !== null ? [{ label: "Paid to lockers", value: formatUsd(stats.paid_to_lockers_usd) }] : []),
+          ...(stats.earned_by_lockers_usd != null ? [{ label: "Earned by lockers", value: formatUsd(stats.earned_by_lockers_usd) }] : []),
+          ...(stats.paid_out_to_lockers_usd != null ? [{ label: "Paid out to lockers", value: formatUsd(stats.paid_out_to_lockers_usd) }] : []),
           ...(stats.lockers_24h_usd !== null ? [{ label: "To lockers, 24h", value: formatUsd(stats.lockers_24h_usd) }] : []),
           { label: "Open locks", value: stats.open_positions.toLocaleString("en-US") },
           { label: "Trades 24h", value: stats.trades_24h.toLocaleString("en-US") },

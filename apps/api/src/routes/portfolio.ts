@@ -315,12 +315,25 @@ export async function portfolioRoutes(app: FastifyInstance) {
     return { board: "diamond", rows };
   });
 
-  /** Platform-wide counters for the landing page ticker; money figures in USD. */
+  /**
+   * Platform-wide counters for the landing page ticker; money figures in USD.
+   * `earned_by_lockers_usd`: rewards the pools have credited to locks (each
+   * pool's on-chain `lifetime_rewards`), claimed or not. `paid_out_to_lockers_usd`:
+   * what lockers actually took out, claims plus auto-compounds (the /proof
+   * total). `paid_to_lockers_usd` is the old name for the earned figure, kept
+   * for existing readers.
+   */
   app.get("/stats", async () => {
     const perQuote = await sql`
       SELECT p.quote_mint, p.quote_decimals,
              COUNT(*)::INT AS pools,
-             COALESCE(SUM(p.lifetime_rewards), 0)::TEXT AS paid_to_lockers,
+             COALESCE(SUM(p.lifetime_rewards), 0)::TEXT AS earned_by_lockers,
+             (COALESCE((SELECT SUM(c.amount) FROM claim_events c
+                        JOIN pools q ON q.mint = c.mint
+                        WHERE q.quote_mint = p.quote_mint AND NOT q.hidden), 0)
+              + COALESCE((SELECT SUM(k.quote_in) FROM compound_events k
+                          JOIN pools q ON q.mint = k.mint
+                          WHERE q.quote_mint = p.quote_mint AND NOT q.hidden), 0))::TEXT AS paid_out_to_lockers,
              COALESCE(SUM(p.lifetime_inflow), 0)::TEXT AS total_inflow,
              COALESCE(SUM(p.open_positions), 0)::INT AS open_positions,
              COALESCE((SELECT SUM(f.to_lockers) FROM fee_events f
@@ -341,11 +354,14 @@ export async function portfolioRoutes(app: FastifyInstance) {
     const prices = await pricesFor(perQuote);
     const usd = (row: Row, column: string) =>
       rawToUsd(row[column] as string, Number(row.quote_decimals), prices.get(row.quote_mint as string) ?? null) ?? 0;
+    const earned = perQuote.reduce((sum, row) => sum + usd(row, "earned_by_lockers"), 0);
     return {
       pools: perQuote.reduce((sum, row) => sum + Number(row.pools), 0),
       open_positions: perQuote.reduce((sum, row) => sum + Number(row.open_positions), 0),
       trades_24h: day?.trades_24h ?? 0,
-      paid_to_lockers_usd: perQuote.reduce((sum, row) => sum + usd(row, "paid_to_lockers"), 0),
+      earned_by_lockers_usd: earned,
+      paid_out_to_lockers_usd: perQuote.reduce((sum, row) => sum + usd(row, "paid_out_to_lockers"), 0),
+      paid_to_lockers_usd: earned,
       total_inflow_usd: perQuote.reduce((sum, row) => sum + usd(row, "total_inflow"), 0),
       lockers_24h_usd: perQuote.reduce((sum, row) => sum + usd(row, "lockers_24h"), 0),
     };

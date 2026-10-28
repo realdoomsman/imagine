@@ -266,7 +266,10 @@ export interface Stats {
   pools: number;
   open_positions: number;
   trades_24h: number;
-  paid_to_lockers_usd: number | null;
+  /** Rewards credited to locks (pools' lifetime rewards), claimed or not. */
+  earned_by_lockers_usd: number | null;
+  /** What lockers actually took out: claims plus auto-compounds. */
+  paid_out_to_lockers_usd: number | null;
   total_inflow_usd: number | null;
   lockers_24h_usd: number | null;
 }

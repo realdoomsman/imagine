@@ -131,7 +131,7 @@ function CoinCard({
           sub={`${formatTokenAmount(BigInt(detail.pool.totalLocked), detail.tokenDecimals)} $${symbol}`}
         />
         <Stat
-          label="Paid to lockers"
+          label="Earned by lockers"
           value={paid}
           sub={paidUsd !== null ? `≈ ${formatUsd(paidUsd)}` : null}
           accent
