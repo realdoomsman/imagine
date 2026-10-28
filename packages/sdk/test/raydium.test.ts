@@ -21,13 +21,16 @@ import {
   decodeGlobalConfig,
   decodePlatformConfig,
   IMAGINE_PLATFORM_PARAMS,
+  imaginePlatformConfigIx,
   LAUNCHLAB_MAX_CREATOR_FEE_RATE,
   launchLabPoolPda,
   launchLabPoolVaultPda,
   launchLabTradeIx,
+  platformConfigPda,
   POOL_STATUS,
   raydiumTokenUrl,
   sellExactIn,
+  updatePlatformConfigIx,
 } from "../src/launchlab.ts";
 import { multiplierBps, rewardCapFor, splitInflow } from "../src/math.ts";
 import { configPda, poolPda, rewardTokenAccount, rewardVaultPda } from "../src/pda.ts";
@@ -129,6 +132,41 @@ describe("IMAGINE platform on Raydium LaunchLab", () => {
     assert.equal(p.restrictGlobalConfig + p.restrictCurveParam, 0);
     assert.equal(ECONOMICS.poolFeeBps, Number(p.creatorFeeRate / 100n));
     assert.equal(ECONOMICS.tradeFeeBps + ECONOMICS.poolFeeBps, 200, "2% into the pool on imagine.fun trades");
+  });
+
+  it("moves a platform's fee and NFT wallets with update_platform_config, changing nothing else", () => {
+    const ctx = setup();
+    const admin = fundedKeypair(ctx.svm);
+    const [oldWallet, newWallet] = [Keypair.generate().publicKey, Keypair.generate().publicKey];
+    send(ctx.svm, [imaginePlatformConfigIx({ admin: admin.publicKey, nftWallet: oldWallet, feeWallet: oldWallet, cpswapConfig: CPMM_AMM_CONFIG })], [admin]);
+    const platformConfig = platformConfigPda(admin.publicKey);
+    const before = ctx.svm.getAccount(platformConfig)!;
+    const updates = [
+      updatePlatformConfigIx({ admin: admin.publicKey, platformConfig, param: { kind: "feeWallet", value: newWallet } }),
+      updatePlatformConfigIx({ admin: admin.publicKey, platformConfig, param: { kind: "nftWallet", value: newWallet } }),
+    ];
+
+    // Only the platform's own admin can update it.
+    const intruder = fundedKeypair(ctx.svm);
+    const forged = updatePlatformConfigIx({ admin: intruder.publicKey, platformConfig, param: { kind: "feeWallet", value: intruder.publicKey } });
+    assert.match(sendExpectingError(ctx.svm, [forged], [intruder]), /ConstraintSeeds/);
+
+    send(ctx.svm, updates, [admin]);
+    const after = ctx.svm.getAccount(platformConfig)!;
+    const p0 = decodePlatformConfig(Buffer.from(before.data));
+    const p1 = decodePlatformConfig(Buffer.from(after.data));
+    assert.ok(p0.platformFeeWallet.equals(oldWallet) && p0.platformNftWallet.equals(oldWallet));
+    assert.ok(p1.platformFeeWallet.equals(newWallet) && p1.platformNftWallet.equals(newWallet));
+    assert.deepEqual(
+      { ...p1, platformFeeWallet: null, platformNftWallet: null },
+      { ...p0, platformFeeWallet: null, platformNftWallet: null },
+    );
+    // Byte for byte: only the two wallets (offsets 16..80) moved.
+    const [b0, b1] = [Buffer.from(before.data), Buffer.from(after.data)];
+    assert.equal(b1.length, b0.length);
+    assert.deepEqual(b1.subarray(0, 16), b0.subarray(0, 16));
+    assert.deepEqual(b1.subarray(80), b0.subarray(80));
+    assert.equal(after.lamports, before.lamports);
   });
 
   it("links a coin to its Raydium launchpad page", () => {

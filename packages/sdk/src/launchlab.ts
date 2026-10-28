@@ -607,6 +607,82 @@ export function createPlatformConfigIx(p: {
 }
 
 /**
+ * One field `update_platform_config` changes (`PlatformConfigParam`, variant index = Borsh tag, per
+ * LaunchLab's on-chain IDL and raydium-sdk-V2 `updatePlatformConfig`). `AllInfo` is not supported.
+ */
+export type PlatformConfigUpdate =
+  | { kind: "feeWallet"; value: PublicKey }
+  | { kind: "nftWallet"; value: PublicKey }
+  | { kind: "migrateNftInfo"; platformScale: bigint; creatorScale: bigint; burnScale: bigint }
+  | { kind: "feeRate"; value: bigint }
+  | { kind: "name" | "web" | "img"; value: string }
+  /** The new CPMM AmmConfig rides as a third account, not in the data. */
+  | { kind: "cpswapConfig"; value: PublicKey }
+  | { kind: "vestingWallet"; value: PublicKey }
+  | { kind: "platformVestingScale"; value: bigint }
+  | { kind: "platformCpCreator"; value: PublicKey }
+  | { kind: "restrictGlobalConfig" | "restrictCurveParam"; value: bigint }
+  | { kind: "curveRuleManager"; value: PublicKey };
+
+const PLATFORM_CONFIG_PARAM_TAG: Record<PlatformConfigUpdate["kind"], number> = {
+  feeWallet: 0,
+  nftWallet: 1,
+  migrateNftInfo: 2,
+  feeRate: 3,
+  name: 4,
+  web: 5,
+  img: 6,
+  cpswapConfig: 7,
+  vestingWallet: 9,
+  platformVestingScale: 10,
+  platformCpCreator: 11,
+  restrictGlobalConfig: 12,
+  restrictCurveParam: 13,
+  curveRuleManager: 14,
+};
+
+/**
+ * `update_platform_config`: `admin` (signer) changes one field of its PlatformConfig
+ * (`platformConfigPda(admin)`); every other field is left as is.
+ */
+export function updatePlatformConfigIx(p: { admin: PublicKey; platformConfig?: PublicKey; param: PlatformConfigUpdate; programId?: PublicKey }): TransactionInstruction {
+  const programId = p.programId ?? LAUNCHLAB_PROGRAM_ID;
+  const param = p.param;
+  const w = new BorshWriter(disc("c33c4c81922d438f")).u8(PLATFORM_CONFIG_PARAM_TAG[param.kind]);
+  const keys: AccountMeta[] = [
+    { pubkey: p.admin, isSigner: true, isWritable: false },
+    rw(p.platformConfig ?? platformConfigPda(p.admin, programId)),
+  ];
+  switch (param.kind) {
+    case "feeWallet":
+    case "nftWallet":
+    case "vestingWallet":
+    case "platformCpCreator":
+    case "curveRuleManager":
+      w.pubkey(param.value);
+      break;
+    case "migrateNftInfo":
+      w.u64(param.platformScale).u64(param.creatorScale).u64(param.burnScale);
+      break;
+    case "feeRate":
+    case "platformVestingScale":
+    case "restrictGlobalConfig":
+    case "restrictCurveParam":
+      w.u64(param.value);
+      break;
+    case "name":
+    case "web":
+    case "img":
+      w.string(param.value);
+      break;
+    case "cpswapConfig":
+      keys.push(ro(param.value));
+      break;
+  }
+  return new TransactionInstruction({ programId, keys, data: w.build() });
+}
+
+/**
  * `claim_platform_fee_from_vault`: drains the platform fee vault of `quoteMint` into the platform fee
  * wallet's ATA (created if needed). Signed by the platform fee wallet.
  */
