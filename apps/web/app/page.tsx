@@ -121,7 +121,7 @@ function Steps() {
         <div className="max-w-3xl">
           <span className="eyebrow">How it works</span>
           <h2 className="t-h1 mt-4">
-            Lock the meme. <span className="dream-text">Earn the stock.</span>
+            Lock the meme. <span className="dream-text">Earn its pair.</span>
           </h2>
           <p className="t-lede mt-5">
             No new token, no emissions. Fees that trades already pay go to the people who
@@ -175,11 +175,11 @@ function Pairs() {
         <div className="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center">
           <Reveal>
             <span className="eyebrow">Paired with anything</span>
-            <h2 className="t-h1 mt-4 max-w-[13ch]">Paid in NVDAx, not promises.</h2>
+            <h2 className="t-h1 mt-4 max-w-[13ch]">Paid in its pair, not promises.</h2>
             <p className="t-lede mt-5">
               StonkFun prices every coin in a pair asset. Its trades pay in that asset, so its
               lockers do too. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin
-              pays SOL.
+              pays SOL; a USDC-paired coin pays USDC.
             </p>
           </Reveal>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

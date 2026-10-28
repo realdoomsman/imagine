@@ -5,7 +5,7 @@
 #   bash scripts/deploy.sh localnet         # the mainnet fork (scripts/mainnet-fork.sh), port 8999
 #   bash scripts/deploy.sh mainnet-beta     # RPC from $RPC_URL or apps/api/.mainnet-rpc.tmp
 #
-# Deploys the SBPF v3 binary from scripts/anchor-build.sh (target/deploy/imagine.so)
+# Deploys the SBPF v0 binary from scripts/anchor-build.sh (target/deploy/imagine.so)
 # to the program id of target/deploy/imagine-keypair.json
 # (imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa); the deploying wallet becomes the
 # upgrade authority, which is what initialize_config checks.
@@ -14,9 +14,10 @@
 # (target/deploy/imagine-buffer.json), so a deploy interrupted by congestion is
 # resumed by re-running this script rather than stranding rent in a fresh buffer.
 #
-# On mainnet a first deploy needs ~6.5 SOL (rent for MAX_LEN bytes plus the
-# temporary buffer) and an upgrade ~5.3 SOL (`UPGRADE=1`). On the fork the
-# wallet is airdropped what it needs.
+# On mainnet a first deploy needs ~4.2 SOL: rent for MAX_LEN bytes of program
+# data (the buffer's rent is drained back to the payer in the deploy itself)
+# plus write fees. An upgrade needs the new binary's buffer rent (~3.8 SOL,
+# returned when it lands). On the fork the wallet is airdropped what it needs.
 set -euo pipefail
 
 CLUSTER="${1:?usage: deploy.sh localnet|mainnet-beta}"
@@ -28,8 +29,8 @@ WALLET="${WALLET:-$HOME/.config/solana/id.json}"
 BUFFER="$ROOT/target/deploy/imagine-buffer.json"
 # Room for upgrades without paying rent on double the binary (the default).
 # `solana program extend` grows it later if a build outgrows this.
-MAX_LEN="${MAX_LEN:-900000}"
-NEEDED=6.5
+MAX_LEN="${MAX_LEN:-800000}"
+NEEDED=4.2
 
 case "$CLUSTER" in
   localnet) RPC="${RPC_URL:-http://127.0.0.1:8999}" ;;
@@ -60,7 +61,7 @@ else
   fi
 
   if [ "${SKIP_BUILD:-0}" != 1 ]; then
-    echo "==> building (SBPF v3)"
+    echo "==> building"
     bash scripts/anchor-build.sh
   fi
   SIZE=$(stat -c %s target/deploy/imagine.so)

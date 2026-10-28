@@ -3,7 +3,7 @@ import { LaunchForm } from "@/components/launch-form";
 export const metadata = {
   title: "Launch a coin",
   description:
-    "Launch a coin on StonkFun, paired with any stock, currency or SOL. Every trade through Imagine pays the holders who lock it — in the asset it's paired with.",
+    "Launch a coin on StonkFun, paired with a stock, a currency, SOL or any StonkFun pair asset. Every trade through Imagine pays the holders who lock it — in the asset it's paired with.",
 };
 
 export default function LaunchPage() {

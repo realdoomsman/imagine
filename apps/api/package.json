@@ -20,17 +20,20 @@
     "@fastify/cors": "^10.0.2",
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.2.2",
+    "@fastify/websocket": "^11.3.4",
+    "@imagine/sdk": "workspace:*",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
-    "@imagine/sdk": "workspace:*",
     "bs58": "^6.0.0",
     "fastify": "^5.2.1",
     "jose": "^6.2.12",
     "postgres": "^3.4.5",
+    "ws": "^8.22.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@types/ws": "^8.18.2",
     "typescript": "^5.7.3"
   }
 }

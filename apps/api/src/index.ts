@@ -10,6 +10,7 @@ import { accountRoutes } from "./routes/account.ts";
 import { fileRoutes, metadataRoutes } from "./routes/metadata.ts";
 import { poolRoutes } from "./routes/pools.ts";
 import { portfolioRoutes } from "./routes/portfolio.ts";
+import { clientIp, registerRpcProxy } from "./rpc-proxy.ts";
 import { txRoutes } from "./routes/tx.ts";
 import { chainConfig, connection } from "./solana.ts";
 import { timingSafeEqual } from "node:crypto";
@@ -46,15 +47,7 @@ await app.register(multipart);
 await app.register(rateLimit, {
   max: 240,
   timeWindow: "1 minute",
-  // Railway's edge appends the address it accepted the connection from as the
-  // right-most X-Forwarded-For entry; everything left of it is whatever the
-  // client sent, so keying on it would let anyone reset their own limit.
-  // Direct connections (the local rig) have no header and use the socket.
-  keyGenerator: (request) => {
-    const header = request.headers["x-forwarded-for"];
-    const forwarded = Array.isArray(header) ? header.join(",") : header;
-    return forwarded?.split(",").at(-1)?.trim() || request.socket.remoteAddress || "unknown";
-  },
+  keyGenerator: clientIp,
   // The web server's own renders: every visitor's page load reaches us from
   // its single address, so it proves itself with a shared key instead.
   allowList: (request) => isInternal(request.headers["x-imagine-internal"]),
@@ -107,6 +100,14 @@ await app.register(fileRoutes);
 await app.register(portfolioRoutes, { prefix: "/api" });
 await app.register(txRoutes, { prefix: "/api" });
 await app.register(accountRoutes, { prefix: "/api" });
+// The site's RPC (NEXT_PUBLIC_RPC_URL / NEXT_PUBLIC_WS_URL): the keyed
+// provider URL stays in this environment.
+await registerRpcProxy(app, {
+  rpcUrl: env.rpcUrl,
+  wsUrl: env.rpcWsUpstream,
+  perMin: env.rpcProxyPerMin,
+  allowedOrigins: env.corsOrigins,
+});
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, "shutting down");

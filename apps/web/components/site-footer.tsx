@@ -3,13 +3,12 @@ import { IMAGINE_PROGRAM_ID, STONKFUN_URL } from "@imagine/sdk";
 import { IMAGINE_MINT } from "@/lib/official";
 import { OfficialCa } from "./official-coin";
 import { ImagineLogo } from "./imagine-mark";
-import { NAV, TELEGRAM_URL, X_URL } from "./site-header-links";
+import { NAV, X_URL } from "./site-header-links";
 
 export function SiteFooter() {
   const elsewhere = [
     { href: STONKFUN_URL, label: "StonkFun" },
     ...(X_URL ? [{ href: X_URL, label: "X" }] : []),
-    ...(TELEGRAM_URL ? [{ href: TELEGRAM_URL, label: "Telegram" }] : []),
   ];
 
   return (
@@ -18,7 +17,7 @@ export function SiteFooter() {
         <div>
           <ImagineLogo size={28} />
           <p className="mt-4 max-w-[36ch] text-[14px] leading-relaxed text-fg-soft">
-            Lock the meme. Earn the stock. Every trade on an IMAGINE coin pays the holders who
+            Lock the meme. Earn its pair. Every trade on an IMAGINE coin pays the holders who
             locked it, in the asset it&apos;s paired with.
           </p>
           <a

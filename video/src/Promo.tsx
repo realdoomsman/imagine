@@ -83,7 +83,7 @@ export function ChartScene({ speed = 1 }: { speed?: number }) {
         <div style={{ position: "relative", height: 420 }}>
           <div style={{ position: "absolute", inset: 0, opacity: firstOut }}>
             <div style={appear(frame, 6)}>
-              <Eyebrow>A meme, paired with a stock</Eyebrow>
+              <Eyebrow>A meme, paired with anything</Eyebrow>
             </div>
             <div style={{ ...headline, fontSize: 92, marginTop: 28, ...appear(frame, 14) }}>You know how this chart ends.</div>
             <div style={{ fontSize: 30, lineHeight: 1.4, color: COLORS.fgSoft, marginTop: 30, ...appear(frame, s(3.6)) }}>
@@ -173,8 +173,8 @@ function FlowScene() {
 
 const LOCKERS = [
   { days: 365, pair: "NVDAx", share: 1 },
-  { days: 90, pair: "NVDAx", share: 0.61 },
-  { days: 30, pair: "SPYx", share: 0.44 },
+  { days: 90, pair: "SOL", share: 0.61 },
+  { days: 30, pair: "USDC", share: 0.44 },
 ];
 
 function LockersScene() {
@@ -184,9 +184,9 @@ function LockersScene() {
       <Backdrop glow={0.8} glowX={50} glowY={40} />
       <div style={{ position: "absolute", left: 0, right: 0, top: 190, textAlign: "center" }}>
         <div style={{ ...headline, fontSize: 112, ...appear(frame, 4) }}>
-          Lock the meme. <Dream>Earn the stock.</Dream>
+          Lock the meme. <Dream>Earn its pair.</Dream>
         </div>
-        <div style={{ fontSize: 32, color: COLORS.fgSoft, marginTop: 28, ...appear(frame, 18) }}>Paid in NVDAx, not promises.</div>
+        <div style={{ fontSize: 32, color: COLORS.fgSoft, marginTop: 28, ...appear(frame, 18) }}>Paid in its pair: NVDAx, SOL, USDC.</div>
       </div>
       <div style={{ position: "absolute", left: 160, right: 160, top: 600, display: "flex", gap: 40 }}>
         {LOCKERS.map((locker, i) => {
@@ -224,7 +224,7 @@ function Stream({ frame }: { frame: number }) {
       {columns.flatMap((x, c) =>
         [0, 1, 2].map((k) => {
           const t = ((frame + k * 22 + c * 9) % 66) / 66;
-          const label = c === 2 ? "SPYx" : "NVDAx";
+          const label = LOCKERS[c].pair;
           return (
             <div
               key={`${c}-${k}`}
@@ -267,7 +267,7 @@ function PairsScene() {
         <div style={{ ...headline, fontSize: 96, marginTop: 26, ...appear(frame, 10) }}>
           Coins launch on StonkFun,
           <br />
-          <Dream>paired with any stock.</Dream>
+          <Dream>paired with anything.</Dream>
         </div>
         <div style={{ display: "flex", gap: 22, marginTop: 70, flexWrap: "wrap" }}>
           {PAIRS.map((ticker, i) => (
@@ -277,7 +277,7 @@ function PairsScene() {
           ))}
         </div>
         <div style={{ fontSize: 30, lineHeight: 1.45, color: COLORS.fgSoft, marginTop: 64, maxWidth: 1300, ...appear(frame, s(3.4)) }}>
-          Raydium LaunchLab under the hood. A coin paired with NVDAx pays its lockers NVDAx. A SOL pair pays SOL.
+          Raydium LaunchLab under the hood. A coin paired with NVDAx pays its lockers NVDAx. A SOL pair pays SOL. A USDC pair pays USDC.
         </div>
       </div>
     </AbsoluteFill>
@@ -341,7 +341,7 @@ export function CloseScene({ scale = 1, speed = 1 }: { scale?: number; speed?: n
         <div style={{ ...headline, fontSize: 56, marginTop: 40, ...appear(frame, 58) }}>
           Imagine <Dream>everyone locks.</Dream>
         </div>
-        <div style={{ fontSize: 30, color: COLORS.fgSoft, marginTop: 22, ...appear(frame, 72) }}>Lock the meme. Earn the stock.</div>
+        <div style={{ fontSize: 30, color: COLORS.fgSoft, marginTop: 22, ...appear(frame, 72) }}>Lock the meme. Earn its pair.</div>
         <div style={{ fontFamily: FONTS.mono, fontWeight: 500, fontSize: 34, letterSpacing: "0.08em", color: COLORS.steelHi, marginTop: 48, ...appear(frame, 88) }}>
           imagine.fun
         </div>

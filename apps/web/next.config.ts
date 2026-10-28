@@ -13,7 +13,9 @@ import type { NextConfig } from "next";
 const DEV = process.env.NODE_ENV === "development";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const RPC = process.env.NEXT_PUBLIC_RPC_URL ?? "http://127.0.0.1:8899";
-const RPC_WS = RPC.replace(/^http/, "ws");
+// The PubSub endpoint: NEXT_PUBLIC_WS_URL (the API's /rpc-ws proxy in
+// production), else what web3.js derives from the RPC URL.
+const RPC_WS = process.env.NEXT_PUBLIC_WS_URL || RPC.replace(/^http/, "ws");
 
 const CSP = [
   "default-src 'self'",

@@ -7,3 +7,10 @@ test-ledger
 .anchor
 .git
 *.log
+.mainnet
+**/.env
+**/.env.*
+!**/.env.example
+**/*-keypair.json
+tests/fixtures
+packages/sdk/test

@@ -22,7 +22,7 @@ export function Banner() {
       <div style={{ position: "absolute", left: 470, top: 0, bottom: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
         <div style={{ fontWeight: 800, fontSize: 70, lineHeight: 1.04, letterSpacing: "-0.035em" }}>
           <div>Lock the meme.</div>
-          <Dream>Earn the stock.</Dream>
+          <Dream>Earn its pair.</Dream>
         </div>
         <div style={{ marginTop: 24, fontFamily: FONTS.mono, fontSize: 20, letterSpacing: "0.16em", textTransform: "uppercase", color: COLORS.fgSoft }}>
           Lock-to-earn on StonkFun · imagine.fun

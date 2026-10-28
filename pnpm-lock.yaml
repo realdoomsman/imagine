@@ -29,6 +29,9 @@ importers:
       '@fastify/rate-limit':
         specifier: ^10.2.2
         version: 10.3.0
+      '@fastify/websocket':
+        specifier: ^11.3.4
+        version: 11.3.4(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       '@imagine/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
@@ -50,6 +53,9 @@ importers:
       postgres:
         specifier: ^3.4.5
         version: 3.4.9
+      ws:
+        specifier: ^8.22.0
+        version: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       zod:
         specifier: ^3.24.1
         version: 3.25.76
@@ -57,6 +63,9 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.4
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
@@ -145,7 +154,7 @@ importers:
         version: 22.20.4
       litesvm:
         specifier: ^0.8.0
-        version: 0.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+        version: 0.8.0(bufferutil@4.1.0)(typescript@5.9.3)
       litesvm-linux-x64-gnu:
         specifier: 0.8.0
         version: 0.8.0
@@ -496,6 +505,9 @@ packages:
 
   '@fastify/rate-limit@10.3.0':
     resolution: {integrity: sha512-eIGkG9XKQs0nyynatApA3EVrojHOuq4l6fhB4eeCk4PIOeadvOJz9/4w3vGI44Go17uaXOWEcPkaD8kuKm7g6Q==}
+
+  '@fastify/websocket@11.3.4':
+    resolution: {integrity: sha512-firnJtEOv6pfdoXIzFDMbd+omgWwFNfLtdM8JejNFr/9lT/9DHkEhjTShuRFeE4phqrevD2B3JRW0v6uyzWhHQ==}
 
   '@fivebinaries/coin-selection@3.0.0':
     resolution: {integrity: sha512-h25Pn1ZA7oqQBQDodGAgIsQt66T2wDge9onBKNqE66WNWL0KJiKJbpij8YOLo5AAlEIg5IS7EB1QjBgDOIg6DQ==}
@@ -2480,8 +2492,8 @@ packages:
   '@types/ws@7.4.7':
     resolution: {integrity: sha512-JQbbmxZTZehdc2iszGKs5oC3NFnjeay7mtAWrdt7qNtAVK0g19muApzAy4bm9byz79xa2ZnO/BOBC2R8RC5Lww==}
 
-  '@types/ws@8.18.1':
-    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
 
   '@types/yargs-parser@21.0.3':
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}
@@ -5406,6 +5418,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xmlhttprequest-ssl@2.1.2:
     resolution: {integrity: sha512-TEU+nJVUUnA4CYJFLvK5X9AOeH4KvDvhIfm0vV1GaQRtchnG0hgK5p8hw/xjv8cunWYCsiPCSDzObPyhEwq3KQ==}
     engines: {node: '>=0.4.0'}
@@ -5758,6 +5782,15 @@ snapshots:
       '@lukeed/ms': 2.0.2
       fastify-plugin: 5.1.0
       toad-cache: 3.7.4
+
+  '@fastify/websocket@11.3.4(bufferutil@4.1.0)(utf-8-validate@6.0.6)':
+    dependencies:
+      duplexify: 4.1.3
+      fastify-plugin: 6.0.0
+      ws: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   '@fivebinaries/coin-selection@3.0.0':
     dependencies:
@@ -6210,14 +6243,14 @@ snapshots:
       '@remotion/media-parser': 4.0.373
       '@remotion/studio': 4.0.373(bufferutil@4.1.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(utf-8-validate@6.0.6)
       '@remotion/studio-shared': 4.0.373(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      css-loader: 5.2.7(webpack@5.96.1(esbuild@0.25.0)(postcss@8.5.28))
+      css-loader: 5.2.7(webpack@5.96.1(postcss@8.5.28))
       esbuild: 0.25.0
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
       react-refresh: 0.9.0
       remotion: 4.0.373(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       source-map: 0.7.3
-      style-loader: 4.0.0(webpack@5.96.1(esbuild@0.25.0)(postcss@8.5.28))
+      style-loader: 4.0.0(webpack@5.96.1(postcss@8.5.28))
       webpack: 5.96.1(esbuild@0.25.0)(postcss@8.5.28)
     transitivePeerDependencies:
       - '@minify-html/node'
@@ -7354,7 +7387,7 @@ snapshots:
       '@solana/functional': 7.1.1(typescript@5.9.3)
       '@solana/rpc-subscriptions-spec': 7.1.1(typescript@5.9.3)
       '@solana/subscribable': 7.1.1(typescript@5.9.3)
-      ws: 8.21.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ws: 8.21.3(bufferutil@4.1.0)
     optionalDependencies:
       typescript: 5.9.3
     transitivePeerDependencies:
@@ -8640,7 +8673,7 @@ snapshots:
     dependencies:
       '@trezor/utils': 9.5.0(tslib@2.8.1)
       tslib: 2.8.1
-      ws: 8.21.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ws: 8.21.3(bufferutil@4.1.0)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -8715,7 +8748,7 @@ snapshots:
     dependencies:
       '@types/node': 22.20.4
 
-  '@types/ws@8.18.1':
+  '@types/ws@8.18.2':
     dependencies:
       '@types/node': 22.20.4
 
@@ -9372,7 +9405,7 @@ snapshots:
     dependencies:
       '@noble/hashes': 2.4.0
       eventemitter3: 5.0.1
-      ws: 8.21.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ws: 8.21.3(bufferutil@4.1.0)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -9905,7 +9938,7 @@ snapshots:
 
   crypto-js@4.2.0: {}
 
-  css-loader@5.2.7(webpack@5.96.1(esbuild@0.25.0)(postcss@8.5.28)):
+  css-loader@5.2.7(webpack@5.96.1(postcss@8.5.28)):
     dependencies:
       icss-utils: 5.1.0(postcss@8.5.28)
       loader-utils: 2.0.4
@@ -10045,7 +10078,7 @@ snapshots:
       '@socket.io/component-emitter': 3.1.2
       debug: 4.4.3
       engine.io-parser: 5.2.3
-      ws: 8.21.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ws: 8.21.3(bufferutil@4.1.0)
       xmlhttprequest-ssl: 2.1.2
     transitivePeerDependencies:
       - bufferutil
@@ -10755,7 +10788,7 @@ snapshots:
   litesvm-linux-x64-musl@0.8.0:
     optional: true
 
-  litesvm@0.8.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6):
+  litesvm@0.8.0(bufferutil@4.1.0)(typescript@5.9.3):
     dependencies:
       '@solana/web3.js': 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
       fastestsmallesttextencoderdecoder: 1.0.22
@@ -11671,11 +11704,11 @@ snapshots:
     dependencies:
       '@swc/helpers': 0.5.23
       '@types/uuid': 10.0.0
-      '@types/ws': 8.18.1
+      '@types/ws': 8.18.2
       buffer: 6.0.3
       eventemitter3: 5.0.4
       uuid: 14.0.2
-      ws: 8.21.3(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      ws: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     optionalDependencies:
       bufferutil: 4.1.0
       utf-8-validate: 6.0.6
@@ -11944,7 +11977,7 @@ snapshots:
 
   strip-final-newline@2.0.0: {}
 
-  style-loader@4.0.0(webpack@5.96.1(esbuild@0.25.0)(postcss@8.5.28)):
+  style-loader@4.0.0(webpack@5.96.1(postcss@8.5.28)):
     dependencies:
       webpack: 5.96.1(esbuild@0.25.0)(postcss@8.5.28)
 
@@ -12328,7 +12361,11 @@ snapshots:
     optionalDependencies:
       bufferutil: 4.1.0
 
-  ws@8.21.3(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+  ws@8.21.3(bufferutil@4.1.0):
+    optionalDependencies:
+      bufferutil: 4.1.0
+
+  ws@8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     optionalDependencies:
       bufferutil: 4.1.0
       utf-8-validate: 6.0.6

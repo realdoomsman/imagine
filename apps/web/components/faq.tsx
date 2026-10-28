@@ -11,8 +11,8 @@ const FAQ: Array<{ q: string; a: string }> = [
     a: "Lock-to-earn for coins launched on StonkFun. Every IMAGINE coin has a vault. Trading fees flow into it, and 90% of what arrives streams to the holders who locked, weighted by how much they locked and for how long.",
   },
   {
-    q: "Why do lockers earn NVDAx and not the coin?",
-    a: "Every StonkFun coin is paired with an asset: a tokenized stock like NVDAx or SPYx, a currency like USDC, or SOL. Fees are taken from that side of each trade, so lockers are paid in it. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin pays SOL. Nothing is minted.",
+    q: "Why do lockers earn the pair asset and not the coin?",
+    a: "Every StonkFun coin is paired with an asset: a tokenized stock like NVDAx or SPYx, a currency like USDC, or SOL. Fees are taken from that side of each trade, so lockers are paid in it. A coin paired with NVDAx pays its lockers NVDAx; a SOL-paired coin pays SOL; a USDC-paired coin pays USDC. Nothing is minted.",
   },
   {
     q: "Where does the money come from?",

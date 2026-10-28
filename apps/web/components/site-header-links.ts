@@ -14,7 +14,6 @@ export const NAV = [
 const clean = (value: string | undefined) => (value && /^https:\/\//.test(value) ? value : null);
 
 export const X_URL = clean(process.env.NEXT_PUBLIC_X_URL);
-export const TELEGRAM_URL = clean(process.env.NEXT_PUBLIC_TELEGRAM_URL);
 
 /** `@handle` derived from the X URL, for Twitter card metadata. */
 export const X_HANDLE = (() => {

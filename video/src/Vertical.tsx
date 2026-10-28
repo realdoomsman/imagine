@@ -36,7 +36,7 @@ function ChartBeat() {
       <div style={{ position: "absolute", left: 90, right: 90, top: 260, height: 420 }}>
         <div style={{ position: "absolute", inset: 0, opacity: fadeOut(frame, s(3.3), 10) }}>
           <div style={appear(frame, 4)}>
-            <Eyebrow size={26}>A meme, paired with a stock</Eyebrow>
+            <Eyebrow size={26}>A meme, paired with anything</Eyebrow>
           </div>
           <div style={{ ...headline, fontSize: 104, marginTop: 30, ...appear(frame, 10) }}>You know how this chart ends.</div>
         </div>
@@ -74,10 +74,10 @@ function DialBeat() {
       <div style={{ position: "absolute", left: 90, right: 90, top: 250 }}>
         <div style={{ ...headline, fontSize: 116, ...appear(frame, 4) }}>Lock the meme.</div>
         <div style={{ ...headline, fontSize: 116, ...appear(frame, 14) }}>
-          <Dream>Earn the stock.</Dream>
+          <Dream>Earn its pair.</Dream>
         </div>
         <div style={{ fontSize: 36, lineHeight: 1.4, color: COLORS.fgSoft, marginTop: 36, ...appear(frame, 24) }}>
-          Every trade pays the holders who lock, in the stock it's paired with.
+          Every trade pays the holders who lock, in whatever it's paired with.
         </div>
       </div>
       <div style={{ position: "absolute", left: 165, top: 900, ...appear(frame, 6, 20, 30) }}>

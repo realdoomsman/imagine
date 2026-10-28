@@ -34,8 +34,8 @@ export function Hero() {
             </h1>
 
             <p className="t-lede mt-6">
-              Launch a coin on StonkFun, paired with any stock. Every trade pays the holders who
-              lock it — in the stock it&apos;s paired with. Lock longer, earn a bigger cut.
+              Launch a coin on StonkFun, paired with anything. Every trade pays the holders who
+              lock it — in whatever it&apos;s paired with. Lock longer, earn a bigger cut.
             </p>
 
             <div className="mt-8 flex items-center gap-3">

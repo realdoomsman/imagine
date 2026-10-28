@@ -30,3 +30,6 @@ video/public/shots/
 tmp-audit/
 tmp/
 %TEMP%*/
+
+# mainnet admin/keeper keys
+.mainnet/

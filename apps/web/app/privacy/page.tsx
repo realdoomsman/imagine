@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DocPage, DocSection } from "@/components/doc-page";
-import { TELEGRAM_URL, X_URL } from "@/components/site-header-links";
+import { X_URL } from "@/components/site-header-links";
 
 export const metadata = {
   title: "Privacy",
@@ -10,7 +10,6 @@ export const metadata = {
 export default function PrivacyPage() {
   const channels = [
     ...(X_URL ? [{ href: X_URL, label: "X" }] : []),
-    ...(TELEGRAM_URL ? [{ href: TELEGRAM_URL, label: "Telegram" }] : []),
   ];
   return (
     <DocPage

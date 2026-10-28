@@ -13,8 +13,8 @@ the shipped ones: `apps/web/app/globals.css` (web) and `video/src/theme.ts`
   stays hidden until `NEXT_PUBLIC_OFFICIAL_MINT` is set. Never imply a date.
 - Domain **imagine.fun**, API **api.imagine.fun**. Partner name: **StonkFun**
   (one word, capital F), site stonkfun.xyz.
-- Social handles are not decided. Links come from `NEXT_PUBLIC_X_URL` and
-  `NEXT_PUBLIC_TELEGRAM_URL` and are hidden while unset. Never write a handle.
+- The X handle is not decided. The link comes from `NEXT_PUBLIC_X_URL` and is
+  hidden while unset. Never write a handle. There is no project Telegram.
 
 ## Voice
 
@@ -26,16 +26,16 @@ line.
   rocket metaphors.
 - Vocabulary: lock, commit, hold, dream, vision, *the stream*.
   Never force or squeeze metaphors, and never fire imagery.
-- Name the pair asset ("paid in NVDAx") rather than "rewards" in the abstract.
+- Name the pair asset ("paid in its pair: NVDAx, SOL, USDC") rather than "rewards" in the abstract.
 
 ### Key lines
 
 | Use | Line |
 |---|---|
 | Hero | **Imagine everyone locks.** |
-| Hero sub | Launch a coin on StonkFun, paired with any stock. Every trade pays the holders who lock it — in the stock it's paired with. Lock longer, earn a bigger cut. |
-| Tagline | **Lock the meme. Earn the stock.** |
-| Supporting | Imagine the chart if nobody sold. · Paid in NVDAx, not promises. · Selling is free. It just costs you the stream. |
+| Hero sub | Launch a coin on StonkFun, paired with anything. Every trade pays the holders who lock it — in whatever it's paired with. Lock longer, earn a bigger cut. |
+| Tagline | **Lock the meme. Earn its pair.** |
+| Supporting | Imagine the chart if nobody sold. · Paid in its pair, not promises. · Selling is free. It just costs you the stream. |
 
 ### Facts copy may state (and nothing beyond)
 

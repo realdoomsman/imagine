@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { IMAGINE_MINT } from "@/lib/official";
 import { ImagineLogo } from "./imagine-mark";
 import { ConnectButton } from "./connect-button";
-import { NAV, TELEGRAM_URL, X_URL } from "./site-header-links";
+import { NAV, X_URL } from "./site-header-links";
 
 const isActive = (pathname: string, href: string) =>
   pathname === href || pathname.startsWith(`${href}/`);
@@ -46,11 +46,6 @@ export function SiteHeader() {
             >
               $IMAGINE
             </Link>
-          ) : null}
-          {TELEGRAM_URL ? (
-            <SocialIcon href={TELEGRAM_URL} label="IMAGINE on Telegram">
-              <path d="M21.9 4.3 18.6 19.8c-.2 1.1-.9 1.4-1.8.9l-5-3.7-2.4 2.3c-.3.3-.5.5-1 .5l.4-5.1 9.3-8.4c.4-.4-.1-.6-.6-.2L6 13.3l-4.9-1.5c-1.1-.3-1.1-1.1.2-1.6L20.5 2.8c.9-.3 1.7.2 1.4 1.5Z" />
-            </SocialIcon>
           ) : null}
           {X_URL ? (
             <SocialIcon href={X_URL} label="IMAGINE on X">

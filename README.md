@@ -3,7 +3,7 @@
 **Imagine everyone locks.** Lock-to-earn vaults for coins launched on
 [StonkFun](https://www.stonkfun.xyz), paid in each coin's pair asset.
 
-**Lock the meme. Earn the stock.** Every StonkFun coin is paired with an asset —
+**Lock the meme. Earn its pair.** Every StonkFun coin is paired with an asset —
 a tokenized stock like NVDAx or SPYx, a stablecoin, or SOL. Every trade on an
 IMAGINE coin pays a fee into that coin's pool, and the pool pays the holders who
 locked, by how long each of them committed, in the asset the coin is paired
@@ -100,9 +100,9 @@ PORT=3010 bash scripts/dev-web.sh               # http://localhost:3010
 bash scripts/fund.sh <pubkey> 5                 # airdrop fork SOL to a browser wallet
 ```
 
-`apps/web/.env.example` points the browser at `http://127.0.0.1:8899`; set
-`NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8999` in `apps/web/.env.local` to use the
-fork.
+`apps/web/.env.example` points the browser straight at the fork
+(`NEXT_PUBLIC_RPC_URL=http://127.0.0.1:8999`); in production it uses the
+API's `/rpc` and `/rpc-ws` proxy instead.
 
 ## Tests
 
@@ -174,8 +174,8 @@ are built locally and pushed (`scripts/push-api.sh`, `scripts/push-web.sh`).
 
 | Service | Image | Needs |
 |---|---|---|
-| `imagine-api` (`ROLE=index`, HTTP) and its indexer (`ROLE=indexer`) | `apps/api/Dockerfile` → `ghcr.io/realdoomsman/imagine-api` | `DATABASE_URL`, `RPC_URL`, `CLUSTER`, `CORS_ORIGINS`, `SITE_ORIGIN`, `API_PUBLIC_ORIGIN`, `COOKIE_SECURE`, `LAUNCH_ALT`, `IMAGINE_INTERNAL_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `WALLET_MASTER_KEY`, `SESSION_SECRET`; indexer: `KEEPER_KEYPAIR`, `KEEPER_INTERVAL_MS`, `SYNC_MIN_USD` |
-| `imagine-web` | `apps/web/Dockerfile` → `ghcr.io/realdoomsman/imagine-web` | Build args `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_RPC_URL`, `NEXT_PUBLIC_CLUSTER`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_OFFICIAL_MINT`, `NEXT_PUBLIC_X_URL`, `NEXT_PUBLIC_TELEGRAM_URL`; runtime `IMAGINE_INTERNAL_KEY` |
+| `imagine-api` (`ROLE=index`, HTTP) and its indexer (`ROLE=indexer`) | `apps/api/Dockerfile` → `ghcr.io/realdoomsman/imagine-api` | `DATABASE_URL`, `RPC_URL`, `RPC_WS_URL`, `RPC_PROXY_LIMIT_PER_MIN`, `CLUSTER`, `CORS_ORIGINS`, `SITE_ORIGIN`, `API_PUBLIC_ORIGIN`, `COOKIE_SECURE`, `LAUNCH_ALT`, `IMAGINE_INTERNAL_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `WALLET_MASTER_KEY`, `SESSION_SECRET`; indexer: `KEEPER_KEYPAIR`, `KEEPER_INTERVAL_MS`, `SYNC_MIN_USD` |
+| `imagine-web` | `apps/web/Dockerfile` → `ghcr.io/realdoomsman/imagine-web` | Build args `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_RPC_URL` (`https://api.imagine.fun/rpc`), `NEXT_PUBLIC_WS_URL` (`wss://api.imagine.fun/rpc-ws`), `NEXT_PUBLIC_CLUSTER`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_OFFICIAL_MINT`, `NEXT_PUBLIC_X_URL`; runtime `IMAGINE_INTERNAL_KEY` |
 
 See `docs/RUNBOOK.md` for the program deployment, DNS, OAuth and the mainnet
 checklist; `docs/SPEC.md` for the mechanism; `docs/AUDIT.md` for the security

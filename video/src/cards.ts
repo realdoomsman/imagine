@@ -16,9 +16,9 @@ export const CARDS: Array<{ id: string; props: CardProps }> = [
     props: {
       kind: "pairs",
       eyebrow: "Lock-to-earn on StonkFun",
-      lines: ["Lock the meme.", "Earn the stock."],
+      lines: ["Lock the meme.", "Earn its pair."],
       accent: 1,
-      sub: "Coins launch on StonkFun, paired with a stock. Lockers are paid in that pair: a coin paired with NVDAx pays NVDAx; a SOL pair pays SOL.",
+      sub: "Coins launch on StonkFun, paired with anything. Lockers are paid in that pair: a coin paired with NVDAx pays NVDAx; a SOL pair pays SOL; a USDC pair pays USDC.",
       pairs: ["NVDAx", "SPYx", "TSLAx", "SOL", "USDC"],
     },
   },
@@ -39,7 +39,7 @@ export const CARDS: Array<{ id: string; props: CardProps }> = [
   },
   {
     id: "05-promises",
-    props: { kind: "statement", lines: ["Paid in NVDAx,", "not promises."], accent: 1, sub: "90% of each pool's inflow streams to its lockers by weight. 10% to the treasury. Terms frozen per pool." },
+    props: { kind: "statement", lines: ["Paid in its pair,", "not promises."], accent: 1, sub: "90% of each pool's inflow streams to its lockers by weight. 10% to the treasury. Terms frozen per pool." },
   },
   {
     id: "06-stream",

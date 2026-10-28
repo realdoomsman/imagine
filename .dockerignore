@@ -17,3 +17,4 @@ tmp-audit
 **/.keeper-*.json
 **/id.json
 **/*-keypair.json
+.mainnet

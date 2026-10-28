@@ -21,7 +21,7 @@ All commands run in WSL from the repo root.
 
 ```bash
 echo "<keyed mainnet rpc>" > apps/api/.mainnet-rpc.tmp      # gitignored; or export RPC_URL
-bash scripts/anchor-build.sh                                # target/deploy/imagine.so (SBPF v3) + IDL
+bash scripts/anchor-build.sh                                # target/deploy/imagine.so (SBPF v0) + IDL
 TREASURY_PUBKEY=<treasury> bash scripts/deploy.sh mainnet-beta
 (cd apps/api && cp .env.example .env.mainnet)               # set RPC_URL=<mainnet rpc>, CLUSTER=mainnet-beta
 bash scripts/config-show.sh .env.mainnet                    # prints the on-chain config
@@ -31,8 +31,8 @@ bash scripts/config-show.sh .env.mainnet                    # prints the on-chai
 (`target/deploy/imagine-buffer.json`), so a deploy interrupted by congestion is
 resumed by re-running it. The deploying wallet (`WALLET`, default
 `~/.config/solana/id.json`) becomes the upgrade authority. A first deploy needs
-about 6.5 SOL (rent for `MAX_LEN`, default 900,000 bytes, plus the temporary
-buffer). It skips the deploy if the program exists unless `UPGRADE=1`.
+about 4.2 SOL (rent for `MAX_LEN`, default 800,000 bytes; the temporary buffer's
+rent is drained back in the deploy). It skips the deploy if the program exists unless `UPGRADE=1`.
 
 It always ends with `apps/api/scripts/init-config.ts`, which is idempotent:
 
@@ -128,15 +128,16 @@ pushed to GHCR and deployed from `:latest`:
 
 ```bash
 bash scripts/push-api.sh                                        # ghcr.io/realdoomsman/imagine-api:latest
-GOOGLE_CLIENT_ID=<client id> WEB_RPC_URL=<keyless rpc> bash scripts/push-web.sh   # ghcr.io/realdoomsman/imagine-web:latest
+GOOGLE_CLIENT_ID=<client id> bash scripts/push-web.sh         # ghcr.io/realdoomsman/imagine-web:latest
 railway redeploy --service imagine-api -y && railway redeploy --service imagine-indexer -y
 railway redeploy --service imagine-web -y
 ```
 
 Pushing does not redeploy; `railway redeploy` pulls `:latest`. `NEXT_PUBLIC_*`
 values are baked into the client bundle, so changing one means rebuilding the
-web image. `push-web.sh` refuses a `WEB_RPC_URL` containing `api-key`: the
-browser bundle is public.
+web image. The site's RPC is the API's own proxy (`/rpc`, `/rpc-ws`), so the
+keyed `RPC_URL` never reaches the bundle; `push-web.sh` refuses a
+`WEB_RPC_URL` / `WEB_WS_URL` override containing `api-key`.
 
 | Service | Image | `ROLE` | Runs | Health |
 |---|---|---|---|---|
@@ -159,8 +160,9 @@ secrets `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `WALLET_MASTER_KEY` belong on
 |---|---|
 | `ROLE` | `index` or `indexer` |
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
-| `RPC_URL` | Keyed mainnet RPC (the public one rate-limits the indexer) |
-| `RPC_WS_URL` | Optional websocket override |
+| `RPC_URL` | Keyed mainnet RPC (the public one rate-limits the indexer). Server-side only: the site reaches it through `POST /rpc` |
+| `RPC_WS_URL` | Keyed PubSub endpoint behind `GET /rpc-ws`; unset derives it from `RPC_URL` |
+| `RPC_PROXY_LIMIT_PER_MIN` | `imagine-api`: proxied JSON-RPC calls / websocket subscriptions per minute per client IP. Default 600 |
 | `CLUSTER` | `mainnet-beta` |
 | `HOST` / `PORT` | `0.0.0.0` / Railway's port |
 | `LOG_LEVEL` | `info` |
@@ -191,15 +193,17 @@ bundle, set by `push-web.sh` or `docker build --build-arg`)
 | Variable | Production value / purpose |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | `https://api.imagine.fun` (`push-web.sh` default). Must be same-site with the web origin or the session cookie is dropped |
-| `NEXT_PUBLIC_RPC_URL` | A keyless, per-visitor rate-limited mainnet endpoint (`WEB_RPC_URL`) |
+| `NEXT_PUBLIC_RPC_URL` | `https://api.imagine.fun/rpc` (the API's method-allowlisted proxy; `push-web.sh` default) |
+| `NEXT_PUBLIC_WS_URL` | `wss://api.imagine.fun/rpc-ws` (`push-web.sh` default) |
 | `NEXT_PUBLIC_CLUSTER` | `mainnet-beta` |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Same client as the API (`GOOGLE_CLIENT_ID`) |
 | `NEXT_PUBLIC_OFFICIAL_MINT` | Empty until $IMAGINE exists; every official-coin surface stays hidden |
-| `NEXT_PUBLIC_X_URL` / `NEXT_PUBLIC_TELEGRAM_URL` | Social links; each hidden while empty |
+| `NEXT_PUBLIC_X_URL` | X link; hidden while empty |
 
-`push-web.sh` requires `GOOGLE_CLIENT_ID` and `WEB_RPC_URL`, and takes optional
-`API_URL`, `CLUSTER`, `IMAGE`, `OFFICIAL_MINT`, `X_URL` and `TELEGRAM_URL`
-(passed as the matching `NEXT_PUBLIC_*` build args, empty when unset).
+`push-web.sh` requires `GOOGLE_CLIENT_ID`, and takes optional `API_URL`,
+`CLUSTER`, `IMAGE`, `OFFICIAL_MINT`, `X_URL` and `WEB_RPC_URL` / `WEB_WS_URL`
+(passed as the matching `NEXT_PUBLIC_*` build args, empty when unset; the RPC
+pair defaults to the API's proxy).
 
 ## DNS: imagine.fun and api.imagine.fun
 

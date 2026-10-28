@@ -4,7 +4,7 @@ import { DocPage, DocSection } from "@/components/doc-page";
 
 const TITLE = "Imagine everyone locks.";
 const DESCRIPTION =
-  "Why every memecoin pays the people who leave, and what happens when a StonkFun coin pays the people who stay — in the stock it's paired with.";
+  "Why every memecoin pays the people who leave, and what happens when a StonkFun coin pays the people who stay — in whatever it's paired with.";
 
 export const metadata = {
   title: TITLE,
@@ -21,7 +21,7 @@ export default function ArticlePage() {
     <DocPage
       eyebrow="The idea"
       title={TITLE}
-      lede="Imagine the chart if nobody sold. Every platform in this market pays for the exit and charges for staying. IMAGINE turns that around, and pays the holders who stay in the stock their coin is paired with."
+      lede="Imagine the chart if nobody sold. Every platform in this market pays for the exit and charges for staying. IMAGINE turns that around, and pays the holders who stay in whatever their coin is paired with: a stock, SOL, USDC or any StonkFun pair."
     >
       <DocSection title="The only revenue a memecoin has">
         <p>
@@ -36,7 +36,7 @@ export default function ArticlePage() {
         </p>
       </DocSection>
 
-      <DocSection title="Paired with a stock">
+      <DocSection title="Paired with anything">
         <p>
           <a href="https://www.stonkfun.xyz" target="_blank" rel="noreferrer">StonkFun</a> launches
           coins paired with something: a tokenized stock like NVDAx, SPYx or TSLAx, a currency like
@@ -44,8 +44,8 @@ export default function ArticlePage() {
         </p>
         <p>
           That gives a holder something new to be paid in. If the fees from trading a coin are in
-          NVDAx, the people who hold it can be paid NVDAx. That is the whole tagline:{" "}
-          <strong>lock the meme, earn the stock.</strong>
+          NVDAx, the people who hold it can be paid NVDAx; if they are in SOL, SOL. That is the whole tagline:{" "}
+          <strong>lock the meme, earn its pair.</strong>
         </p>
       </DocSection>
 

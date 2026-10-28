@@ -72,6 +72,20 @@ export const env = {
   rpcUrl: process.env.RPC_URL ?? "http://127.0.0.1:8999",
   wsUrl: process.env.RPC_WS_URL ?? "",
   /**
+   * Upstream of the browser-facing `/rpc-ws` proxy: `RPC_WS_URL`, else the
+   * PubSub endpoint web3.js would derive from `RPC_URL` (same host; on a local
+   * test validator, the RPC port + 1).
+   */
+  get rpcWsUpstream(): string {
+    if (this.wsUrl) return this.wsUrl;
+    const url = new URL(this.rpcUrl);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    if (url.port) url.port = String(Number(url.port) + 1);
+    return url.href;
+  },
+  /** JSON-RPC calls (and `/rpc-ws` connections + subscriptions) per minute per client IP through the proxy. */
+  rpcProxyPerMin: Number(process.env.RPC_PROXY_LIMIT_PER_MIN ?? 600),
+  /**
    * StonkFun is mainnet-only, so IMAGINE runs on mainnet-beta or on a local
    * mainnet fork (scripts/mainnet-fork.sh), which carries the same programs
    * and accounts at the same addresses.

@@ -3,8 +3,7 @@
 Site: imagine.fun · Long read: imagine.fun/article · Security: imagine.fun/docs/security
 
 Status: not posted. The account's handle is not decided; nothing here names it,
-and the site shows the X and Telegram links only once `NEXT_PUBLIC_X_URL` /
-`NEXT_PUBLIC_TELEGRAM_URL` are set.
+and the site shows the X link only once `NEXT_PUBLIC_X_URL` is set.
 
 Posting payloads: `scripts/x-thread.json` (the thread, one object per post:
 `text`, optional `media`) and `scripts/x-article.json` (the X Article: `title`
@@ -32,10 +31,10 @@ from a new account (they get silently dropped to drafts); link the security page
 | Explainer, ~30 s | `video/out/imagine-explainer.mp4` | Day 2 standalone |
 | Vertical, 1080×1920, ~15 s | `video/out/imagine-vertical.mp4` | Day 1 evening standalone |
 | Card "Imagine the chart if nobody sold." | `video/out/cards/01-imagine.png` | Standalone |
-| Card "Lock the meme. Earn the stock." | `video/out/cards/02-stock.png` | Thread post 2 |
+| Card "Lock the meme. Earn its pair." | `video/out/cards/02-stock.png` | Thread post 2 |
 | Card "Every trade pays the people who lock." | `video/out/cards/03-flow.png` | Thread post 3 |
 | Card "Lock longer, earn a bigger cut." | `video/out/cards/04-dial.png` | Thread post 4 |
-| Card "Paid in NVDAx, not promises." | `video/out/cards/05-promises.png` | Standalone |
+| Card "Paid in its pair, not promises." | `video/out/cards/05-promises.png` | Standalone |
 | Card "Selling is free. It just costs you the stream." | `video/out/cards/06-stream.png` | Thread post 6 |
 | Card "No admin withdraw path. Creator locks first." | `video/out/cards/07-rules.png` | Thread post 7 |
 | Avatar / banner | `video/out/profile/avatar.png`, `banner.png` | Profile |
@@ -46,7 +45,7 @@ Cards render from `video/src/cards.ts` with `scripts/render-cards.sh`; films wit
 ## Profile
 
 - Name: IMAGINE
-- Bio: Lock the meme. Earn the stock. Lock-to-earn for StonkFun coins: every
+- Bio: Lock the meme. Earn its pair. Lock-to-earn for StonkFun coins: every
   trade pays the holders who lock, in the asset the coin is paired with.
 - Website: imagine.fun
 
@@ -62,13 +61,13 @@ Imagine everyone locks.
 Every trade on a memecoin pays a fee. On most launchpads none of it reaches the
 people holding the coin.
 
-On IMAGINE, it goes to the holders who lock — paid in the stock the coin is
+On IMAGINE, it goes to the holders who lock — paid in whatever the coin is
 paired with.
 
 imagine.fun
 
 **2/** *[cards/02-stock.png]*
-Lock the meme. Earn the stock.
+Lock the meme. Earn its pair.
 
 IMAGINE coins launch on StonkFun, where every coin is paired with an asset: an
 xStock like NVDAx or SPYx, a stablecoin, or SOL.
@@ -148,19 +147,19 @@ imagine.fun
 
 > Imagine everyone locks.
 >
-> Launch a coin on StonkFun, paired with any stock. Every trade pays the holders
-> who lock it — in the stock it's paired with. Lock longer, earn a bigger cut.
+> Launch a coin on StonkFun, paired with anything. Every trade pays the holders
+> who lock it — in whatever it's paired with. Lock longer, earn a bigger cut.
 >
 > imagine.fun
 
 ## 3. Standalone posts (one or two a day after launch)
 
-1. *[video/out/imagine-vertical.mp4]* — Lock the meme. Earn the stock.
+1. *[video/out/imagine-vertical.mp4]* — Lock the meme. Earn its pair.
    imagine.fun
 2. *[video/out/imagine-explainer.mp4]* — Thirty seconds on where the fee goes:
    from the trade, into the coin's pool, out to the people who locked it, in the
    asset it's paired with.
-3. *[cards/05-promises.png]* — Paid in NVDAx, not promises. 90% of each pool's
+3. *[cards/05-promises.png]* — Paid in its pair, not promises. 90% of each pool's
    inflow streams to its lockers by weight. Terms frozen per pool.
 4. *[cards/01-imagine.png]* — Imagine the chart if nobody sold. The homepage
    lets you try it: one slider, "How many holders lock?" Illustrative, and
@@ -172,6 +171,6 @@ imagine.fun
 
 ## 4. Article
 
-Title: **Lock the meme. Earn the stock.** Full text in `scripts/x-article.json`
+Title: **Lock the meme. Earn its pair.** Full text in `scripts/x-article.json`
 (also at imagine.fun/article). Once published an X Article cannot be edited
 without changing its URL, so proof it against the live site first.

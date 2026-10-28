@@ -9,7 +9,7 @@ const DOCS = [
   { href: "/how-it-works", title: "How it works", body: "StonkFun coins with a lock vault: where fees come from and how weight is computed." },
   { href: "/docs/fees", title: "Fees", body: "The 1% app fee, StonkFun's fees and forwarded creator share, the 90/10 split, early exits." },
   { href: "/docs/security", title: "Security", body: "What the program cannot do, what it checks on-chain, and what can still go wrong." },
-  { href: "/article", title: "The idea", body: "Why paying holders in the stock a coin is paired with changes what holding means." },
+  { href: "/article", title: "The idea", body: "Why paying holders in whatever a coin is paired with changes what holding means." },
   { href: "/terms", title: "Terms", body: "The terms for using imagine.fun." },
   { href: "/privacy", title: "Privacy", body: "What the site stores and why." },
 ];
