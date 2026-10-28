@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { decodeConfig } from "../src/accounts.ts";
 import { valuationAccounts } from "../src/client.ts";
-import { ECONOMICS, FeeKind } from "../src/constants.ts";
+import { ECONOMICS, FeeKind, metadataUri } from "../src/constants.ts";
 import {
   buyExactIn,
   cpmmPoolPda,
@@ -350,7 +350,7 @@ describe("one-transaction launch", () => {
         treasury: ctx.treasury.publicKey,
         name: "Imagine One",
         symbol: "ONE",
-        uri: "https://imagine.fun/one.json",
+        uri: metadataUri(mint.publicKey),
         platform: IMAGINE_PLATFORM,
         supply: SUPPLY,
         totalSell: 793_100_000_000_000n,
@@ -404,12 +404,17 @@ describe("one-transaction launch", () => {
       assert.equal(pool.totalLocked, 1_000_000n * TOKEN);
       assert.ok(tokenBalance(ctx.svm, mint.publicKey, creator.publicKey) > 0n, "the dev bag beyond the lock stays with the creator");
       assert.ok(tokenAmount(ctx.svm, creatorFeeVaultPda(rewardVaultPda(mint.publicKey), q.mint)) > 0n, "the dev buy paid the pool fee");
+      const uri = `https://api.imagine.fun/files/meta/${mint.publicKey.toBase58()}.json`;
+      assert.ok(Buffer.from(ctx.svm.getAccount(mint.publicKey)!.data).includes(Buffer.from(uri)), "the mint's metadata points at its IMAGINE document");
     });
   }
 });
 
 describe("launch guards", () => {
-  async function launchIx(ctx: Ctx, overrides: { platform?: PublicKey; restricted?: boolean; fundRaising?: bigint } = {}) {
+  async function launchIx(
+    ctx: Ctx,
+    overrides: { platform?: PublicKey; restricted?: boolean; fundRaising?: bigint; uri?: (mint: PublicKey) => string } = {},
+  ) {
     const creator = fundedKeypair(ctx.svm);
     const mint = Keypair.generate();
     const ix = await client.launch({
@@ -419,7 +424,7 @@ describe("launch guards", () => {
       treasury: ctx.treasury.publicKey,
       name: "x",
       symbol: "X",
-      uri: "https://imagine.fun/x.json",
+      uri: (overrides.uri ?? metadataUri)(mint.publicKey),
       platform: overrides.platform ?? IMAGINE_PLATFORM,
       restricted: overrides.restricted,
       supply: SUPPLY,
@@ -435,6 +440,23 @@ describe("launch guards", () => {
     await initConfig(ctx);
     const { ix, signers } = await launchIx(ctx, { platform: Keypair.generate().publicKey });
     assert.match(sendExpectingError(ctx.svm, [ix], signers), /PlatformMismatch/);
+  });
+
+  it("refuses any metadata URI but the coin's own IMAGINE document, creating nothing", async () => {
+    const ctx = setup();
+    await initConfig(ctx);
+    const other = Keypair.generate().publicKey;
+    for (const uri of [
+      () => metadataUri(other),
+      () => "https://imagine.fun/x.json",
+      (mint: PublicKey) => `http://localhost:8080/files/meta/${mint.toBase58()}.json`,
+      (mint: PublicKey) => `${metadataUri(mint)}?v=2`,
+      (mint: PublicKey) => metadataUri(mint).replace(".json", ""),
+    ]) {
+      const { ix, signers, mint } = await launchIx(ctx, { uri });
+      assert.match(sendExpectingError(ctx.svm, [ix], signers), /InvalidMetadataUri/, uri(mint));
+      assert.equal(ctx.svm.getAccount(poolPda(mint)), null);
+    }
   });
 
   it("requires and pins the allow-config / curve-rule accounts only on a restricting platform", async () => {

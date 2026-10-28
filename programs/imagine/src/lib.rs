@@ -44,6 +44,19 @@ use instructions::*;
 
 declare_id!("imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa");
 
+// Contact and source details embedded in the binary for explorers and
+// whitehats (https://github.com/neodyme-labs/solana-security-txt). Left out of
+// CPI builds, so a program depending on this crate does not carry it.
+#[cfg(not(feature = "no-entrypoint"))]
+solana_security_txt::security_txt! {
+    name: "IMAGINE",
+    project_url: "https://imagine.fun",
+    contacts: "link:https://x.com/LockImagine",
+    policy: "https://github.com/realdoomsman/imagine/blob/main/docs/AUDIT.md",
+    preferred_languages: "en",
+    source_code: "https://github.com/realdoomsman/imagine"
+}
+
 #[program]
 pub mod imagine {
     use super::*;

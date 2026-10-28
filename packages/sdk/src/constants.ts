@@ -13,6 +13,16 @@ export const SEED = {
   position: Buffer.from("position"),
 } as const;
 
+/**
+ * The only metadata URI `launch` accepts (`constants::METADATA_URI_PREFIX` /
+ * `METADATA_URI_SUFFIX` in the program): the document the IMAGINE API hosts
+ * for the mint, whose website is the coin's IMAGINE page.
+ */
+export const METADATA_URI_PREFIX = "https://api.imagine.fun/files/meta/";
+export const METADATA_URI_SUFFIX = ".json";
+export const metadataUri = (mint: PublicKey | string): string =>
+  `${METADATA_URI_PREFIX}${mint.toString()}${METADATA_URI_SUFFIX}`;
+
 /** Fixed-point scalar mirroring `constants::SCALE` in the program. */
 export const SCALE = 1_000_000_000_000n;
 export const BPS = 10_000n;

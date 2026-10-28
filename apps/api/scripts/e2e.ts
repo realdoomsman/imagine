@@ -167,10 +167,15 @@ async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
   form.append("symbol", symbol);
   form.append("description", `End-to-end test coin paired with ${quote.symbol}`);
   form.append("file", new Blob([PNG_1X1], { type: "image/png" }), "coin.png");
-  const uploaded = await api<{ uri: string; image: string }>("/api/metadata", { method: "POST", body: form });
-  const doc = (await (await fetch(uploaded.uri)).json()) as { name: string; image: string; website: string };
+  const uploaded = await api<{ uri: string; document: string; image: string }>("/api/metadata", { method: "POST", body: form });
+  check(
+    "the URI for the mint is the production document the program requires",
+    uploaded.uri === `https://api.imagine.fun/files/meta/${mint.publicKey.toBase58()}.json`,
+    uploaded.uri,
+  );
+  const doc = (await (await fetch(uploaded.document)).json()) as { name: string; image: string; website: string };
   const image = Buffer.from(await (await fetch(uploaded.image)).arrayBuffer());
-  check("metadata JSON is served", doc.name === `Dream ${label.toUpperCase()}`, uploaded.uri);
+  check("metadata JSON is served", doc.name === `Dream ${label.toUpperCase()}`, uploaded.document);
   check("its website is the coin's IMAGINE page", doc.website === `https://imagine.fun/coins/${mint.publicKey.toBase58()}`);
   check("image round-trips byte for byte", image.equals(PNG_1X1), uploaded.image);
 

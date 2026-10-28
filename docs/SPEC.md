@@ -186,7 +186,7 @@ Program: `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa` (crate `imagine`,
 |---|---|---|
 | `initialize_config` | upgrade authority | Once; gated on ProgramData |
 | `update_config` / `transfer_admin` / `accept_admin` | admin | Bounded by hard ceilings; two-step handover |
-| `launch` | creator | Inits the pool, funds the vault reserve, creates the reward token account for token quotes, charges `pool_creation_fee` in SOL, CPIs LaunchLab `initialize_with_token_2022` under `config.launchlab_platform` with the vault PDA as creator, then reads the new LaunchLab pool back. Refused while paused |
+| `launch` | creator | Requires the metadata `uri` to be exactly `https://api.imagine.fun/files/meta/<mint>.json` (`InvalidMetadataUri`), then inits the pool, funds the vault reserve, creates the reward token account for token quotes, charges `pool_creation_fee` in SOL, CPIs LaunchLab `initialize_with_token_2022` under `config.launchlab_platform` with the vault PDA as creator, then reads the new LaunchLab pool back. Refused while paused |
 | `found` | creator, once | Opens the founding lock (position 0), values it, sets `founded` |
 | `lock` / `increase` / `extend` | owner | Require `founded`; read the coin's price for the cap |
 | `claim` | owner | Never pausable; pays up to the cap |

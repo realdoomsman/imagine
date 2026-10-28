@@ -131,6 +131,13 @@ as a non-signing creator. Checked:
   allow-config and curve-rule PDAs are forwarded and LaunchLab enforces them.
   The IMAGINE platform restricts neither; curve parameters are chosen by the
   API, and LaunchLab rejects an invalid combination, failing the transaction.
+- The metadata `uri` must be byte for byte
+  `https://api.imagine.fun/files/meta/<mint base58>.json`
+  (`METADATA_URI_PREFIX` + mint + `METADATA_URI_SUFFIX`, else
+  `InvalidMetadataUri`), checked before anything is created, so every coin's
+  mint points at the IMAGINE-hosted document whose website is its IMAGINE
+  page. That document's contents are off chain and frozen by the API once the
+  mint exists.
 - No lamports or tokens owned by the pool move during the CPI; the vault PDA
   never signs it.
 

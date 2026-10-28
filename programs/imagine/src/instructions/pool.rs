@@ -118,6 +118,31 @@ pub struct Launch<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Whether `uri` is exactly `METADATA_URI_PREFIX + base58(mint) +
+/// METADATA_URI_SUFFIX`, compared against the base58 as it is formatted, so
+/// nothing is allocated.
+pub fn is_metadata_uri(uri: &str, mint: &Pubkey) -> bool {
+    use core::fmt::Write;
+
+    /// Consumes `0` as matching text is written; fails on the first mismatch.
+    struct Expect<'a>(&'a str);
+    impl Write for Expect<'_> {
+        fn write_str(&mut self, s: &str) -> core::fmt::Result {
+            self.0 = self.0.strip_prefix(s).ok_or(core::fmt::Error)?;
+            Ok(())
+        }
+    }
+
+    let Some(id) = uri
+        .strip_prefix(METADATA_URI_PREFIX)
+        .and_then(|rest| rest.strip_suffix(METADATA_URI_SUFFIX))
+    else {
+        return false;
+    };
+    let mut expect = Expect(id);
+    write!(expect, "{mint}").is_ok() && expect.0.is_empty()
+}
+
 /// Create the coin on Raydium LaunchLab under the IMAGINE platform, and its
 /// pool here, in one instruction.
 ///
@@ -127,8 +152,10 @@ pub struct Launch<'info> {
 /// pool, collected by `collect_creator_fee`. LaunchLab's
 /// `initialize_with_token_2022` runs with the creator as payer and the mint
 /// keypair as signer (both propagate), under `config.launchlab_platform`, and
-/// is read back to prove it is exactly that pool. The client buys the dev bag
-/// on LaunchLab and calls `found` in the same transaction.
+/// is read back to prove it is exactly that pool. The coin's metadata URI must
+/// be its IMAGINE-hosted document (`is_metadata_uri`), so every coin launched
+/// here links to its IMAGINE page. The client buys the dev bag on LaunchLab
+/// and calls `found` in the same transaction.
 pub fn launch<'info>(
     ctx: Context<'_, '_, 'info, 'info, Launch<'info>>,
     args: LaunchArgs,
@@ -138,6 +165,10 @@ pub fn launch<'info>(
     require!(
         args.creator_share_bps <= config.max_creator_share_bps,
         ImagineError::InvalidParameter
+    );
+    require!(
+        is_metadata_uri(&args.uri, &ctx.accounts.mint.key()),
+        ImagineError::InvalidMetadataUri
     );
 
     let quote_key = ctx.accounts.quote_mint.key();
@@ -514,4 +545,33 @@ pub fn sync(ctx: Context<Sync>) -> Result<()> {
     )?;
     rewards.sync(&mut ctx.accounts.pool, pool_key, now)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metadata_uri_must_be_the_mints_hosted_document() {
+        let mint = pubkey!("imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa");
+        let other = pubkey!("So11111111111111111111111111111111111111112");
+        let exact = "https://api.imagine.fun/files/meta/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa.json";
+        assert!(is_metadata_uri(exact, &mint));
+        assert!(!is_metadata_uri(exact, &other));
+        for wrong in [
+            "",
+            "https://api.imagine.fun/files/meta/.json",
+            "https://api.imagine.fun/files/meta/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa",
+            "https://api.imagine.fun/files/meta/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa.json?",
+            "https://api.imagine.fun/files/meta/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spaa.json",
+            "https://api.imagine.fun/files/meta/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3sp.json",
+            "https://api.imagine.fun/files/meta/1imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa.json",
+            "http://api.imagine.fun/files/meta/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa.json",
+            "https://API.imagine.fun/files/meta/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa.json",
+            "http://localhost:8080/files/meta/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa.json",
+            "https://imagine.fun/coins/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa",
+        ] {
+            assert!(!is_metadata_uri(wrong, &mint), "{wrong}");
+        }
+    }
 }

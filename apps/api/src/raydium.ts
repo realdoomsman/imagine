@@ -37,6 +37,7 @@ import {
   launchLabPoolPda,
   launchLabPoolVaultPda,
   launchLabTradeIx,
+  metadataUri,
   poolPda,
   rewardVaultPda,
   sellExactIn,
@@ -51,7 +52,6 @@ import {
 } from "@imagine/sdk";
 import { sql } from "./db.ts";
 import { ActionError } from "./errors.ts";
-import { metadataUri } from "./files.ts";
 import { swapSolToQuote } from "./jupiter.ts";
 import { launchableQuotes, launchCurve, quoteDisplay, type QuoteDisplay } from "./quotes.ts";
 import { chainConfig, connection, imagine } from "./solana.ts";

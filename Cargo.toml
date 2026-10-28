@@ -2,6 +2,12 @@
 members = ["programs/*"]
 resolver = "2"
 
+# The Agave release `solana-verify build` reproduces the program with: its
+# pinned solana-verifiable-build image (cargo build-sbf / platform tools of
+# that release). Matches the CLI used locally; see scripts/verified-build.sh.
+[workspace.metadata.cli]
+solana = "3.1.10"
+
 [profile.release]
 overflow-checks = true
 lto = "fat"

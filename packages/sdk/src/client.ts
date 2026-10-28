@@ -303,6 +303,7 @@ export class ImagineClient {
     treasury: PublicKey;
     name: string;
     symbol: string;
+    /** Must be `metadataUri(mint)`; the program refuses any other. */
     uri: string;
     supply: bigint;
     totalSell: bigint;

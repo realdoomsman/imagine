@@ -89,6 +89,15 @@ pub const WSOL_MINT: Pubkey = pubkey!("So111111111111111111111111111111111111111
 /// Decimals of every coin `launch` creates on LaunchLab.
 pub const COIN_DECIMALS: u8 = 6;
 
+/// The only metadata URI `launch` accepts for a coin is
+/// `METADATA_URI_PREFIX + base58(mint) + METADATA_URI_SUFFIX`: the document
+/// the IMAGINE API hosts for that mint, whose website is the coin's IMAGINE
+/// page (`https://imagine.fun/coins/<mint>`).
+#[constant]
+pub const METADATA_URI_PREFIX: &str = "https://api.imagine.fun/files/meta/";
+#[constant]
+pub const METADATA_URI_SUFFIX: &str = ".json";
+
 /// A lock paid to within this many quote base units of its cap is treated as
 /// fully paid and stops earning (`Pool::retire_if_capped`). Covers accumulator
 /// rounding, which only ever leaves a lock a few units short.

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { PublicKey } from "@solana/web3.js";
+import { METADATA_URI_PREFIX } from "@imagine/sdk";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -94,9 +95,10 @@ export const env = {
   corsOrigins: (process.env.CORS_ORIGINS ?? "*").split(",").map((s) => s.trim()),
   /**
    * Where this API is reachable from the public internet. Coin metadata and
-   * images are served from here, and their URIs are written on chain into the
-   * mint at launch, so this must be the stable public origin
-   * (https://api.imagine.fun in production).
+   * images are served from here. The metadata URI written into a mint is
+   * fixed by the program (`METADATA_URI_PREFIX`, https://api.imagine.fun), so
+   * on mainnet this must be exactly that origin; a local fork serves the same
+   * documents from its own.
    */
   apiPublicOrigin: origin("API_PUBLIC_ORIGIN", "http://localhost:8080"),
   /** Jupiter Swap API v1 (SOL → quote swaps for buyers paying in SOL). */
@@ -157,8 +159,10 @@ export function assertApiEnv() {
   if (env.cluster === "mainnet-beta" && (!process.env.CORS_ORIGINS?.trim() || env.corsOrigins.includes("*"))) {
     throw new Error("CORS_ORIGINS must list the site's origins on mainnet-beta; unset or * is refused");
   }
-  if (env.cluster === "mainnet-beta" && !env.apiPublicOrigin.startsWith("https://")) {
-    throw new Error("API_PUBLIC_ORIGIN must be an https origin on mainnet-beta: coin metadata URIs point at it");
+  if (env.cluster === "mainnet-beta" && env.apiPublicOrigin !== new URL(METADATA_URI_PREFIX).origin) {
+    throw new Error(
+      `API_PUBLIC_ORIGIN must be ${new URL(METADATA_URI_PREFIX).origin} on mainnet-beta: the program only accepts coin metadata URIs there`,
+    );
   }
 }
 

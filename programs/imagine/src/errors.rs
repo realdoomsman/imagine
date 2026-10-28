@@ -56,4 +56,6 @@ pub enum ImagineError {
     QuoteNotTransferable,
     #[msg("LaunchLab platform is not the configured IMAGINE platform")]
     PlatformMismatch,
+    #[msg("Metadata URI is not this coin's IMAGINE metadata document")]
+    InvalidMetadataUri,
 }

@@ -2613,6 +2613,11 @@ export type Imagine = {
       "code": 6026,
       "name": "platformMismatch",
       "msg": "LaunchLab platform is not the configured IMAGINE platform"
+    },
+    {
+      "code": 6027,
+      "name": "invalidMetadataUri",
+      "msg": "Metadata URI is not this coin's IMAGINE metadata document"
     }
   ],
   "types": [
@@ -3809,6 +3814,22 @@ export type Imagine = {
       "name": "configSeed",
       "type": "bytes",
       "value": "[99, 111, 110, 102, 105, 103]"
+    },
+    {
+      "name": "metadataUriPrefix",
+      "docs": [
+        "The only metadata URI `launch` accepts for a coin is",
+        "`METADATA_URI_PREFIX + base58(mint) + METADATA_URI_SUFFIX`: the document",
+        "the IMAGINE API hosts for that mint, whose website is the coin's IMAGINE",
+        "page (`https://imagine.fun/coins/<mint>`)."
+      ],
+      "type": "string",
+      "value": "\"https://api.imagine.fun/files/meta/\""
+    },
+    {
+      "name": "metadataUriSuffix",
+      "type": "string",
+      "value": "\".json\""
     },
     {
       "name": "poolSeed",

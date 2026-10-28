@@ -1,9 +1,10 @@
 import { PublicKey } from "@solana/web3.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { metadataUri } from "@imagine/sdk";
 import { pubkey } from "../actions.ts";
 import { sql } from "../db.ts";
-import { coinPageUrl, imageUrl, metadataUri } from "../files.ts";
+import { coinPageUrl, imageUrl, metadataDocumentUrl } from "../files.ts";
 import { connection } from "../solana.ts";
 
 /**
@@ -11,13 +12,15 @@ import { connection } from "../solana.ts";
  *
  * The browser sends the image straight from disk with the name, ticker,
  * description and socials. We store the image and a Metaplex-shaped JSON
- * document in Postgres and serve both from `API_PUBLIC_ORIGIN`; the JSON's
- * URI is what `imagine.launch` writes into the Token-2022 mint, which is what
- * Raydium, Jupiter, explorers and wallets read.
+ * document in Postgres and serve both from `API_PUBLIC_ORIGIN`. The URI
+ * `imagine.launch` writes into the Token-2022 mint (what Raydium, Jupiter,
+ * explorers and wallets read) is fixed by the program to
+ * https://api.imagine.fun/files/meta/<mint>.json, which is this document in
+ * production.
  *
  * The coin's website is always its IMAGINE page, so the document is keyed by
- * a mint chosen up front, and a launch only accepts this document's URI for
- * its own mint. Once that mint exists on chain the document is frozen:
+ * a mint chosen up front, and the program only accepts that mint's own
+ * document URI. Once that mint exists on chain the document is frozen:
  * nobody can swap a live coin's image.
  */
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
@@ -92,7 +95,9 @@ export async function metadataRoutes(app: FastifyInstance) {
         name = EXCLUDED.name, symbol = EXCLUDED.symbol, image = EXCLUDED.image,
         image_type = EXCLUDED.image_type, metadata = EXCLUDED.metadata, created_at = NOW()
     `;
-    return { uri: metadataUri(body.mint), image: imageUrl(body.mint) };
+    // `uri` goes into the mint (fixed by the program); `document` is where this
+    // API serves it, the same URL in production.
+    return { uri: metadataUri(body.mint), document: metadataDocumentUrl(body.mint), image: imageUrl(body.mint) };
   });
 }
 

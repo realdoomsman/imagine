@@ -59,27 +59,42 @@ It prints the PlatformConfig address and its decoded parameters; with
 one). An existing PlatformConfig is printed, never changed. Check that the
 image URL resolves on the live site before running it.
 
-### 2. Upgrade the program
+### 2. Upgrade the program (verifiable build)
+
+Mainnet runs the reproducible build, so explorers can show the program as
+Verified against this repository. Commit and push first: the verifier rebuilds
+the GitHub commit.
 
 ```bash
-bash scripts/anchor-build.sh                                 # target/deploy/imagine.so + IDL
-stat -c %s target/deploy/imagine.so                          # compare with 738688
-# only if the binary is larger than the program data:
+git push origin main
+bash scripts/verified-build.sh            # target/deploy/imagine.so; prints size, e_flags 00 (SBPF v0), sha256, executable hash
+# only if the binary is larger than the program data (738688):
 solana program extend imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa <extra bytes> \
   -k .mainnet/admin.json -u "$RPC_URL"
-UPGRADE=1 SKIP_BUILD=1 WALLET=.mainnet/admin.json MAX_LEN=<current program data length> \
+UPGRADE=1 SKIP_BUILD=1 WALLET=.mainnet/admin.json MAX_LEN=738688 \
   LAUNCHLAB_PLATFORM=<PlatformConfig from step 1> bash scripts/deploy.sh mainnet-beta
+solana-verify get-program-hash -u "$RPC_URL" imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa
+#   must equal the executable hash verified-build.sh printed
 ```
 
-The current build is 629,376 bytes, under the deployed 738,688, so no extend is
-needed for this upgrade; a later build that outgrows it needs `extend` first
-(rent for the added bytes, permanent — add headroom).
+`verified-build.sh` clones the commit to the Linux filesystem and runs
+`solana-verify build --library-name imagine` in the
+`solanafoundation/solana-verifiable-build` image of the Agave release pinned in
+`Cargo.toml` `[workspace.metadata.cli]` (3.1.10, digest-pinned by
+solana-verify), SBPF v0 like every IMAGINE build. `scripts/anchor-build.sh`
+stays the development build and the IDL refresh; its binary differs from the
+verifiable one byte-wise, so never deploy it to mainnet.
+
+The build is about 632 KB, under the deployed 738,688, so no extend is
+needed; a later build that outgrows it needs `extend` first (rent for the
+added bytes, permanent — add headroom).
 `deploy.sh` refuses a binary larger than `MAX_LEN` (set it to the program data
 length after any extend), writes the binary through the fixed buffer keypair
 `target/deploy/imagine-buffer.json` (an interrupted write resumes on re-run;
-the buffer's rent is held until the upgrade lands, about 5.3 SOL checked up
-front), upgrades, verifies the on-chain bytes against the local binary, and
-finally runs `apps/api/scripts/init-config.ts` with the same wallet.
+the buffer's rent, about 4.4 SOL, is held until the upgrade lands and then
+returned; the script checks for 5.3 SOL up front), upgrades, verifies the
+on-chain bytes against the local binary, and finally runs
+`apps/api/scripts/init-config.ts` with the same wallet.
 
 `init-config.ts` (also runnable alone:
 `cd apps/api && LAUNCHLAB_PLATFORM=<address> node scripts/init-config.ts ../.mainnet/admin.json`)
@@ -92,6 +107,32 @@ Check: `(cd apps/api && cp .env.example .env.mainnet)` with `RPC_URL` and
 `CLUSTER=mainnet-beta` set, then `bash scripts/config-show.sh .env.mainnet`:
 `launchlabPlatform` is the step-1 address, `tradeFeeBps` 150, `treasury`
 `DNGM32…SY59`, `paused` false.
+
+#### Publish the verification
+
+```bash
+solana-verify verify-from-repo -u "$RPC_URL" \
+  --program-id imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa \
+  --commit-hash "$(git rev-parse HEAD)" --library-name imagine \
+  -k .mainnet/admin.json --remote -y \
+  https://github.com/realdoomsman/imagine
+solana-verify remote get-status --program-id imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa
+```
+
+`verify-from-repo` rebuilds the commit in Docker, refuses if its hash differs
+from the deployed program, then writes the build parameters (repo, commit,
+`--library-name imagine`) to the otter-verify PDA signed by `-k`. Explorers
+only trust the PDA written by the program's upgrade authority, so `-k` must be
+it (`.mainnet/admin.json` today). `--remote` then queues OtterSec's independent
+rebuild; when it finishes `get-status` (or
+`https://verify.osec.io/status/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa`)
+reports `is_verified: true` and Solana Explorer / Solscan show Verified, with
+the embedded security.txt (`solana_security_txt::security_txt!` in `lib.rs`).
+Costs: the PDA's rent (a few thousandths of a SOL) plus fees. Repeat the build,
+upgrade and `verify-from-repo` for every upgrade; after the authority moves to
+a multisig, build the PDA transaction with
+`solana-verify export-pda-tx … --uploader <SQUADS_VAULT>`, execute it in
+Squads, then `solana-verify remote submit-job --program-id … --uploader <SQUADS_VAULT>`.
 
 ### 3. Replace the lookup table
 
@@ -145,9 +186,10 @@ Do not skip an item because the previous one passed.
    Or `bash scripts/verify.sh` for everything.
 4. An independent audit of `programs/imagine/src/`. `docs/AUDIT.md` is the
    internal pass.
-5. Build reproducibly and publish the verification
-   (`solana-verify build && solana-verify verify-from-repo`).
-6. Upgrade (steps 2–3 above); confirm with `config-show.sh`.
+5. Commit, push, and `bash scripts/verified-build.sh`; run 1–2 again against
+   its `target/deploy/imagine-v0.so`.
+6. Upgrade with that artifact and publish the verification (steps 2–3 above);
+   confirm with `config-show.sh` and `solana-verify remote get-status`.
 7. Services green; the throwaway-coin round trip of step 4.
 8. Set `NEXT_PUBLIC_OFFICIAL_MINT` only when $IMAGINE exists.
 9. Only then announce.
@@ -212,7 +254,7 @@ secrets `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, `WALLET_MASTER_KEY` belong on
 | `LOG_LEVEL` | `info` |
 | `CORS_ORIGINS` | `https://imagine.fun`. With `CLUSTER=mainnet-beta` the API refuses to start if unset or `*` |
 | `SITE_ORIGIN` | `https://imagine.fun` |
-| `API_PUBLIC_ORIGIN` | `https://api.imagine.fun`. Coin metadata URIs written on chain point here; never change it |
+| `API_PUBLIC_ORIGIN` | `https://api.imagine.fun`, exactly: the program only accepts the metadata URI `https://api.imagine.fun/files/meta/<mint>.json` (`METADATA_URI_PREFIX`), and with `CLUSTER=mainnet-beta` the API refuses to start with any other origin |
 | `COOKIE_SECURE` | `1` |
 | `LAUNCH_ALT` | `imagine-api`: the table from `create-alt.ts` |
 | `JUPITER_SWAP_URL` / `JUPITER_PRICE_URL` / `JUPITER_API_KEY` | Pair prices, fund-raising sizing for non-SOL quotes, SOL→quote swaps; key only with an api.jup.ag base |

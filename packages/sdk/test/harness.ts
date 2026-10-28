@@ -29,7 +29,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodePool } from "../src/accounts.ts";
 import { ImagineClient, type QuoteRef } from "../src/client.ts";
-import { IMAGINE_PROGRAM_ID } from "../src/constants.ts";
+import { IMAGINE_PROGRAM_ID, metadataUri } from "../src/constants.ts";
 import {
   CPMM_PROGRAM_ID,
   cpmmAuthorityPda,
@@ -536,7 +536,7 @@ export async function launchCoin(
     treasury: ctx.treasury.publicKey,
     name: opts.name ?? "Imagine Test",
     symbol: "IMGT",
-    uri: "https://imagine.fun/test.json",
+    uri: metadataUri(mintKp.publicKey),
     platform: IMAGINE_PLATFORM,
     supply: SUPPLY,
     totalSell: TOTAL_SELL,

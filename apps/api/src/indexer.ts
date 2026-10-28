@@ -4,9 +4,9 @@ import { getTokenMetadata, NATIVE_MINT, TOKEN_2022_PROGRAM_ID } from "@solana/sp
 import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { z } from "zod";
-import { coder, decodePool, decodePosition, DISCRIMINATOR, IMAGINE_PROGRAM_ID, poolPda, positionPda } from "@imagine/sdk";
+import { coder, decodePool, decodePosition, DISCRIMINATOR, IMAGINE_PROGRAM_ID, metadataUri, poolPda, positionPda } from "@imagine/sdk";
 import { sql } from "./db.ts";
-import { imageUrl, metadataUri } from "./files.ts";
+import { imageUrl } from "./files.ts";
 import { startKeeper } from "./keeper.ts";
 import { quoteDisplay } from "./quotes.ts";
 import { connection, imagine } from "./solana.ts";

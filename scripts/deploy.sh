@@ -5,8 +5,10 @@
 #   bash scripts/deploy.sh localnet         # the mainnet fork (scripts/mainnet-fork.sh), port 8999
 #   bash scripts/deploy.sh mainnet-beta     # RPC from $RPC_URL or apps/api/.mainnet-rpc.tmp
 #
-# Deploys the SBPF v0 binary from scripts/anchor-build.sh (target/deploy/imagine.so)
-# to the program id of target/deploy/imagine-keypair.json
+# Deploys the SBPF v0 binary at target/deploy/imagine.so (built here by
+# scripts/anchor-build.sh, or with SKIP_BUILD=1 whatever is there; on mainnet
+# that must be the verifiable build from scripts/verified-build.sh) to the
+# program id of target/deploy/imagine-keypair.json
 # (imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa); the deploying wallet becomes the
 # upgrade authority, which is what initialize_config checks.
 #
@@ -16,8 +18,8 @@
 #
 # On mainnet a first deploy needs ~4.2 SOL: rent for MAX_LEN bytes of program
 # data (the buffer's rent is drained back to the payer in the deploy itself)
-# plus write fees. An upgrade needs the new binary's buffer rent (~3.8 SOL,
-# returned when it lands). On the fork the wallet is airdropped what it needs.
+# plus write fees. An upgrade needs the new binary's buffer rent (~4.4 SOL for
+# 632 KB, returned when it lands). On the fork the wallet is airdropped what it needs.
 set -euo pipefail
 
 CLUSTER="${1:?usage: deploy.sh localnet|mainnet-beta}"

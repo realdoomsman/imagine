@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { decodeConfig } from "../src/accounts.ts";
 import { ImagineClient } from "../src/client.ts";
-import { ECONOMICS, FeeKind } from "../src/constants.ts";
+import { ECONOMICS, FeeKind, metadataUri } from "../src/constants.ts";
 import { configPda, rewardTokenAccount, rewardVaultPda, tokenVaultPda } from "../src/pda.ts";
 import {
   accrued,
@@ -188,7 +188,7 @@ async function launchIx(
     treasury: ctx.treasury.publicKey,
     name: "Imagine Test",
     symbol: "IMGT",
-    uri: "https://imagine.fun/test.json",
+    uri: metadataUri(mintKp.publicKey),
     platform: IMAGINE_PLATFORM,
     supply: SUPPLY,
     totalSell: TOTAL_SELL,
