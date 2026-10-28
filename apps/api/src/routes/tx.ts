@@ -1,10 +1,10 @@
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ActionError, ActionSchema, baseUnits, buildAction, lockDuration, pubkey } from "../actions.ts";
 import { quoteInfo } from "../quotes.ts";
 import { buildLaunch } from "../raydium.ts";
-import { serialize } from "../transactions.ts";
+import { prepare, serialize } from "../transactions.ts";
 
 export const LaunchSchema = z.object({
   mint: pubkey,
@@ -47,7 +47,9 @@ export function launchRequest(creator: PublicKey, body: LaunchBody) {
 export async function txRoutes(app: FastifyInstance) {
   /**
    * A launch as unsigned transactions, in order. The launch step is signed by
-   * the mint keypair as well as the creator (`mintSigns`).
+   * the mint keypair as well as the creator (`mintSigns`). Only the first is
+   * simulated and sized here: each later one spends what the one before it
+   * produces, so it comes back `deferred`, for /tx/prepare once that lands.
    */
   app.post("/tx/launch", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = LaunchSchema.extend({ creator: pubkey }).parse(request.body);
@@ -61,10 +63,10 @@ export async function txRoutes(app: FastifyInstance) {
         expectedTokens: plan.expectedTokens,
         lockAmount: plan.lockAmount,
         transactions: await Promise.all(
-          plan.steps.map(async (step) => ({
+          plan.steps.map(async (step, index) => ({
             label: step.label,
             mintSigns: step.mintSigns,
-            ...(await serialize(step.instructions, creator, step.lookupTables)),
+            ...(await serialize(step.instructions, creator, step.lookupTables, index > 0)),
           })),
         ),
       };
@@ -85,6 +87,28 @@ export async function txRoutes(app: FastifyInstance) {
     try {
       const built = await buildAction(owner, body);
       return { ...(await serialize(built.instructions, owner, built.lookupTables)), ...built.meta };
+    } catch (error) {
+      if (error instanceof ActionError) return reply.code(error.status).send({ error: error.message });
+      throw error;
+    }
+  });
+
+  /**
+   * A deferred transaction (see /tx/launch), simulated now that the steps
+   * before it have landed: a fresh blockhash and its compute budget sized, or
+   * the reason it would fail. Nothing but the blockhash and the two budget
+   * limits changes.
+   */
+  app.post("/tx/prepare", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const body = z.object({ transaction: z.string().max(4_096) }).parse(request.body);
+    try {
+      let tx: VersionedTransaction;
+      try {
+        tx = VersionedTransaction.deserialize(Buffer.from(body.transaction, "base64"));
+      } catch {
+        throw new ActionError(400, "that is not a serialised transaction");
+      }
+      return await prepare(tx.message);
     } catch (error) {
       if (error instanceof ActionError) return reply.code(error.status).send({ error: error.message });
       throw error;

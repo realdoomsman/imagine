@@ -20,7 +20,7 @@ import { rawToUsd, usdPrice } from "./quotes.ts";
 import { connection, imagine } from "./solana.ts";
 import { collectFeesInstructions, readMarket, uncollectedFees, unsyncedRewards } from "./raydium.ts";
 import { KEEPER_LOW_BALANCE, KEEPER_MIN_BALANCE, writeStatus } from "./status.ts";
-import { budgetInstructions } from "./transactions.ts";
+import { fixedBudget } from "./transactions.ts";
 
 /**
  * The keeper. Permissionless cranks, paid for by `KEEPER_KEYPAIR`.
@@ -224,7 +224,7 @@ async function collectPools(keeper: Keypair): Promise<{ synced: number; skipped:
         uncollected > 0n
           ? await collectFeesInstructions(keeper.publicKey, pool, market)
           : [await imagine.sync({ mint, quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram } })];
-      const signature = await send(keeper, new Transaction().add(...budgetInstructions(20_000, 300_000), ...instructions));
+      const signature = await send(keeper, new Transaction().add(...fixedBudget(20_000, 300_000), ...instructions));
       const after = await imagine.fetchPool(mint);
       const gained = after ? after.lifetimeInflow - pool.lifetimeInflow : 0n;
       settle(syncBackoff, key, gained > 0n, Date.now(), usd === null ? UNPRICED_SYNC_SPACING_MS : SYNC_SPACING_MS);
@@ -353,7 +353,7 @@ async function unlockMatured(keeper: Keypair): Promise<number> {
         payer: keeper.publicKey,
       });
       attempts += 1;
-      const signature = await send(keeper, new Transaction().add(...budgetInstructions(10_000, 250_000), ...ixs));
+      const signature = await send(keeper, new Transaction().add(...fixedBudget(10_000, 250_000), ...ixs));
       for (let i = 0; i < missing; i += 1) ataCreations.push(Date.now());
       unlocked += 1;
       forget(address);
@@ -403,7 +403,7 @@ async function retireCapped(keeper: Keypair): Promise<number> {
           quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram },
           index: position.index,
         });
-        const signature = await send(keeper, new Transaction().add(...budgetInstructions(10_000, 150_000), ...ixs));
+        const signature = await send(keeper, new Transaction().add(...fixedBudget(10_000, 150_000), ...ixs));
         harvested += 1;
         log.info("retired capped lock", {
           action: "harvest",
@@ -441,7 +441,7 @@ async function claimTreasuries(keeper: Keypair): Promise<number> {
         quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram },
         treasury: pool.treasury,
       });
-      const signature = await send(keeper, new Transaction().add(...budgetInstructions(10_000, 150_000), ...ixs));
+      const signature = await send(keeper, new Transaction().add(...fixedBudget(10_000, 150_000), ...ixs));
       treasuryClaimedAt.set(key, Date.now());
       claimed += 1;
       log.info("claimed treasury share", { action: "claim_treasury", mint: key, amount: pool.treasuryClaimable, signature });

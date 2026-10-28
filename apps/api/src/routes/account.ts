@@ -17,7 +17,7 @@ import { earlyExitPenalty, formatSol, quoteByMint } from "@imagine/sdk";
 import bs58 from "bs58";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { ActionError, ActionSchema, baseUnits, buildAction, friendlyChainError, pubkey } from "../actions.ts";
+import { ActionError, ActionSchema, baseUnits, buildAction, pubkey } from "../actions.ts";
 import {
   beginGoogleLogin,
   clearSession,
@@ -34,12 +34,13 @@ import {
   verifyGoogleIdToken,
   type Account,
 } from "../auth.ts";
+import { friendlyChainError } from "../errors.ts";
 import { env } from "../env.ts";
 import { sql } from "../db.ts";
 import { quoteDisplay, usdPrices, withPrices } from "../quotes.ts";
 import { connection, imagine } from "../solana.ts";
 import { buildLaunch } from "../raydium.ts";
-import { budgetInstructions, compileV0 } from "../transactions.ts";
+import { budgetInstructions, compileV0, fitBudget } from "../transactions.ts";
 import { describePositions } from "./portfolio.ts";
 import { launchRequest, LaunchSchema } from "./tx.ts";
 
@@ -51,6 +52,8 @@ export function launchMintKeypair(wallet: Keypair, nonce: string): Keypair {
 /**
  * Sign and send with the account's own key, confirmed against the blockhash
  * it was built with. The key exists in memory for the length of this call.
+ * The budget is sized from a simulation first, which also refuses a
+ * transaction that would fail before anything is signed.
  */
 async function signAndSend(
   keypair: Keypair,
@@ -62,6 +65,7 @@ async function signAndSend(
   // Always v0: nothing but this key signs here, so no wallet's support matters,
   // and a launch only fits in one transaction through its lookup table.
   const tx = compileV0(instructions, keypair.publicKey, blockhash, lookupTables);
+  await fitBudget(tx.message);
   tx.sign([keypair, ...extraSigners]);
   let signature: string;
   try {
@@ -469,7 +473,7 @@ export async function accountRoutes(app: FastifyInstance) {
         });
       }
       instructions = [
-        ...budgetInstructions(50_000, 20_000),
+        ...budgetInstructions(50_000),
         SystemProgram.transfer({ fromPubkey: keypair.publicKey, toPubkey: to, lamports: amount }),
       ];
     } else {
@@ -481,7 +485,7 @@ export async function accountRoutes(app: FastifyInstance) {
       const from = getAssociatedTokenAddressSync(mint, keypair.publicKey, true, tokenProgram);
       const dest = getAssociatedTokenAddressSync(mint, to, true, tokenProgram);
       instructions = [
-        ...budgetInstructions(50_000, 60_000),
+        ...budgetInstructions(50_000),
         createAssociatedTokenAccountIdempotentInstruction(keypair.publicKey, dest, to, mint, tokenProgram),
         createTransferCheckedInstruction(from, mint, dest, keypair.publicKey, amount, decimals, [], tokenProgram),
       ];

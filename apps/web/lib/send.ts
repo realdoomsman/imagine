@@ -14,7 +14,6 @@ import {
   PublicKey,
   SystemInstruction,
   SystemProgram,
-  Transaction,
   TransactionInstruction,
   VersionedTransaction,
   type AddressLookupTableAccount,
@@ -31,12 +30,15 @@ import {
   positionPda,
   rewardVaultPda,
 } from "@imagine/sdk";
+import { post } from "./api.ts";
 
 export interface BuiltTransaction {
   transaction: string;
   blockhash: string;
   lastValidBlockHeight: number;
   label?: string;
+  /** Not yet simulated or sized: it spends what the step before it produces (see `signAndSend`). */
+  deferred?: boolean;
 }
 
 /** Jupiter's v6 aggregator: the optional "pay with SOL" leg that swaps SOL into the pair asset. */
@@ -77,6 +79,18 @@ const TOKEN_TRANSFER_FEE_EXTENSION = 26;
 const ATA_CREATE_TAGS = new Set([undefined, 0, 1]);
 
 const hex = (bytes: Uint8Array) => Buffer.from(bytes.subarray(0, 8)).toString("hex");
+
+// Compute Budget instructions: a u8 tag, then the value.
+const BUDGET_UNIT_LIMIT = 2; // u32 compute units
+const BUDGET_UNIT_PRICE = 3; // u64 micro-lamports per compute unit
+const BUDGET_DATA_LIMIT = 4; // u32 bytes of loaded account data
+/** The runtime's ceilings. A loaded-data limit at its ceiling is one the API never sized. */
+const MAX_COMPUTE_UNITS = 1_400_000;
+const MAX_LOADED_ACCOUNTS_DATA_BYTES = 64 * 1024 * 1024;
+/** The highest compute-unit price the API takes (its request schema's maximum). */
+const MAX_COMPUTE_UNIT_PRICE = 10_000_000n;
+/** The most priority fee one transaction may cost the signer: 0.01 SOL. */
+const MAX_PRIORITY_FEE_LAMPORTS = 10_000_000n;
 
 /**
  * The IMAGINE instructions a wallet signs through the site, by Anchor
@@ -205,7 +219,11 @@ function isOwnAta(account: PublicKey | undefined, mint: PublicKey | undefined, s
  *   `lockForever` expectation, exactly once;
  * - Token-2022 `BurnChecked`: only with a `burn` expectation, from the
  *   signer's own account for that mint, signed by the signer, for exactly
- *   the amount typed, exactly once.
+ *   the amount typed, exactly once;
+ * - Compute Budget: exactly one compute-unit limit (at most 1.4M) and one
+ *   loaded-account-data limit (sized, so below the 64 MiB ceiling), at most
+ *   one compute-unit price no higher than the API takes, and a priority fee
+ *   of at most 0.01 SOL; nothing else (no heap frame).
  *
  * Swaps, fee deposits, lock-forevers and burns need `expect`; without one (a
  * lock, a claim, …) they are refused outright. `lookupTables` resolves a v0
@@ -233,6 +251,9 @@ export function assertTransactionAllowed(
   let jupiterMinOut = 0n;
   let lockForevers = 0;
   let burns = 0;
+  let unitLimit: number | null = null;
+  let unitPrice: bigint | null = null;
+  let dataLimit: number | null = null;
 
   for (const compiled of message.compiledInstructions) {
     const programId = keys.get(compiled.programIdIndex);
@@ -246,6 +267,31 @@ export function assertTransactionAllowed(
     });
     const data = compiled.data;
     const program = programId!;
+
+    if (program.equals(ComputeBudgetProgram.programId)) {
+      const value = (bytes: number) => {
+        if (data.length !== 1 + bytes) refuse("a compute budget instruction is malformed");
+        return bytes === 4 ? BigInt(Buffer.from(data).readUInt32LE(1)) : u64(data, 1);
+      };
+      if (data[0] === BUDGET_UNIT_LIMIT) {
+        if (unitLimit !== null) refuse("the transaction sets its compute-unit limit twice");
+        unitLimit = Number(value(4));
+        if (unitLimit < 1 || unitLimit > MAX_COMPUTE_UNITS) refuse(`the compute-unit limit ${unitLimit} is out of range`);
+      } else if (data[0] === BUDGET_UNIT_PRICE) {
+        if (unitPrice !== null) refuse("the transaction sets its compute-unit price twice");
+        unitPrice = value(8);
+        if (unitPrice > MAX_COMPUTE_UNIT_PRICE) refuse(`the priority fee rate (${unitPrice} micro-lamports per compute unit) is higher than the site ever sets`);
+      } else if (data[0] === BUDGET_DATA_LIMIT) {
+        if (dataLimit !== null) refuse("the transaction sets its loaded-account-data limit twice");
+        dataLimit = Number(value(4));
+        if (dataLimit < 1 || dataLimit >= MAX_LOADED_ACCOUNTS_DATA_BYTES) {
+          refuse("the transaction's loaded-account-data limit was never sized");
+        }
+      } else {
+        refuse("unexpected Compute Budget instruction");
+      }
+      continue;
+    }
 
     if (program.equals(SystemProgram.programId)) {
       const instruction = new TransactionInstruction({
@@ -418,6 +464,12 @@ export function assertTransactionAllowed(
     }
   }
 
+  // Phantom will only vouch for a transaction whose resource limits are explicit.
+  if (unitLimit === null || dataLimit === null) refuse("the transaction leaves its compute or loaded-account-data limit unset");
+  if (((unitPrice ?? 0n) * BigInt(unitLimit!)) / 1_000_000n > MAX_PRIORITY_FEE_LAMPORTS) {
+    refuse("the transaction's priority fee is more than 0.01 SOL");
+  }
+
   if (expect?.kind === "lockForever") {
     if (lockForevers !== 1) refuse("the transaction does not lock exactly the one position asked for");
     return;
@@ -491,7 +543,7 @@ function assertTokenInstruction(data: Uint8Array, accounts: PublicKey[], signer:
   }
 }
 
-/** The lookup tables a v0 message loads keys from; none for a legacy one. */
+/** The lookup tables a v0 message loads keys from. */
 export async function fetchLookupTables(
   connection: Connection,
   message: VersionedMessage,
@@ -506,25 +558,28 @@ export async function fetchLookupTables(
 }
 
 /**
- * Sign and submit a transaction the API assembled.
+ * Sign and submit a transaction the API assembled, the way Phantom asks so it
+ * can vouch for it rather than warn "this dApp could be malicious":
  *
- * The API returns unsigned bytes, legacy or v0; they are checked with
- * `assertTransactionAllowed` before the wallet is asked. Confirmation is
- * awaited against the same blockhash the API used so a dropped transaction
- * surfaces as an error rather than a silent no-op.
+ * - the API sends v0 bytes with explicit compute-unit and loaded-account-data
+ *   limits, sized from its own simulation (`sigVerify: false`), and refuses
+ *   to build anything that fails it. A `deferred` step — one that spends what
+ *   the step before it produced — goes back through /tx/prepare for that
+ *   simulation once the earlier step has landed;
+ * - the bytes are checked with `assertTransactionAllowed` before the wallet
+ *   is asked;
+ * - the wallet signs first (`signTransaction`), and only then any keypair
+ *   the message also needs (a launch's fresh mint): a transaction that
+ *   arrives already carrying another signature is exactly what a drainer
+ *   sends. The wallet's message is kept as it returns it;
+ * - the signed bytes go out through our RPC with preflight on, and
+ *   confirmation is awaited against the blockhash signed, so a dropped
+ *   transaction surfaces as an error rather than a silent no-op.
  *
  * `extraSigners` are offered, not forced: each signs only if the message
  * requires its signature (a launch's mint keypair signs the launch, not the
  * SOL→pair swap ahead of it). `expect` is what the page showed for a trade or
  * a launch; see `assertTransactionAllowed`.
- *
- * Shaped the way Phantom asks, because it blocks requests it cannot simulate
- * as "this dApp could be malicious": a transaction only the wallet signs goes
- * through `sendTransaction`, which Phantom serves with its own
- * signAndSendTransaction; one the browser co-signs (a fresh mint) is signed
- * by the wallet *first*, and only then by the keypairs, since a transaction
- * that arrives already carrying another signature is exactly what a drainer
- * sends.
  */
 export async function signAndSend(
   connection: Connection,
@@ -534,18 +589,10 @@ export async function signAndSend(
   expect?: Expectation,
 ): Promise<string> {
   if (!wallet.publicKey || !wallet.signTransaction) throw new Error("wallet cannot sign transactions");
-  const bytes = Buffer.from(built.transaction, "base64");
-  const versioned = VersionedTransaction.deserialize(bytes);
-  // Every wallet signs a legacy Transaction; not all take a versioned one.
-  const tx = versioned.version === "legacy" ? Transaction.from(bytes) : versioned;
-  const message = tx instanceof Transaction ? tx.compileMessage() : tx.message;
-  assertTransactionAllowed(
-    message,
-    tx instanceof Transaction ? [] : await fetchLookupTables(connection, tx.message),
-    wallet.publicKey,
-    expect,
-  );
-  const required = message.staticAccountKeys.slice(0, message.header.numRequiredSignatures);
+  const ready = built.deferred ? await post<BuiltTransaction>("/api/tx/prepare", { transaction: built.transaction }) : built;
+  const tx = VersionedTransaction.deserialize(Buffer.from(ready.transaction, "base64"));
+  assertTransactionAllowed(tx.message, await fetchLookupTables(connection, tx.message), wallet.publicKey, expect);
+  const required = tx.message.staticAccountKeys.slice(0, tx.message.header.numRequiredSignatures);
   const cosigners = extraSigners.filter((signer) => required.some((key) => key.equals(signer.publicKey)));
 
   // The API's blockhash is already some seconds old and the wallet's approval
@@ -553,31 +600,23 @@ export async function signAndSend(
   // before signing (nothing has signed yet, and the checks above don't depend
   // on it) so the transaction lands well inside its validity window.
   const fresh = await connection.getLatestBlockhash("confirmed");
-  if (tx instanceof Transaction) {
-    tx.recentBlockhash = fresh.blockhash;
-    tx.lastValidBlockHeight = fresh.lastValidBlockHeight;
-  } else {
-    tx.message.recentBlockhash = fresh.blockhash;
-  }
+  tx.message.recentBlockhash = fresh.blockhash;
 
+  const signed = await wallet.signTransaction(tx);
+  if (cosigners.length > 0) signed.sign(cosigners);
+  const raw = signed.serialize();
+  // An RPC node a slot or two behind answers "Blockhash not found" for a
+  // hash the network already has; the signed bytes stay valid, so resend.
   let signature: string;
-  if (cosigners.length === 0) {
-    signature = await wallet.sendTransaction(tx, connection, { maxRetries: 3, preflightCommitment: "confirmed" });
-  } else {
-    const signed = await wallet.signTransaction(tx);
-    if (signed instanceof Transaction) signed.partialSign(...cosigners);
-    else signed.sign(cosigners);
-    const raw = signed.serialize();
-    // An RPC node a slot or two behind answers "Blockhash not found" for a
-    // hash the network already has; the signed bytes stay valid, so resend.
-    for (let attempt = 0; ; attempt++) {
-      try {
-        signature = await connection.sendRawTransaction(raw, { maxRetries: 3, preflightCommitment: "confirmed" });
-        break;
-      } catch (error) {
-        if (attempt >= 5 || !/blockhash not found/i.test(String((error as Error)?.message ?? error))) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 1_500));
-      }
+  for (let attempt = 0; ; attempt++) {
+    try {
+      signature = await connection.sendRawTransaction(raw, { skipPreflight: false, maxRetries: 3, preflightCommitment: "confirmed" });
+      break;
+    } catch (error) {
+      if (attempt >= 5 || !/blockhash not found/i.test(String((error as Error)?.message ?? error))) throw error;
+      const { promise, resolve } = Promise.withResolvers<void>();
+      setTimeout(resolve, 1_500);
+      await promise;
     }
   }
   const result = await connection.confirmTransaction(

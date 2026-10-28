@@ -187,7 +187,7 @@ async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
     pool: string;
     lockAmount: string;
     expectedTokens: string;
-    transactions: Array<{ label: string; transaction: string; mintSigns: boolean }>;
+    transactions: Array<{ label: string; transaction: string; mintSigns: boolean; deferred?: boolean }>;
   }>("/api/tx/launch", {
     creator: creator.publicKey.toBase58(),
     mint: mint.publicKey.toBase58(),
@@ -201,7 +201,9 @@ async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
   });
   check("launch fits in one transaction", launch.transactions.length === 1, `${launch.transactions.length} step(s)`);
   for (const tx of launch.transactions) {
-    await signAndSend(tx.transaction, tx.mintSigns ? [creator, mint] : [creator], tx.label);
+    // A later step is simulated and sized only once the one before it landed.
+    const ready = tx.deferred ? await post<{ transaction: string }>("/api/tx/prepare", { transaction: tx.transaction }) : tx;
+    await signAndSend(ready.transaction, tx.mintSigns ? [creator, mint] : [creator], tx.label);
   }
   const pool = await imagine.fetchPool(mint.publicKey);
   check("pool is founded", pool?.founded === true);

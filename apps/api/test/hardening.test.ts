@@ -16,6 +16,7 @@ import { assertJupiterInstructions, JUPITER_V6_PROGRAM_ID } from "../src/jupiter
 import { metadataProofMessage, verifyMintSignature } from "../src/routes/metadata.ts";
 import { readCapped } from "../src/rpc-proxy.ts";
 import { assessHealth, type StatusRow } from "../src/status.ts";
+import { computeUnitLimit, loadedAccountsDataLimit, MAX_COMPUTE_UNITS } from "../src/transactions.ts";
 
 const NOW = Date.parse("2026-10-28T12:00:00Z");
 const ago = (secs: number) => new Date(NOW - secs * 1000);
@@ -191,4 +192,17 @@ test("metadata overwrite proof: only the mint key's signature verifies", () => {
   assert.equal(verifyMintSignature(address, other), false, "another message");
   assert.equal(verifyMintSignature(address, "not-base58-0OIl"), false);
   assert.equal(verifyMintSignature(address, bs58.encode(new Uint8Array(10))), false);
+});
+
+test("compute-unit limit: 15% over the simulation, at least 5,000 CU more, whole thousands, capped", () => {
+  assert.equal(computeUnitLimit(100_000), 115_000);
+  assert.equal(computeUnitLimit(233_401), 269_000);
+  assert.equal(computeUnitLimit(6_000), 11_000, "small transactions keep 5,000 CU of room");
+  assert.equal(computeUnitLimit(1_300_000), MAX_COMPUTE_UNITS);
+});
+
+test("loaded-account-data limit: 20% over the simulation, whole 32 KiB pages", () => {
+  assert.equal(loadedAccountsDataLimit(228), 32 * 1024);
+  assert.equal(loadedAccountsDataLimit(1_000_000), 37 * 32 * 1024);
+  assert.equal(loadedAccountsDataLimit(60 * 1024 * 1024), 64 * 1024 * 1024);
 });

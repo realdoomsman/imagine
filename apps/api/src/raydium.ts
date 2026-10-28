@@ -329,7 +329,7 @@ export interface TradeRequest {
 
 export interface BuiltTrade {
   instructions: TransactionInstruction[];
-  /** Empty when it fits as a legacy transaction. */
+  /** Empty when it fits without any. */
   lookupTables: AddressLookupTableAccount[];
   meta: Record<string, string | number>;
 }
@@ -438,7 +438,7 @@ export async function buildTrade(request: TradeRequest): Promise<BuiltTrade> {
         throw new ActionError(502, `could not route SOL into ${quote.symbol} right now: ${(error as Error).message}`);
       }
       const tail = await buyTail(swap.minOutAmount);
-      const all = [...budgetInstructions(request.priorityFeeMicroLamports, 700_000), ...swap.instructions, ...tail.instructions];
+      const all = [...budgetInstructions(request.priorityFeeMicroLamports), ...swap.instructions, ...tail.instructions];
       try {
         const lookupTables = tablesFor(all, user, [...candidateTables, ...swap.lookupTables]);
         return { instructions: all, lookupTables, meta: { venue, solIn: amount.toString(), ...tail.meta } };
@@ -475,7 +475,7 @@ export async function buildTrade(request: TradeRequest): Promise<BuiltTrade> {
     };
   }
 
-  const all = [...budgetInstructions(request.priorityFeeMicroLamports, 300_000), ...instructions];
+  const all = [...budgetInstructions(request.priorityFeeMicroLamports), ...instructions];
   try {
     return { instructions: all, lookupTables: tablesFor(all, user, candidateTables), meta };
   } catch {
@@ -506,7 +506,7 @@ export interface LaunchRequest {
 export interface LaunchStep {
   label: string;
   instructions: TransactionInstruction[];
-  /** Empty: a legacy transaction. Else compile v0 through these. */
+  /** The lookup tables the v0 transaction compiles through; often none. */
   lookupTables: AddressLookupTableAccount[];
   /** The mint keypair co-signs this step (it creates the mint). */
   mintSigns: boolean;
@@ -520,10 +520,6 @@ export interface LaunchPlan {
   lockAmount: string;
   steps: LaunchStep[];
 }
-
-/** Compute for imagine.launch (LaunchLab initialize CPI) + dev buy + found, with headroom. */
-const LAUNCH_UNITS = 1_000_000;
-const STEP_UNITS = 500_000;
 
 /**
  * A launch, as the ordered transactions the creator signs back to back.
@@ -601,7 +597,7 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
           throw new ActionError(502, `could not route SOL into ${quote.symbol} right now: ${(error as Error).message}`);
         },
       );
-      const instructions = [...budgetInstructions(request.priorityFeeMicroLamports, 600_000), ...swap.instructions];
+      const instructions = [...budgetInstructions(request.priorityFeeMicroLamports), ...swap.instructions];
       steps.push({
         label: `Swap SOL for ${quote.symbol}`,
         instructions,
@@ -685,7 +681,7 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
       initialLockDuration: request.lockDurationSecs,
     });
     const atomic = [
-      ...budgetInstructions(request.priorityFeeMicroLamports, LAUNCH_UNITS),
+      ...budgetInstructions(request.priorityFeeMicroLamports),
       launchIx,
       ...buyInstructions(minOut),
       foundIx,
@@ -694,8 +690,8 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
       steps.push({ label: "Launch on Raydium, buy the first bag and lock it", instructions: atomic, lookupTables: [table], mintSigns: true });
     } else {
       console.warn("launch: launch + dev buy + found does not fit one transaction; set LAUNCH_ALT (scripts/create-alt.ts). Splitting the launch");
-      const create = [...budgetInstructions(request.priorityFeeMicroLamports, STEP_UNITS), launchIx];
-      const rest = [...budgetInstructions(request.priorityFeeMicroLamports, STEP_UNITS), ...buyInstructions(minOut), foundIx];
+      const create = [...budgetInstructions(request.priorityFeeMicroLamports), launchIx];
+      const rest = [...budgetInstructions(request.priorityFeeMicroLamports), ...buyInstructions(minOut), foundIx];
       steps.push({ label: "Launch the coin on Raydium", instructions: create, lookupTables: tablesFor(create, creator, table ? [table] : []), mintSigns: true });
       steps.push({ label: "Buy the first bag and lock it", instructions: rest, lookupTables: tablesFor(rest, creator, table ? [table] : []), mintSigns: false });
     }
@@ -716,7 +712,7 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
     .getTokenAccountBalance(coinAta, "confirmed")
     .then((balance) => BigInt(balance.value.amount))
     .catch(() => 0n);
-  const instructions = [...budgetInstructions(request.priorityFeeMicroLamports, STEP_UNITS)];
+  const instructions = [...budgetInstructions(request.priorityFeeMicroLamports)];
   let lockBasis = held;
   let expected = held;
   if (market.status === "curve") {
@@ -744,7 +740,7 @@ export async function buildLaunch(request: LaunchRequest): Promise<LaunchPlan> {
     }),
   );
   steps.push({
-    label: instructions.length > 3 ? "Buy the first bag and lock it" : "Lock your founding bag",
+    label: expected > held ? "Buy the first bag and lock it" : "Lock your founding bag",
     instructions,
     lookupTables: tablesFor(instructions, creator, table ? [table] : []),
     mintSigns: false,
