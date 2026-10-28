@@ -18,8 +18,9 @@
 #
 # On mainnet a first deploy needs ~4.2 SOL: rent for MAX_LEN bytes of program
 # data (the buffer's rent is drained back to the payer in the deploy itself)
-# plus write fees. An upgrade needs the new binary's buffer rent (~4.4 SOL for
-# 632 KB, returned when it lands). On the fork the wallet is airdropped what it needs.
+# plus write fees. An upgrade needs the new binary's buffer rent (3.21 SOL for
+# 632 KB at today's mainnet rent, returned when it lands) plus write fees; it
+# checks for UPGRADE_NEEDED (3.4) SOL. On the fork the wallet is airdropped what it needs.
 set -euo pipefail
 
 CLUSTER="${1:?usage: deploy.sh localnet|mainnet-beta}"
@@ -54,7 +55,7 @@ solana program show "$PROGRAM_ID" -u "$RPC" >/dev/null 2>&1 && EXISTS=1
 if [ "$EXISTS" = 1 ] && [ "${UPGRADE:-0}" != 1 ]; then
   echo "program already deployed on $CLUSTER; skipping deploy (UPGRADE=1 to replace it)"
 else
-  [ "$EXISTS" = 1 ] && NEEDED=5.3
+  [ "$EXISTS" = 1 ] && NEEDED="${UPGRADE_NEEDED:-3.4}"
   BALANCE=$(solana balance -u "$RPC" -k "$WALLET" | awk '{print $1}')
   echo "deploy wallet $(solana address -k "$WALLET") holds ${BALANCE} SOL on $CLUSTER"
   if ! awk -v b="$BALANCE" -v n="$NEEDED" 'BEGIN{exit !(b>=n)}'; then

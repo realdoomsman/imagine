@@ -92,8 +92,9 @@ added bytes, permanent — add headroom).
 `deploy.sh` refuses a binary larger than `MAX_LEN` (set it to the program data
 length after any extend), writes the binary through the fixed buffer keypair
 `target/deploy/imagine-buffer.json` (an interrupted write resumes on re-run;
-the buffer's rent, about 4.4 SOL, is held until the upgrade lands and then
-returned; the script checks for 5.3 SOL up front), upgrades, verifies the
+the buffer's rent, 3.21 SOL for 632 KB at today's mainnet rent, is held until
+the upgrade lands and then returned; the script checks for `UPGRADE_NEEDED`,
+default 3.4 SOL, up front), upgrades, verifies the
 on-chain bytes against the local binary, and finally runs
 `apps/api/scripts/init-config.ts` with the same wallet.
 
