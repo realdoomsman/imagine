@@ -201,6 +201,30 @@ async function send(keeper: Keypair, tx: Transaction): Promise<string> {
   return signature;
 }
 
+/**
+ * The pool as the confirmed `signature` left it, or null if no node serves that
+ * state within a few seconds. Pinned to the slot the transaction landed in: the
+ * RPC is load-balanced, and a node a slot behind serves the old account, so a
+ * crank that moved fees would read as one that moved nothing and back off.
+ */
+async function fetchPoolAfter(mint: PublicKey, signature: string): Promise<PoolAccount | null> {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (attempt > 0) await sleep(500);
+    try {
+      const { value } = await connection.getSignatureStatus(signature);
+      if (value?.slot === undefined) continue;
+      const info = await connection.getAccountInfo(poolPda(mint, imagine.programId), {
+        commitment: "confirmed",
+        minContextSlot: value.slot,
+      });
+      return info ? decodePool(info.data) : null;
+    } catch {
+      // Typically "minimum context slot has not been reached": try again.
+    }
+  }
+  return null;
+}
+
 interface Backoff {
   nextAt: number;
   strikes: number;
@@ -256,7 +280,7 @@ async function collectPools(keeper: Keypair): Promise<{ synced: number; skipped:
           ? await collectFeesInstructions(keeper.publicKey, pool, market)
           : [await imagine.sync({ mint, quote: { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram } })];
       const signature = await send(keeper, new Transaction().add(...fixedBudget(20_000, 300_000), ...instructions));
-      const after = await imagine.fetchPool(mint);
+      const after = await fetchPoolAfter(mint, signature);
       const gained = after ? after.lifetimeInflow - pool.lifetimeInflow : 0n;
       settle(syncBackoff, key, gained > 0n, Date.now(), usd === null ? UNPRICED_SYNC_SPACING_MS : SYNC_SPACING_MS);
       synced += 1;
