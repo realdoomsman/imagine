@@ -402,6 +402,80 @@ export interface ActivityRow {
   signature: string;
 }
 
+/** One pair asset's share of the proof page totals; amounts in its base units, USD at today's price. */
+export interface ProofQuoteTotals {
+  quote: QuoteInfo;
+  /** Claims plus compounds. */
+  paid: string;
+  claimed: string;
+  compounded: string;
+  /** Every fee that reached the pools (their lifetime inflow). */
+  fees: string;
+  /** What the coins locked now are worth at each pool's last price. */
+  locked: string;
+  /** What the coin burned by early exits is worth at each pool's last price. */
+  burned: string;
+  paidUsd: number | null;
+  feesUsd: number | null;
+  lockedUsd: number | null;
+  burnedUsd: number | null;
+}
+
+export interface ProofSummary {
+  totals: {
+    payouts: number;
+    claims: number;
+    compounds: number;
+    walletsPaid: number;
+    openPositions: number;
+    earlyExits: number;
+    lockedForever: number;
+    paidUsd: number;
+    feesUsd: number;
+    lockedUsd: number;
+    burnedUsd: number;
+  };
+  byQuote: ProofQuoteTotals[];
+  /** The coin asked for, when the summary is for one. */
+  coin: {
+    mint: string;
+    symbol: string | null;
+    name: string | null;
+    imageUrl: string | null;
+    decimals: number;
+    lockedTokens: string;
+    burnedTokens: string;
+  } | null;
+  /** Every listed coin, most payouts first, for the filter. */
+  coins: Array<{ mint: string; symbol: string | null; imageUrl: string | null; payouts: number }>;
+}
+
+export type ProofFeedType = "payouts" | "claims" | "compounds" | "burns";
+
+/** One row of the proof feed: a claim or compound (a payout), or an early exit's burn. */
+export interface ProofPayout {
+  id: string;
+  type: "claim" | "compound" | "burn";
+  signature: string;
+  at: string;
+  owner: string;
+  mint: string;
+  symbol: string | null;
+  imageUrl: string | null;
+  /** The coin's decimals, for `tokens`. */
+  decimals: number;
+  quote: QuoteInfo;
+  /** Pair-asset base units paid (claim) or spent (compound); null for a burn. */
+  amount: string | null;
+  /** Coin base units a compound bought or a burn destroyed; null for a claim. */
+  tokens: string | null;
+}
+
+export interface ProofPage {
+  payouts: ProofPayout[];
+  nextCursor: string | null;
+}
+
 export const api = {
   pools: (params: { sort?: string; limit?: number; search?: string; category?: string } = {}) => {
     const query = new URLSearchParams();
@@ -417,6 +491,15 @@ export const api = {
     get<{ lockers: Locker[]; totalWeight: string }>(`/api/pools/${mint}/lockers`),
   rewards: (mint: string) => get<RewardHistory>(`/api/pools/${mint}/rewards`),
   activity: (mint: string) => get<{ activity: ActivityRow[] }>(`/api/pools/${mint}/activity`),
+  proofSummary: (mint?: string) => get<ProofSummary>(`/api/proof/summary${mint ? `?mint=${mint}` : ""}`),
+  proofPayouts: (params: { mint?: string; type?: ProofFeedType; cursor?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (params.mint) query.set("mint", params.mint);
+    if (params.type) query.set("type", params.type);
+    if (params.cursor) query.set("cursor", params.cursor);
+    if (params.limit) query.set("limit", String(params.limit));
+    return get<ProofPage>(`/api/proof/payouts?${query}`);
+  },
   /** Every pair asset a coin can launch against on Raydium LaunchLab. */
   quotes: () => get<QuoteInfo[]>("/api/quotes"),
   portfolio: (owner: string) =>

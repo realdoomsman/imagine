@@ -279,12 +279,7 @@ async function handleEvent(name: string, data: EventPayload, signature: string, 
       if (!mint) break;
       // The lifetime figure comes from the account, not the event.
       await syncPosition(new PublicKey(mint), data.position);
-      await sql`
-        INSERT INTO claim_events (signature, mint, owner, amount, slot, at)
-        VALUES (${signature}, ${mint}, ${data.owner.toBase58()},
-                ${asBigint(data.amount).toString()}::NUMERIC, ${slot}, ${at})
-        ON CONFLICT DO NOTHING
-      `;
+      await recordHistory(name, data, mint, signature, slot, at);
       break;
     }
 
@@ -296,17 +291,7 @@ async function handleEvent(name: string, data: EventPayload, signature: string, 
       const key = new PublicKey(mint);
       await syncPosition(key, data.position);
       await upsertPoolFromChain(key);
-      await sql`
-        INSERT INTO compound_events (signature, mint, position, owner, quote_in, tokens_out,
-                                     new_amount, new_weight, slot, at)
-        VALUES (${signature}, ${mint}, ${data.position.toBase58()}, ${data.owner.toBase58()},
-                ${asBigint(data.quote_in).toString()}::NUMERIC,
-                ${asBigint(data.tokens_out).toString()}::NUMERIC,
-                ${asBigint(data.new_amount).toString()}::NUMERIC,
-                ${asBigint(data.new_weight).toString()}::NUMERIC,
-                ${slot}, ${at})
-        ON CONFLICT DO NOTHING
-      `;
+      await recordHistory(name, data, mint, signature, slot, at);
       break;
     }
 
@@ -319,44 +304,111 @@ async function handleEvent(name: string, data: EventPayload, signature: string, 
       break;
     }
 
-    case "LockedForever": {
-      // Weight leaves the pool (earnings forfeited), so the pool is re-read too.
-      const mint = await mintOfPool(data.pool);
-      if (!mint) break;
-      const key = new PublicKey(mint);
-      await syncPosition(key, data.position);
-      await upsertPoolFromChain(key);
-      await sql`
-        INSERT INTO lock_events (signature, mint, owner, kind, amount, lock_end, slot, at)
-        VALUES (${signature}, ${mint}, ${data.owner.toBase58()}, 'LockedForever',
-                ${asBigint(data.amount).toString()}::NUMERIC,
-                ${data.lock_end ? asDate(data.lock_end) : null}, ${slot}, ${at})
-        ON CONFLICT DO NOTHING
-      `;
-      break;
-    }
-
+    case "LockedForever":
     case "Unlocked": {
+      // LockedForever: weight leaves the pool (earnings forfeited). Unlocked:
+      // closed only once the account is really gone; if the same index was
+      // opened again in the meantime this re-syncs it instead. Either way the
+      // pool is re-read too.
       const mint = await mintOfPool(data.pool);
       if (!mint) break;
       const key = new PublicKey(mint);
-      // Closed only once the account is really gone; if the same index was
-      // opened again in the meantime this re-syncs it instead.
       await syncPosition(key, data.position);
       await upsertPoolFromChain(key);
-      await sql`
-        INSERT INTO lock_events (signature, mint, owner, kind, amount, slot, at)
-        VALUES (${signature}, ${mint}, ${data.owner.toBase58()},
-                ${data.early ? "EarlyUnlocked" : "Unlocked"},
-                ${asBigint(data.returned).toString()}::NUMERIC, ${slot}, ${at})
-        ON CONFLICT DO NOTHING
-      `;
+      await recordHistory(name, data, mint, signature, slot, at);
       break;
     }
 
     default:
       break;
   }
+}
+
+/** The events `recordHistory` writes rows for: what the proof page lists and counts. */
+const HISTORY_EVENTS: Record<string, true> = { Claimed: true, Compounded: true, LockedForever: true, Unlocked: true };
+
+/**
+ * The append-only row for a payout, compound, lock-forever or unlock. Insert
+ * only — no chain reads — so a history replay can call it for events long
+ * past without touching current state. Idempotent: replaying an event that
+ * is already there changes nothing, except that an unlock row written before
+ * `burned` was recorded gets it.
+ */
+async function recordHistory(name: string, data: EventPayload, mint: string, signature: string, slot: number, at: Date) {
+  const owner = data.owner.toBase58();
+  if (name === "Claimed") {
+    await sql`
+      INSERT INTO claim_events (signature, mint, owner, amount, slot, at)
+      VALUES (${signature}, ${mint}, ${owner}, ${asBigint(data.amount).toString()}::NUMERIC, ${slot}, ${at})
+      ON CONFLICT DO NOTHING
+    `;
+  } else if (name === "Compounded") {
+    await sql`
+      INSERT INTO compound_events (signature, mint, position, owner, quote_in, tokens_out,
+                                   new_amount, new_weight, slot, at)
+      VALUES (${signature}, ${mint}, ${data.position.toBase58()}, ${owner},
+              ${asBigint(data.quote_in).toString()}::NUMERIC,
+              ${asBigint(data.tokens_out).toString()}::NUMERIC,
+              ${asBigint(data.new_amount).toString()}::NUMERIC,
+              ${asBigint(data.new_weight).toString()}::NUMERIC,
+              ${slot}, ${at})
+      ON CONFLICT DO NOTHING
+    `;
+  } else if (name === "LockedForever") {
+    await sql`
+      INSERT INTO lock_events (signature, mint, owner, kind, amount, lock_end, slot, at)
+      VALUES (${signature}, ${mint}, ${owner}, 'LockedForever', ${asBigint(data.amount).toString()}::NUMERIC,
+              ${data.lock_end ? asDate(data.lock_end) : null}, ${slot}, ${at})
+      ON CONFLICT DO NOTHING
+    `;
+  } else if (name === "Unlocked") {
+    await sql`
+      INSERT INTO lock_events (signature, mint, owner, kind, amount, burned, slot, at)
+      VALUES (${signature}, ${mint}, ${owner}, ${data.early ? "EarlyUnlocked" : "Unlocked"},
+              ${asBigint(data.returned).toString()}::NUMERIC, ${asBigint(data.burned).toString()}::NUMERIC, ${slot}, ${at})
+      ON CONFLICT (signature, mint, owner, kind, amount) DO UPDATE SET burned = EXCLUDED.burned
+    `;
+  }
+}
+
+/**
+ * Payout history from the program's first transaction: every `Claimed`,
+ * `Compounded`, `LockedForever` and `Unlocked` the read model may have
+ * missed because it started after them (a fresh read model mirrors current
+ * state and begins its history at that moment). Insert-only through
+ * `recordHistory`, so it never disturbs live state, and recorded in
+ * `backfills` once it has walked the whole history. A failure is retried on
+ * the next start.
+ */
+const PAYOUT_HISTORY = "payout-history-v1";
+
+async function backfillPayoutHistory() {
+  const [done] = await sql`SELECT 1 FROM backfills WHERE name = ${PAYOUT_HISTORY}`;
+  if (done) return;
+  let before: string | undefined;
+  let transactions = 0;
+  let events = 0;
+  for (;;) {
+    const batch = await connection.getSignaturesForAddress(IMAGINE_PROGRAM_ID, { before, limit: 1000 }, "confirmed");
+    for (const entry of batch) {
+      if (entry.err !== null) continue;
+      const tx = await connection.getTransaction(entry.signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 });
+      const logs = tx?.meta?.logMessages;
+      if (!tx || !logs) throw new Error(`transaction ${entry.signature} is not readable`);
+      transactions += 1;
+      for (const { name, data } of parseImagineEvents(logs)) {
+        if (!HISTORY_EVENTS[name]) continue;
+        const mint = await mintOfPool(data.pool);
+        if (!mint) continue;
+        await recordHistory(name, data, mint, entry.signature, entry.slot, txTime(tx.blockTime));
+        events += 1;
+      }
+    }
+    if (batch.length < 1000) break;
+    before = batch[batch.length - 1].signature;
+  }
+  await sql`INSERT INTO backfills (name) VALUES (${PAYOUT_HISTORY}) ON CONFLICT DO NOTHING`;
+  log.info("payout history replayed", { transactions, events });
 }
 
 /**
@@ -1014,6 +1066,8 @@ async function main() {
   if (counters && caughtUpAt && caughtUpAt >= discoveredAt) {
     await fillHistoryGaps(counters).catch((error: unknown) => log.error("history gap fill failed", { err: error }));
   }
+  // In the background: the live feed must not wait on a walk through history.
+  void backfillPayoutHistory().catch((error: unknown) => log.error("payout history replay failed", { err: error }));
   await publishStatus().catch((error: unknown) => log.error("status write failed", { err: error }));
   if (stopping) return;
 

@@ -3,6 +3,7 @@ export const NAV = [
   { href: "/coins", label: "Coins" },
   { href: "/launch", label: "Launch" },
   { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/proof", label: "Proof" },
   { href: "/how-it-works", label: "How it works" },
   { href: "/docs", label: "Docs" },
 ] as const;

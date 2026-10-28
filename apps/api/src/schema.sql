@@ -127,6 +127,9 @@ CREATE TABLE IF NOT EXISTS lock_events (
 
 CREATE INDEX IF NOT EXISTS lock_events_mint_at_idx ON lock_events (mint, at DESC);
 
+-- Coin base units an early unlock burned (`Unlocked.burned`); 0 on every other row.
+ALTER TABLE lock_events ADD COLUMN IF NOT EXISTS burned NUMERIC(40, 0) NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS claim_events (
   id        BIGSERIAL PRIMARY KEY,
   signature TEXT NOT NULL,
@@ -140,6 +143,8 @@ CREATE TABLE IF NOT EXISTS claim_events (
 
 CREATE INDEX IF NOT EXISTS claim_events_owner_idx ON claim_events (owner, at DESC);
 CREATE INDEX IF NOT EXISTS claim_events_mint_idx ON claim_events (mint, at DESC);
+-- The proof page's payout feed, newest first across every coin.
+CREATE INDEX IF NOT EXISTS claim_events_at_idx ON claim_events (at DESC, id DESC);
 
 -- Rewards a lock spent buying more of its own coin (`Compounded`): quote_in
 -- in quote base units, tokens_out in coin base units, added to the lock.
@@ -161,6 +166,7 @@ CREATE TABLE IF NOT EXISTS compound_events (
 
 CREATE INDEX IF NOT EXISTS compound_events_position_idx ON compound_events (position);
 CREATE INDEX IF NOT EXISTS compound_events_mint_at_idx ON compound_events (mint, at DESC);
+CREATE INDEX IF NOT EXISTS compound_events_at_idx ON compound_events (at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS indexer_cursor (
   id        SMALLINT PRIMARY KEY DEFAULT 1,
@@ -171,6 +177,13 @@ CREATE TABLE IF NOT EXISTS indexer_cursor (
 );
 
 INSERT INTO indexer_cursor (id, slot) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;
+
+-- One-shot history replays that have finished, by name, so a restart never
+-- runs one twice. A replay is idempotent either way; this only saves RPC.
+CREATE TABLE IF NOT EXISTS backfills (
+  name    TEXT PRIMARY KEY,
+  done_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- What the indexer/keeper process last reported, for the API's /health:
 -- indexer catch-up time and cursor, keeper wallet balance and last run.

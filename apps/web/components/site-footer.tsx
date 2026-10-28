@@ -41,7 +41,7 @@ export function SiteFooter() {
           ) : null}
         </div>
 
-        <FooterColumn title="Product" links={NAV.slice(0, 3)} />
+        <FooterColumn title="Product" links={NAV.slice(0, 4)} />
         <FooterColumn
           title="Learn"
           links={[

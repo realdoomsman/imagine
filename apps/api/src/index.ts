@@ -10,6 +10,7 @@ import { accountRoutes } from "./routes/account.ts";
 import { fileRoutes, metadataRoutes } from "./routes/metadata.ts";
 import { poolRoutes } from "./routes/pools.ts";
 import { portfolioRoutes } from "./routes/portfolio.ts";
+import { proofRoutes } from "./routes/proof.ts";
 import { clientIp, registerRpcProxy } from "./rpc-proxy.ts";
 import { txRoutes } from "./routes/tx.ts";
 import { platformConfig } from "./raydium.ts";
@@ -150,6 +151,7 @@ await app.register(poolRoutes, { prefix: "/api" });
 await app.register(metadataRoutes, { prefix: "/api" });
 await app.register(fileRoutes);
 await app.register(portfolioRoutes, { prefix: "/api" });
+await app.register(proofRoutes, { prefix: "/api" });
 await app.register(txRoutes, { prefix: "/api" });
 await app.register(accountRoutes, { prefix: "/api" });
 // The site's RPC (NEXT_PUBLIC_RPC_URL / NEXT_PUBLIC_WS_URL): the keyed

@@ -336,6 +336,14 @@ to the trade. The keeper cranks `collect_creator_fee` (or a plain `sync`) per
 pool once the uncollected and unsynced value passes `SYNC_MIN_USD`. The chain
 stays authoritative for every number a user acts on; Postgres is a read model.
 
+The proof page (`/proof`) reads `GET /api/proof/summary?mint=` and
+`GET /api/proof/payouts?mint=&type=payouts|claims|compounds|burns&cursor=`:
+payouts are the `Claimed` and `Compounded` events, burns the `burned` of early
+`Unlocked` events, each row with its signature; fees, locked and burned totals
+are the pools' lifetime counters. The indexer replays the program's whole
+signature history once (`backfills` row `payout-history-v1`) so payouts from
+before the read model started are listed too.
+
 Before a browser wallet is asked to sign, the web app checks the API's bytes
 (`apps/web/lib/send.ts`, `assertTransactionAllowed`), so a compromised API
 cannot redirect funds: only allowlisted programs and IMAGINE's user-facing
