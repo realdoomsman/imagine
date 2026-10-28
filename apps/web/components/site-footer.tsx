@@ -13,7 +13,7 @@ export function SiteFooter() {
 
   return (
     <footer className="relative border-t border-line bg-ink-1 pb-16 lg:pb-0">
-      <div className="container-x grid gap-12 py-14 md:grid-cols-[2fr_1fr_1fr_1fr]">
+      <div className="container-x grid grid-cols-1 gap-12 py-14 md:grid-cols-[2fr_1fr_1fr_1fr]">
         <div>
           <ImagineLogo size={28} />
           <p className="mt-4 max-w-[36ch] text-[14px] leading-relaxed text-fg-soft">
