@@ -10,14 +10,13 @@ import { GoogleSignIn } from "./google-signin";
 export function SignInPrompt({ what }: { what: string }) {
   const { setVisible } = useWalletModal();
   return (
-    <div className="rounded-machined border border-steel-780 bg-steel-950/60 p-4">
-      <p className="text-[13px] text-steel-400">
-        Sign in to {what}. A Google account gets a VISE wallet; an extension
-        wallet works as it is.
+    <div className="well @container p-4">
+      <p className="text-[13px] leading-relaxed text-fg-soft">
+        Sign in to {what}. A Google account gets an Imagine wallet; an extension wallet works as it is.
       </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid gap-2 @sm:grid-cols-2">
         <GoogleSignIn />
-        <button type="button" onClick={() => setVisible(true)} className="btn btn-ghost h-[46px] w-full">
+        <button type="button" onClick={() => setVisible(true)} className="btn btn-ghost w-full">
           Connect a wallet
         </button>
       </div>

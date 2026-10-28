@@ -1,181 +1,172 @@
-import Link from "next/link";
+import { DocLinks, DocPage, DocSection } from "@/components/doc-page";
 
 export const metadata = {
   title: "How it works",
   description:
-    "The mechanics of VISE: where fees come from, how weight is computed, and what the program will not let anyone do.",
+    "The mechanics of IMAGINE: StonkFun coins with a lock vault, where the fees come from, how weight is computed, and what the program will not let anyone do.",
 };
 
 export default function HowItWorksPage() {
   return (
-    <div className="mx-auto max-w-[820px] px-5 py-12">
-      <p className="rule-label">Mechanics</p>
-      <h1 className="mt-3 text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.02]">
-        How VISE works
-      </h1>
-      <p className="mt-5 text-[17px] leading-relaxed text-steel-300">
-        A memecoin has exactly one recurring revenue stream: the fees people pay
-        to trade it. Normally that money goes to a launchpad and a dev wallet.
-        VISE points it at the people who are still holding — and pays them more
-        the longer they commit.
-      </p>
+    <DocPage
+      eyebrow="Mechanics"
+      title="How IMAGINE works"
+      lede="A memecoin has one recurring revenue stream: the fees people pay to trade it. IMAGINE points that stream at the holders who lock, pays them more the longer they commit, and pays them in the asset the coin is paired with."
+    >
+      <DocSection title="A StonkFun coin with a vault">
+        <p>
+          Every IMAGINE coin launches on <a href="https://www.stonkfun.xyz" target="_blank" rel="noreferrer">StonkFun</a>{" "}
+          through Raydium LaunchLab, paired with an asset: a tokenized stock like NVDAx or SPYx, a
+          currency like USDC, or SOL. It is an ordinary StonkFun coin and trades like one.
+        </p>
+        <p>
+          What IMAGINE adds is a pool per coin: a vault that collects the coin&apos;s fees and a
+          set of locks that share them. The vault is the coin&apos;s creator address on StonkFun,
+          and the creator has to open the first lock before anyone else can join.
+        </p>
+      </DocSection>
 
-      <Section title="Where the money comes from">
-        <p>Two streams, both denominated in SOL, both flowing into one vault per coin.</p>
+      <DocSection title="Where the money comes from">
+        <p>Everything that reaches a vault is in the coin&apos;s pair asset.</p>
         <ol>
           <li>
-            <strong>The app fee.</strong> Trades routed through the VISE
-            front-end pay 2% of the SOL leg. That instruction sits in the same
-            transaction as the swap, so it cannot be charged for a trade that did
-            not happen, and it cannot be skipped by our own UI.
+            <strong>The app fee.</strong> imagine.fun adds a 1% fee to trades it routes, taken
+            from the pair-asset side and paid into that coin&apos;s pool in the same transaction as
+            the trade.
           </li>
           <li>
-            <strong>pump.fun creator fees.</strong> Every pump coin pays its
-            creator a share of trading volume. At launch, VISE hands that stream
-            to the coin&apos;s lock pool using pump&apos;s own fee-sharing
-            program — and the instruction that does it revokes its own admin, so
-            the routing is permanent.
+            <strong>StonkFun&apos;s creator share.</strong> StonkFun charges 1% on curve trades and
+            forwards a creator share to each coin&apos;s creator address. For an IMAGINE coin that
+            address is the vault, so the share lands where the lockers are. How much is forwarded
+            is StonkFun&apos;s policy, not ours.
+          </li>
+          <li>
+            <strong>Donations.</strong> Anyone can deposit into a vault.
           </li>
         </ol>
         <p>
-          Anyone can also donate to a vault. The pool detects new lamports by
-          balance difference, so it does not care who sent them or why.
+          The Raydium LaunchLab protocol fee also applies to trades, as on every LaunchLab coin.
+          It is not part of what reaches the vault.
         </p>
-      </Section>
+      </DocSection>
 
-      <Section title="How your share is computed">
+      <DocSection title="How your share is computed">
         <p>
-          Your weight is your locked amount multiplied by two factors: a term
-          multiplier and a size tier. Both are frozen on the pool at creation.
+          Your weight is your locked amount multiplied by a term multiplier and a size bonus.
+          Both are frozen on the pool when it is created.
         </p>
         <pre className="num">
-{`weight      = amount × duration × (1 + size bonus)
-duration    = 1.0 + 3.0 × √((t − 4h) / (365d − 4h))  4h → 1.00×
-                                                     1d → 1.14×
-                                                     7d → 1.41×
-                                                    30d → 1.86×
-                                                    90d → 2.49×
-                                                   180d → 3.11×
-                                                   365d → 4.00×
-size bonus  = +10% at ≥ 0.1% of supply
-              +25% at ≥ 0.5%
-              +50% at ≥ 1.0%
-your share  = weight / total weight in the pool`}
+{`weight     = amount × term multiplier × (1 + size bonus)
+term mult. = 1 + 3 × √((t − 4h) / (365d − 4h))
+your share = weight / total weight in the pool`}
         </pre>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Table
+            title="Term multiplier"
+            rows={[
+              ["4 hours", "1.00×"],
+              ["1 day", "1.14×"],
+              ["7 days", "1.41×"],
+              ["30 days", "1.86×"],
+              ["90 days", "2.49×"],
+              ["180 days", "3.11×"],
+              ["365 days", "4.00×"],
+            ]}
+          />
+          <Table
+            title="Size bonus"
+            rows={[
+              ["≥ 0.1% of supply", "+10%"],
+              ["≥ 0.5% of supply", "+25%"],
+              ["≥ 1.0% of supply", "+50%"],
+            ]}
+          />
+        </div>
         <p>
-          The curve is a square root, not a line, on purpose. A straight line
-          pays a thirty-day lock 1.25×; this pays it 1.86×. Short commitments
-          are worth making, and a year still takes the top. The size tiers pay a
-          serious position like one: a lock of one percent of supply for a year
-          earns 6.0× per token. Tiers are measured against total supply, never
-          against the pool, so nothing anyone else does can move yours.
+          The curve is a square root, so short commitments are worth making and a year still takes
+          the top. Size tiers are measured against total supply, never against the pool, so
+          nothing anyone else does can move yours.
         </p>
         <p>
-          Rewards accrue continuously against a per-pool accumulator, the same
-          pattern used by every serious staking contract since MasterChef. There
-          is no epoch, no snapshot, and no claim window: a lamport that arrives
-          in the vault is claimable by whoever had weight at that moment.
+          Of everything that arrives, 10% goes to the treasury and 90% streams to lockers by
+          weight. Arrivals are released over a short window rather than all at once, so a lock
+          opened a moment before a big trade earns a moment&apos;s worth of it, not a slice of the
+          whole. A new lock earns from fees that arrive after it and never dilutes what earlier
+          lockers already earned.
         </p>
-        <p>
-          Locking later does not dilute what earlier lockers already earned. A
-          new position starts with its credit line set to the current
-          accumulator, so it earns from fees that arrive after it, and nothing
-          before.
-        </p>
-        <p>
-          On coins launched from now on, each lock can earn at most the SOL
-          value of its tokens when locked, times its multiplier. Topping up or
-          extending raises that limit at the price of the day. A lock that
-          reaches it stops earning, so the locks still earning split what comes
-          in, and fees beyond what open locks can still earn go to the treasury
-          as they arrive rather than piling up in the pool.
-        </p>
-      </Section>
+      </DocSection>
 
-      <Section title="Leaving early">
+      <DocSection title="Every lock has a ceiling">
         <p>
-          You can always break a lock. It costs two things, and both go to the
-          people who stayed:
+          A lock can earn at most what its tokens were worth when it was opened, measured in the
+          pair asset, times its multiplier. The program reads the price itself when you lock: from
+          the coin&apos;s LaunchLab bonding curve, or from its Raydium pool once it has migrated.
         </p>
+        <p>
+          A lock that reaches its ceiling stops earning, and the locks still earning split what
+          comes in. Its tokens still unlock on their date.
+        </p>
+      </DocSection>
+
+      <DocSection title="Leaving early">
+        <p>You can always break a lock. It costs two things, and both favour the people who stayed:</p>
         <ul>
+          <li>Unclaimed rewards are forfeited and redistributed across the remaining weight.</li>
           <li>
-            Unclaimed rewards are forfeited and immediately redistributed across
-            the remaining weight.
-          </li>
-          <li>
-            A slice of principal is burned, scaled linearly by how much of your
-            term is left. Breaking a 100-day lock on day 50 burns half of the
-            headline penalty; breaking it on day 99 burns almost nothing.
+            A slice of principal is burned, scaled by how much of your term is left. Breaking a lock
+            near its end costs almost nothing.
           </li>
         </ul>
-        <p>
-          Claiming is never penalised. You can harvest every day of a one-year
-          lock and it does not touch your position.
-        </p>
-      </Section>
+        <p>Claiming is never penalised and never touches your lock.</p>
+      </DocSection>
 
-      <Section title="What the program will not do">
+      <DocSection title="What the program will not do">
         <ul>
+          <li>There is no admin withdraw path. Rewards go to whoever earned them; locked coins go back to their owner.</li>
           <li>
-            There is no instruction that moves a pool&apos;s SOL or tokens to an
-            admin. Not disabled, not timelocked — absent.
+            A pool&apos;s terms are frozen when it is created. Changing the defaults later affects
+            only coins launched later.
           </li>
-          <li>
-            A pool&apos;s terms — multiplier curve, fee split, penalty, lock
-            bounds, treasury address — are copied onto it at creation and are
-            immutable. Changing platform defaults later affects only coins
-            launched later.
-          </li>
-          <li>
-            The pause switch blocks new pools. It cannot block claiming or
-            unlocking.
-          </li>
-          <li>
-            Mints that can freeze accounts, tax transfers, run transfer hooks, or
-            name a permanent delegate are rejected outright. Each of those lets a
-            third party strand locked principal.
-          </li>
-          <li>
-            Rounding always favours the pool. A randomised test drives thousands
-            of locks, deposits, claims and exits and asserts after every single
-            step that the vault can still pay everyone it owes.
-          </li>
+          <li>Claiming and unlocking can&apos;t be paused.</li>
+          <li>The creator locks first, in public, before anyone else can.</li>
         </ul>
-      </Section>
+      </DocSection>
 
-      <Section title="What can still go wrong">
+      <DocSection title="What can still go wrong">
         <p>
-          The coin can go to zero. That is the whole risk, and locking makes it
-          worse, because you cannot sell into the decline without burning part of
-          your bag. VISE changes who receives trading fees; it does not make a
-          bad coin good.
+          The coin can go to zero, and locking makes that worse, because you can&apos;t sell into
+          the decline without burning part of your bag. IMAGINE changes who receives trading fees;
+          it does not make a bad coin good.
         </p>
         <p>
-          A coin with no volume pays nothing. Yield here is a function of other
-          people trading — there is no emission, no inflation, and no treasury
-          subsidising returns.
+          A coin nobody trades pays nothing. There is no emission and no subsidy: the stream is
+          other people trading.
         </p>
-      </Section>
+      </DocSection>
 
-      <div className="hairline mt-12 flex flex-wrap gap-3 pt-8">
-        <Link href="/launch" className="btn btn-primary">
-          Launch a coin
-        </Link>
-        <Link href="/coins" className="btn btn-ghost">
-          Browse coins
-        </Link>
-      </div>
-    </div>
+      <DocLinks
+        links={[
+          { href: "/launch", label: "Launch a coin" },
+          { href: "/docs/fees", label: "Every fee" },
+          { href: "/docs/security", label: "Security model" },
+        ]}
+      />
+    </DocPage>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Table({ title, rows }: { title: string; rows: Array<[string, string]> }) {
   return (
-    <section className="mt-12">
-      <h2 className="text-[24px]">{title}</h2>
-      <div className="prose-vise mt-4 space-y-4 text-[15px] leading-relaxed text-steel-400 [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_pre]:overflow-x-auto [&_pre]:border [&_pre]:border-steel-700 [&_pre]:bg-steel-950 [&_pre]:p-4 [&_pre]:text-[13px] [&_pre]:text-steel-300 [&_strong]:text-steel-100 [&_ul]:space-y-2 [&_ol]:space-y-2">
-        {children}
-      </div>
-    </section>
+    <div className="well self-start px-4 py-3">
+      <p className="eyebrow">{title}</p>
+      <dl className="mt-2 divide-y divide-line">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-baseline justify-between gap-4 py-1.5 text-[14px]">
+            <dt className="text-fg-soft">{label}</dt>
+            <dd className="num font-semibold text-fg">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }

@@ -1,42 +1,32 @@
 import { AbsoluteFill } from "remotion";
-import { Knurl } from "./chrome";
+import { Backdrop, Chart, Dream, Mark } from "./kit";
 import { COLORS, FONTS } from "./theme";
-import { Vise } from "./Vise";
 
-/**
- * The X profile assets: a 400×400 avatar and a 1500×500 banner.
- *
- * The avatar is the wordmark's jaw glyph alone — two bars, a gap, torch
- * orange — because at 48px a full vise is mud. The banner gets the mechanism
- * and the line.
- */
+/** X avatar, 400×400: the mark alone on ink, so it reads at 48 px. */
 export function Avatar() {
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.ground, justifyContent: "center", alignItems: "center" }}>
-      <Knurl />
-      <div style={{ display: "flex", gap: 22 }}>
-        <div style={{ width: 88, height: 200, background: COLORS.torch }} />
-        <div style={{ width: 88, height: 200, background: COLORS.torch }} />
-      </div>
+    <AbsoluteFill style={{ backgroundColor: COLORS.ink, justifyContent: "center", alignItems: "center" }}>
+      <Mark size={300} id="avatar" />
     </AbsoluteFill>
   );
 }
 
+/** X banner, 1500×500. The left third stays quiet: the avatar overlaps it. */
 export function Banner() {
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.ground, fontFamily: FONTS.sans }}>
-      <Knurl />
-      <div style={{ position: "absolute", left: 90, top: 0, bottom: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-        <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 92, lineHeight: 0.98, letterSpacing: "-0.04em", color: COLORS.heading }}>
-          <div>Hold under</div>
-          <div style={{ color: COLORS.torch }}>pressure.</div>
-        </div>
-        <div style={{ marginTop: 26, fontFamily: FONTS.mono, fontSize: 21, letterSpacing: "0.2em", textTransform: "uppercase", color: COLORS.muted }}>
-          Lock-to-earn on pump.fun · vise.fun
-        </div>
+    <AbsoluteFill style={{ backgroundColor: COLORS.ink, fontFamily: FONTS.sans, color: COLORS.fg }}>
+      <Backdrop glow={0.9} glowX={80} glowY={50} />
+      <div style={{ position: "absolute", right: 40, top: 80, opacity: 0.9 }}>
+        <Chart width={420} height={340} calm={1} line={1} count={26} />
       </div>
-      <div style={{ position: "absolute", right: 60, top: 40 }}>
-        <Vise grip={1} width={720} />
+      <div style={{ position: "absolute", left: 470, top: 0, bottom: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div style={{ fontWeight: 800, fontSize: 70, lineHeight: 1.04, letterSpacing: "-0.035em" }}>
+          <div>Lock the meme.</div>
+          <Dream>Earn the stock.</Dream>
+        </div>
+        <div style={{ marginTop: 24, fontFamily: FONTS.mono, fontSize: 20, letterSpacing: "0.16em", textTransform: "uppercase", color: COLORS.fgSoft }}>
+          Lock-to-earn on StonkFun · imagine.fun
+        </div>
       </div>
     </AbsoluteFill>
   );

@@ -10,24 +10,24 @@ import { useAccount } from "@/components/account-provider";
 /**
  * Who is acting, and how their transactions get signed.
  *
- * Two identities can be present: a VISE account (Google) whose wallet the
- * API holds and signs with, and an external wallet extension that signs in
- * the browser. The account wins when both are present — it is the address
- * the account page tells people to deposit into, so it must be the one that
- * acts. Components call `act` and never know which path ran.
+ * Two identities can be present: an Imagine wallet (Google sign-in) whose key
+ * the API holds and signs with, and an external wallet extension that signs
+ * in the browser. The Imagine wallet wins when both are present — it is the
+ * address the account page tells people to deposit into, so it must be the
+ * one that acts. Components call `act` and never know which path ran.
  */
 export interface Actor {
   /** Both identity sources have reported in. */
   ready: boolean;
   publicKey: PublicKey | null;
-  /** "account" for a VISE account, "wallet" for an extension, null for nobody. */
+  /** "account" for an Imagine wallet, "wallet" for an extension, null for nobody. */
   via: "account" | "wallet" | null;
   /** Run a protocol action; resolves to the transaction signature. */
   act: (action: Record<string, unknown>) => Promise<string>;
 }
 
 /** Fired on `window` after any action lands, so panels re-read the chain. */
-export const CHAIN_CHANGED = "vise:chain-changed";
+export const CHAIN_CHANGED = "imagine:chain-changed";
 
 export function useActor(): Actor {
   const { ready, account } = useAccount();

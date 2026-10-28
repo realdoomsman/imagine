@@ -1,7 +1,10 @@
+import type { PublicKey } from "@solana/web3.js";
 import { BPS, SCALE } from "./constants.ts";
+import { isNativeQuote } from "./quotes.ts";
 
 /**
- * Exact mirror of `programs/vise/src/math.rs`. Every function here must agree
+ * Exact mirror of `programs/imagine/src/math.rs` and the reward accounting in
+ * `state.rs`. Every function here must agree
  * with the program bit-for-bit: the UI quotes numbers from these, and a
  * divergence would show users a reward they cannot actually claim.
  */
@@ -99,11 +102,11 @@ export function weightOf(amount: bigint, multiplier: number): bigint {
 }
 
 /**
- * Lamports a position has accrued on the accumulator.
+ * Quote base units a position has accrued on the accumulator.
  *
- * `rewardDebt` is in scaled units and keeps the unpaid sub-lamport residue,
- * which is what stops the pool from ever owing more than it holds. On a
- * capped pool a claim pays at most `claimableFor`; use that for display.
+ * `rewardDebt` is in scaled units and keeps the unpaid sub-unit residue,
+ * which is what stops the pool from ever owing more than it holds. A claim
+ * pays at most `claimableFor`; use that for display.
  */
 export function accrued(
   weight: bigint,
@@ -115,30 +118,28 @@ export function accrued(
 }
 
 /**
- * What a claim would pay a position right now: its accrual, limited on a
- * capped pool to what is left of its cap (`Pool::apply_cap`).
+ * What a claim would pay a position right now: its accrual, limited to what
+ * is left of its cap (`Pool::apply_cap`).
  */
 export function claimableFor(
   position: { weight: bigint; rewardDebt: bigint; rewardCap: bigint; claimed: bigint },
-  pool: { capped: boolean; accRewardPerWeight: bigint },
+  pool: { accRewardPerWeight: bigint },
 ): bigint {
   const pending = accrued(position.weight, pool.accRewardPerWeight, position.rewardDebt);
-  if (!pool.capped) return pending;
   const room = position.rewardCap > position.claimed ? position.rewardCap - position.claimed : 0n;
   return pending < room ? pending : room;
 }
 
-/** A lock's earnings cap: SOL value when locked × multiplier (`reward_cap_for`). */
-export function rewardCapFor(valueLamports: bigint, multiplierBps: number): bigint {
-  return (valueLamports * BigInt(multiplierBps)) / BPS;
+/** A lock's earnings cap: quote value when locked × multiplier (`reward_cap_for`). */
+export function rewardCapFor(value: bigint, multiplierBps: number): bigint {
+  return (value * BigInt(multiplierBps)) / BPS;
 }
-
 /** Scaled credit line used when a position opens or changes weight. */
 export function rewardDebtFor(weight: bigint, accRewardPerWeight: bigint): bigint {
   return weight * accRewardPerWeight;
 }
 
-/** Advance a scaled debt by lamports paid, preserving the residue. */
+/** Advance a scaled debt by quote paid, preserving the residue. */
 export function settleDebt(rewardDebt: bigint, paid: bigint): bigint {
   return rewardDebt + paid * SCALE;
 }
@@ -150,33 +151,50 @@ export function settleDebt(rewardDebt: bigint, paid: bigint): bigint {
  * creator's cut comes out of what is left, and lockers receive the remainder.
  */
 export function splitInflow(
-  lamports: bigint,
+  amount: bigint,
   terms: Pick<PoolTerms, "treasuryShareBps" | "creatorShareBps">,
 ): { toTreasury: bigint; toCreator: bigint; toLockers: bigint } {
-  const toTreasury = (lamports * BigInt(terms.treasuryShareBps)) / BPS;
-  const afterTreasury = lamports - toTreasury;
+  const toTreasury = (amount * BigInt(terms.treasuryShareBps)) / BPS;
+  const afterTreasury = amount - toTreasury;
   const toCreator = (afterTreasury * BigInt(terms.creatorShareBps)) / BPS;
   return { toTreasury, toCreator, toLockers: afterTreasury - toCreator };
 }
 
 /**
- * Spread lamports across weight the way the program does.
+ * Spread quote across weight the way the program does.
  *
- * Returns the scaled accumulator increment, the lamports the pool commits to
+ * Returns the scaled accumulator increment, the quote the pool commits to
  * lockers (rounded up from the credit actually handed out, so the sum of every
  * floored claim can never exceed it) and the remainder carried forward.
  */
 export function distribute(
-  lamports: bigint,
+  amount: bigint,
   totalWeight: bigint,
 ): { increment: bigint; committed: bigint; remainder: bigint } {
-  if (totalWeight === 0n || lamports === 0n) {
-    return { increment: 0n, committed: 0n, remainder: lamports };
+  if (totalWeight === 0n || amount === 0n) {
+    return { increment: 0n, committed: 0n, remainder: amount };
   }
-  const increment = (lamports * SCALE) / totalWeight;
+  const increment = (amount * SCALE) / totalWeight;
   const scaledCredit = increment * totalWeight;
   const committed = (scaledCredit + SCALE - 1n) / SCALE;
-  return { increment, committed, remainder: lamports - committed };
+  return { increment, committed, remainder: amount - committed };
+}
+
+/**
+ * A pool's distributable reward balance, as `Rewards::balance` reads it:
+ * reward-vault lamports above the rent reserve for a WSOL-quoted pool, the
+ * reward token account's amount otherwise. Pass whichever balance the pool's
+ * quote uses; the other is ignored.
+ */
+export function distributableBalance(
+  pool: { quoteMint: PublicKey; vaultReserve: bigint },
+  balances: { vaultLamports?: bigint; rewardTokenAmount?: bigint },
+): bigint {
+  if (isNativeQuote(pool.quoteMint)) {
+    const lamports = balances.vaultLamports ?? 0n;
+    return lamports > pool.vaultReserve ? lamports - pool.vaultReserve : 0n;
+  }
+  return balances.rewardTokenAmount ?? 0n;
 }
 
 /** The subset of a pool the stream projection reads and rewrites. */
@@ -186,6 +204,7 @@ export interface StreamState {
   rewardRemainder: bigint;
   lastVaultBalance: bigint;
   vaultReserve: bigint;
+  founded: boolean;
   undistributed: bigint;
   streamRate: bigint;
   streamEnd: number;
@@ -196,7 +215,6 @@ export interface StreamState {
   lifetimeRewards: bigint;
   lifetimeCreator: bigint;
   lifetimeTreasury: bigint;
-  capped: boolean;
   rewardCapacity: bigint;
   terms: Pick<PoolTerms, "treasuryShareBps" | "creatorShareBps"> & {
     rewardStreamSecs: number;
@@ -211,44 +229,44 @@ export interface StreamState {
  * vault, so a balance read straight from the account under-reports what a
  * claim would pay. This replays the program's exact arithmetic — release the
  * elapsed share of the stream, then fold in any unsynced inflow and restart
- * the window — against the live vault balance, without sending anything.
+ * the window — against the live distributable balance
+ * (`distributableBalance`), without sending anything. A no-op before the pool
+ * is founded, like the program.
  *
  * Pure: returns a new state and leaves the input untouched.
  */
 export function projectSync<T extends StreamState>(
   pool: T,
-  vaultLamports: bigint,
+  balance: bigint,
   now: number,
 ): T & { released: bigint; inflow: bigint } {
   const next = { ...pool, released: 0n, inflow: 0n };
+  if (!pool.founded) return next;
 
-  const payTreasury = (lamports: bigint) => {
-    next.treasuryClaimable += lamports;
-    next.lifetimeTreasury += lamports;
+  const payTreasury = (amount: bigint) => {
+    next.treasuryClaimable += amount;
+    next.lifetimeTreasury += amount;
   };
   const sub = (a: bigint, b: bigint) => (a > b ? a - b : 0n);
 
-  // credit_lockers: with nothing locked the share goes to the treasury; on a
-  // capped pool only what open locks may still earn is credited.
-  const credit = (lamports: bigint) => {
-    if (lamports === 0n) return;
+  // credit_lockers: with nothing locked the share goes to the treasury, and
+  // only what open locks may still earn is credited.
+  const credit = (amount: bigint) => {
+    if (amount === 0n) return;
     if (next.totalWeight === 0n) {
-      payTreasury(lamports);
+      payTreasury(amount);
       return;
     }
-    if (next.capped) {
-      const room = sub(next.rewardCapacity, next.rewardRemainder);
-      const take = lamports < room ? lamports : room;
-      payTreasury(lamports - take);
-      lamports = take;
-      if (lamports === 0n) return;
-    }
-    const pot = lamports + next.rewardRemainder;
+    const room = sub(next.rewardCapacity, next.rewardRemainder);
+    const take = amount < room ? amount : room;
+    payTreasury(amount - take);
+    if (take === 0n) return;
+    const pot = take + next.rewardRemainder;
     const { increment, committed, remainder } = distribute(pot, next.totalWeight);
     next.accRewardPerWeight += increment;
     next.rewardRemainder = remainder;
     next.lifetimeRewards += committed;
-    if (next.capped) next.rewardCapacity = sub(next.rewardCapacity, committed);
+    next.rewardCapacity = sub(next.rewardCapacity, committed);
   };
 
   // release(now)
@@ -262,15 +280,15 @@ export function projectSync<T extends StreamState>(
     credit(next.released);
   }
 
-  // Unsynced inflow: lamports that landed since the last touch.
-  const balance = vaultLamports > pool.vaultReserve ? vaultLamports - pool.vaultReserve : 0n;
+  // Unsynced inflow: quote that landed since the last touch.
   if (balance > pool.lastVaultBalance) {
     next.inflow = balance - pool.lastVaultBalance;
     next.lifetimeInflow += next.inflow;
     const { toTreasury, toCreator, toLockers } = splitInflow(next.inflow, pool.terms);
-    const overflow = next.capped
-      ? sub(toLockers, sub(sub(next.rewardCapacity, next.undistributed), next.rewardRemainder))
-      : 0n;
+    const overflow = sub(
+      toLockers,
+      sub(sub(next.rewardCapacity, next.undistributed), next.rewardRemainder),
+    );
     next.treasuryClaimable += toTreasury + overflow;
     next.creatorClaimable += toCreator;
     next.lifetimeTreasury += toTreasury + overflow;
@@ -309,23 +327,23 @@ export function earlyExitPenalty(
  * a projected APR on a memecoin is fiction.
  */
 export function estimateApr(params: {
-  /** Lamports paid to lockers during the window. */
-  lockerRewardsLamports: bigint;
+  /** Quote base units paid to lockers during the window. */
+  lockerRewards: bigint;
   windowSeconds: number;
   totalLocked: bigint;
-  /** Price of one whole token in lamports. */
-  tokenPriceLamports: number;
+  /** Price of one whole token in quote base units. */
+  tokenPrice: number;
   tokenDecimals: number;
 }): number | null {
-  const { lockerRewardsLamports, windowSeconds, totalLocked } = params;
+  const { lockerRewards, windowSeconds, totalLocked } = params;
   if (windowSeconds <= 0 || totalLocked === 0n) return null;
   const lockedWhole =
     Number(totalLocked) / 10 ** params.tokenDecimals;
-  const lockedValueLamports = lockedWhole * params.tokenPriceLamports;
-  if (lockedValueLamports <= 0) return null;
+  const lockedValue = lockedWhole * params.tokenPrice;
+  if (lockedValue <= 0) return null;
   const yearly =
-    (Number(lockerRewardsLamports) * (365 * 86_400)) / windowSeconds;
-  return yearly / lockedValueLamports;
+    (Number(lockerRewards) * (365 * 86_400)) / windowSeconds;
+  return yearly / lockedValue;
 }
 
 /**
@@ -348,4 +366,15 @@ export function projectedShare(
     multiplier,
     share: total === 0n ? 0 : Number(weight) / Number(total),
   };
+}
+
+/**
+ * IMAGINE's app fee on a routed trade, in quote base units.
+ *
+ * Charged on the quote leg: what the buyer spends, or what the seller
+ * receives. All of it lands in the coin's own pool — this is the fee the
+ * front-end appends as a `deposit_reward` instruction in the same transaction.
+ */
+export function appFeeAmount(quoteLeg: bigint, tradeFeeBps: number): bigint {
+  return (quoteLeg * BigInt(tradeFeeBps)) / BPS;
 }

@@ -1,24 +1,16 @@
 import { pathToFileURL } from "node:url";
 import { EventParser } from "@coral-xyz/anchor";
-import { getTokenMetadata, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import { getTokenMetadata, NATIVE_MINT, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { z } from "zod";
-import {
-  bondingCurvePda,
-  coder,
-  curveProgress,
-  decodePool,
-  decodePosition,
-  DISCRIMINATOR,
-  poolPda,
-  positionPda,
-  VISE_PROGRAM_ID,
-} from "@imagine/sdk";
+import { coder, decodePool, decodePosition, DISCRIMINATOR, IMAGINE_PROGRAM_ID, poolPda, positionPda } from "@imagine/sdk";
 import { sql } from "./db.ts";
-import { fetchCurve, onlinePump, spotPriceLamports } from "./pump.ts";
-import { connection, vise } from "./solana.ts";
+import { imageUrl, metadataUri } from "./files.ts";
 import { startKeeper } from "./keeper.ts";
+import { quoteDisplay } from "./quotes.ts";
+import { connection, imagine } from "./solana.ts";
+import { marketCapQuote, readMarket } from "./stonk.ts";
 
 /**
  * Builds the read model from program logs.
@@ -30,8 +22,9 @@ import { startKeeper } from "./keeper.ts";
  *    websocket frame can never leave the database permanently wrong.
  *
  * The chain stays authoritative: every number a user acts on is read from an
- * account, not from here. Events are only accepted when VISE itself emitted
- * them, and are stamped with the transaction's time, never their own.
+ * account, not from here. Events are only accepted when IMAGINE itself
+ * emitted them, and are stamped with the transaction's time, never their own.
+ * Amounts are in each pool's quote base units.
  */
 
 type EventPayload = Record<string, { toString(): string } & PublicKey & number>;
@@ -48,13 +41,14 @@ function asDate(unixSeconds: unknown): Date {
 
 /**
  * Anchor's parser follows the `invoke` / `success` stack in the logs and only
- * yields `Program data:` lines written while VISE is the executing frame. A
- * `sol_log_data` from another program, or a Memo that happens to contain an
- * encoded event, in the same transaction never gets through.
+ * yields `Program data:` lines written while IMAGINE is the executing frame.
+ * A `sol_log_data` from another program (LaunchLab emits its own events in
+ * the same transactions), or a Memo that happens to contain an encoded event,
+ * never gets through.
  */
-const eventParser = new EventParser(VISE_PROGRAM_ID, coder);
+const eventParser = new EventParser(IMAGINE_PROGRAM_ID, coder);
 
-function parseViseEvents(logs: string[]): Array<{ name: string; data: EventPayload }> {
+function parseImagineEvents(logs: string[]): Array<{ name: string; data: EventPayload }> {
   try {
     return [...eventParser.parseLogs(logs)].map((event) => ({
       name: event.name,
@@ -110,40 +104,70 @@ function indexNewPool(mint: string): Promise<void> {
   const pending = poolWork.get(mint);
   if (pending) return pending;
   const work = (async () => {
-    await upsertPoolFromChain(new PublicKey(mint));
+    const key = new PublicKey(mint);
+    await upsertPoolFromChain(key);
     const [row] = await sql`SELECT name FROM pools WHERE mint = ${mint}`;
-    if (row && row.name === null) await backfillMetadata(mint);
+    if (!row) return; // not founded yet
+    if (row.name === null) await backfillMetadata(mint);
+    // The founding lock's `Locked` event shares the launch transaction's
+    // truncated logs, so mirror the pool's positions from chain instead.
+    for (const position of await imagine.fetchPositionsByPool(key)) {
+      await syncPosition(key, position.address);
+    }
   })().finally(() => poolWork.delete(mint));
   poolWork.set(mint, work);
   return work;
 }
 
-async function handleEvent(
-  name: string,
-  data: EventPayload,
-  signature: string,
-  slot: number,
-  at: Date,
-) {
+/**
+ * The read-model mint of the pool an event names, indexing the pool first if
+ * it is an IMAGINE pool not seen yet; null for anything else.
+ *
+ * A launch is one transaction carrying LaunchLab's mint creation and dev buy,
+ * and its logs overrun the runtime's log cap: `PoolCreated` (emitted last, by
+ * `found`) is routinely truncated away. So the read model never depends on
+ * seeing it — the first event that names an unknown pool indexes it.
+ */
+async function mintOfPool(pool: PublicKey): Promise<string | null> {
+  const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool.toBase58()}`;
+  if (row) return row.mint as string;
+  const info = await connection.getAccountInfo(pool);
+  if (!info || !info.owner.equals(IMAGINE_PROGRAM_ID)) return null;
+  let mint: PublicKey;
+  try {
+    mint = decodePool(info.data).mint;
+  } catch {
+    return null;
+  }
+  if (!poolPda(mint).equals(pool)) return null;
+  await indexNewPool(mint.toBase58());
+  const [indexed] = await sql`SELECT mint FROM pools WHERE pool = ${pool.toBase58()}`;
+  return indexed ? (indexed.mint as string) : null;
+}
+
+async function handleEvent(name: string, data: EventPayload, signature: string, slot: number, at: Date) {
   switch (name) {
+    // `PoolLaunched` is the launch's first event, so it survives the launch
+    // transaction's log truncation; the pool is founded by the end of that
+    // same transaction. `PoolCreated` covers a founding that landed apart.
+    case "PoolLaunched":
     case "PoolCreated": {
       await indexNewPool(data.mint.toBase58());
       break;
     }
 
     case "RewardsSynced": {
-      const pool = data.pool.toBase58();
-      const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
-      if (!row) break;
+      const mint = await mintOfPool(data.pool);
+      if (!mint) break;
       // `to_lockers` is what joined the stream, not what has been paid out, so
       // adding it to lifetime_rewards here would run ahead of the chain. Read
       // the projected pool instead: one RPC, and every counter is exact.
-      await upsertPoolFromChain(new PublicKey(row.mint as string));
+      await upsertPoolFromChain(new PublicKey(mint));
       await sql`
         INSERT INTO fee_events (signature, mint, kind, amount, to_lockers, slot, at)
-        VALUES (${signature}, ${row.mint as string}, 4,
-                ${asBigint(data.inflow).toString()}::BIGINT,
-                ${asBigint(data.to_lockers).toString()}::BIGINT,
+        VALUES (${signature}, ${mint}, 4,
+                ${asBigint(data.inflow).toString()}::NUMERIC,
+                ${asBigint(data.to_lockers).toString()}::NUMERIC,
                 ${slot}, ${at})
         ON CONFLICT DO NOTHING
       `;
@@ -151,13 +175,12 @@ async function handleEvent(
     }
 
     case "FeeDeposited": {
-      const pool = data.pool.toBase58();
-      const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
-      if (!row) break;
+      const mint = await mintOfPool(data.pool);
+      if (!mint) break;
       await sql`
         INSERT INTO fee_events (signature, mint, kind, payer, amount, slot, at)
-        VALUES (${signature}, ${row.mint as string}, ${Number(data.kind)},
-                ${data.payer.toBase58()}, ${asBigint(data.amount).toString()}::BIGINT,
+        VALUES (${signature}, ${mint}, ${Number(data.kind)},
+                ${data.payer.toBase58()}, ${asBigint(data.amount).toString()}::NUMERIC,
                 ${slot}, ${at})
         ON CONFLICT DO NOTHING
       `;
@@ -167,15 +190,15 @@ async function handleEvent(
     case "Locked":
     case "PositionIncreased":
     case "PositionExtended": {
-      const pool = data.pool.toBase58();
-      const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
-      if (!row) break;
-      const mint = row.mint as string;
+      const mint = await mintOfPool(data.pool);
+      if (!mint) break;
       await syncPosition(new PublicKey(mint), data.position);
+      // A lock records what it locked, an increase what it added, an extend nothing.
+      const amount = name === "PositionIncreased" ? data.added : name === "Locked" ? data.amount : 0;
       await sql`
         INSERT INTO lock_events (signature, mint, owner, kind, amount, weight, lock_end, slot, at)
         VALUES (${signature}, ${mint}, ${data.owner.toBase58()}, ${name},
-                ${asBigint(data.amount ?? data.added ?? 0).toString()}::NUMERIC,
+                ${asBigint(amount).toString()}::NUMERIC,
                 ${asBigint(data.weight ?? 0).toString()}::NUMERIC,
                 ${data.lock_end ? asDate(data.lock_end) : null},
                 ${slot}, ${at})
@@ -185,32 +208,39 @@ async function handleEvent(
     }
 
     case "Claimed": {
-      const pool = data.pool.toBase58();
-      const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
-      if (!row) break;
+      const mint = await mintOfPool(data.pool);
+      if (!mint) break;
       // The lifetime figure comes from the account, not the event.
-      await syncPosition(new PublicKey(row.mint as string), data.position);
+      await syncPosition(new PublicKey(mint), data.position);
       await sql`
         INSERT INTO claim_events (signature, mint, owner, amount, slot, at)
-        VALUES (${signature}, ${row.mint as string}, ${data.owner.toBase58()},
-                ${asBigint(data.amount).toString()}::BIGINT, ${slot}, ${at})
+        VALUES (${signature}, ${mint}, ${data.owner.toBase58()},
+                ${asBigint(data.amount).toString()}::NUMERIC, ${slot}, ${at})
         ON CONFLICT DO NOTHING
       `;
       break;
     }
 
+    case "RewardCapped":
+    case "Renounced": {
+      const mint = await mintOfPool(data.pool);
+      if (!mint) break;
+      await syncPosition(new PublicKey(mint), data.position);
+      await upsertPoolFromChain(new PublicKey(mint));
+      break;
+    }
+
     case "Unlocked": {
-      const pool = data.pool.toBase58();
-      const [row] = await sql`SELECT mint FROM pools WHERE pool = ${pool}`;
-      if (!row) break;
-      const mint = new PublicKey(row.mint as string);
+      const mint = await mintOfPool(data.pool);
+      if (!mint) break;
+      const key = new PublicKey(mint);
       // Closed only once the account is really gone; if the same index was
       // opened again in the meantime this re-syncs it instead.
-      await syncPosition(mint, data.position);
-      await upsertPoolFromChain(mint);
+      await syncPosition(key, data.position);
+      await upsertPoolFromChain(key);
       await sql`
         INSERT INTO lock_events (signature, mint, owner, kind, amount, slot, at)
-        VALUES (${signature}, ${row.mint as string}, ${data.owner.toBase58()},
+        VALUES (${signature}, ${mint}, ${data.owner.toBase58()},
                 ${data.early ? "EarlyUnlocked" : "Unlocked"},
                 ${asBigint(data.returned).toString()}::NUMERIC, ${slot}, ${at})
         ON CONFLICT DO NOTHING
@@ -224,8 +254,8 @@ async function handleEvent(
 }
 
 /**
- * Mirror one position account into the read model. Only an account VISE owns,
- * at the address its own contents derive to, in the pool for `mint`, is
+ * Mirror one position account into the read model. Only an account IMAGINE
+ * owns, at the address its own contents derive to, in the pool for `mint`, is
  * written; a missing account closes the row.
  */
 async function syncPosition(mint: PublicKey, address: PublicKey) {
@@ -237,12 +267,9 @@ async function syncPosition(mint: PublicKey, address: PublicKey) {
     `;
     return;
   }
-  if (!info.owner.equals(VISE_PROGRAM_ID)) return;
+  if (!info.owner.equals(IMAGINE_PROGRAM_ID)) return;
   const position = decodePosition(info.data);
-  if (
-    !position.pool.equals(poolPda(mint)) ||
-    !address.equals(positionPda(mint, position.owner, position.index))
-  ) {
+  if (!position.pool.equals(poolPda(mint)) || !address.equals(positionPda(mint, position.owner, position.index))) {
     return;
   }
   await sql`
@@ -251,7 +278,7 @@ async function syncPosition(mint: PublicKey, address: PublicKey) {
     VALUES (${address.toBase58()}, ${mint.toBase58()}, ${position.owner.toBase58()}, ${position.index},
             ${position.amount.toString()}::NUMERIC, ${position.weight.toString()}::NUMERIC,
             ${position.multiplierBps}, ${new Date(position.lockStart * 1000)},
-            ${new Date(position.lockEnd * 1000)}, ${position.claimed.toString()}::BIGINT,
+            ${new Date(position.lockEnd * 1000)}, ${position.claimed.toString()}::NUMERIC,
             FALSE, NOW())
     ON CONFLICT (address) DO UPDATE SET
       amount = EXCLUDED.amount, weight = EXCLUDED.weight,
@@ -266,49 +293,48 @@ async function syncPosition(mint: PublicKey, address: PublicKey) {
  *
  * Reads the pool *projected to now* — stream released, unsynced vault inflow
  * folded in — rather than the raw account, so a pool nobody has touched for
- * hours still shows what it has actually paid out.
+ * hours still shows what it has actually paid out. A pool that is launched
+ * but not yet founded (its founding lock has not landed) is not listed.
  */
 export async function upsertPoolFromChain(mint: PublicKey) {
-  const pool = await vise.fetchProjectedPool(mint);
-  if (!pool) return;
+  const [pool, raw] = await Promise.all([imagine.fetchProjectedPool(mint), imagine.fetchPool(mint)]);
+  if (!pool || !raw?.founded) return;
 
-  const [curve, supply, global] = await Promise.all([
-    fetchCurve(mint),
+  const [market, supply, quote] = await Promise.all([
+    readMarket(mint, raw.quoteMint),
     connection.getTokenSupply(mint).catch(() => null),
-    onlinePump.fetchGlobal(),
+    quoteDisplay(raw.quoteMint.toBase58()),
   ]);
-  const price = await spotPriceLamports(mint, curve, pool.tokenProgram);
-  const progress = curve
-    ? curveProgress(curve.state, BigInt(global.initialRealTokenReserves.toString()))
-    : null;
   const decimals = supply?.value.decimals ?? 6;
   const totalSupply = supply ? BigInt(supply.value.amount) : null;
-  const marketCap =
-    curve && price !== null && totalSupply !== null
-      ? BigInt(Math.round((price * Number(totalSupply)) / 10 ** decimals))
-      : null;
+  const marketCap = market && totalSupply !== null ? marketCapQuote(market, totalSupply) : null;
+  const rewardTokenAccount = raw.quoteMint.equals(NATIVE_MINT) ? null : raw.rewardTokenAccount.toBase58();
 
   await sql`
     INSERT INTO pools (
-      mint, pool, creator, reward_vault, token_vault, token_program,
+      mint, pool, creator, reward_vault, reward_token_account, token_vault, token_program,
+      launchlab_pool, quote_mint, quote_token_program, quote_symbol, quote_name, quote_decimals,
+      quote_category, quote_logo_url,
       treasury_share_bps, creator_share_bps, min_lock_secs, max_lock_secs,
       max_multiplier_bps, early_unlock_penalty_bps, total_locked, total_weight,
       lifetime_inflow, lifetime_rewards, lifetime_burned, open_positions,
-      token_supply, token_decimals, price_lamports, market_cap_lamports,
+      token_supply, token_decimals, price_quote, market_cap_quote,
       curve_progress, graduated, created_at, updated_at
     ) VALUES (
       ${mint.toBase58()}, ${poolPda(mint).toBase58()}, ${pool.creator.toBase58()},
-      ${pool.rewardVault.toBase58()}, ${pool.tokenVault.toBase58()},
-      ${pool.tokenProgram.toBase58()},
+      ${pool.rewardVault.toBase58()}, ${rewardTokenAccount}, ${pool.tokenVault.toBase58()},
+      ${pool.tokenProgram.toBase58()}, ${raw.launchlabPool.toBase58()},
+      ${quote.mint}, ${quote.tokenProgram}, ${quote.symbol}, ${quote.name}, ${quote.decimals},
+      ${quote.category}, ${quote.logoUrl},
       ${pool.terms.treasuryShareBps}, ${pool.terms.creatorShareBps},
       ${pool.terms.minLockSecs}, ${pool.terms.maxLockSecs},
       ${pool.terms.maxMultiplierBps}, ${pool.terms.earlyUnlockPenaltyBps},
       ${pool.totalLocked.toString()}::NUMERIC, ${pool.totalWeight.toString()}::NUMERIC,
-      ${pool.lifetimeInflow.toString()}::BIGINT, ${pool.lifetimeRewards.toString()}::BIGINT,
+      ${pool.lifetimeInflow.toString()}::NUMERIC, ${pool.lifetimeRewards.toString()}::NUMERIC,
       ${pool.lifetimeBurned.toString()}::NUMERIC, ${Number(pool.openPositions)},
-      ${totalSupply ? totalSupply.toString() : null}::NUMERIC, ${decimals},
-      ${price}, ${marketCap ? marketCap.toString() : null}::BIGINT,
-      ${progress}, ${curve?.state.complete ?? false},
+      ${totalSupply !== null ? totalSupply.toString() : null}::NUMERIC, ${decimals},
+      ${market?.priceQuote ?? null}, ${marketCap !== null ? marketCap.toString() : null}::NUMERIC,
+      ${market?.progress ?? null}, ${market?.status === "graduated"},
       ${new Date(pool.createdAt * 1000)}, NOW()
     )
     ON CONFLICT (mint) DO UPDATE SET
@@ -319,24 +345,21 @@ export async function upsertPoolFromChain(mint: PublicKey) {
       lifetime_burned = EXCLUDED.lifetime_burned,
       open_positions = EXCLUDED.open_positions,
       token_supply = EXCLUDED.token_supply,
-      price_lamports = EXCLUDED.price_lamports,
-      market_cap_lamports = EXCLUDED.market_cap_lamports,
+      price_quote = EXCLUDED.price_quote,
+      market_cap_quote = EXCLUDED.market_cap_quote,
       curve_progress = EXCLUDED.curve_progress,
       graduated = EXCLUDED.graduated,
+      quote_symbol = EXCLUDED.quote_symbol,
+      quote_name = EXCLUDED.quote_name,
+      quote_category = EXCLUDED.quote_category,
+      quote_logo_url = EXCLUDED.quote_logo_url,
       updated_at = NOW()
   `;
 }
 
-/**
- * Shape of a pump.fun metadata JSON document. Validated rather than asserted:
- * this is arbitrary user-uploaded IPFS content and any field may be missing,
- * the wrong type, or hostile.
- */
-const TokenMetadata = z
+/** The hosted document's shape (routes/metadata.ts writes it; validated anyway). */
+const HostedMetadata = z
   .object({
-    name: z.string().max(200).optional(),
-    symbol: z.string().max(50).optional(),
-    image: z.string().max(500).optional(),
     description: z.string().max(2_000).optional(),
     twitter: z.string().max(300).optional(),
     telegram: z.string().max(300).optional(),
@@ -345,119 +368,13 @@ const TokenMetadata = z
   .catchall(z.unknown());
 
 /**
- * The only places a metadata document or image is ever fetched from.
+ * Pull the coin's name, symbol, image and socials into the read model.
  *
- * A coin's metadata URI is whatever its creator wrote, so fetching it as-is
- * would let anyone point the indexer at an internal address or an endless
- * response. Instead only IPFS content is accepted — `ipfs://<cid>` or a
- * `/ipfs/<cid>` path on a known public gateway — and it is always fetched from
- * pump's own Pinata gateway (`ipfs.io` as the fallback), which serves pump's
- * pins reliably. Image URLs are rewritten the same way so browsers load them
- * from the gateway that actually answers.
- */
-const PUMP_GATEWAY = "https://pump.mypinata.cloud/ipfs/";
-const IPFS_IO = "https://ipfs.io/ipfs/";
-const IPFS_HOSTS: Record<string, true> = {
-  "ipfs.io": true,
-  "gateway.pinata.cloud": true,
-  "cf-ipfs.com": true,
-};
-/** Any Pinata dedicated gateway, pump's own among them. */
-const PINATA_SUBDOMAIN = /^[a-z0-9-]+\.mypinata\.cloud$/;
-/** A CID and an optional plain path inside it: nothing to escape or traverse. */
-const IPFS_PATH = /^[A-Za-z0-9]{32,128}(?:\/[A-Za-z0-9_-][A-Za-z0-9._-]{0,127})*$/;
-const METADATA_MAX_BYTES = 64 * 1024;
-
-/** The `<cid>[/path]` an IPFS URL names, or null for anything else. */
-function ipfsPath(raw: string): string | null {
-  let path: string;
-  if (raw.startsWith("ipfs://")) {
-    path = raw.slice("ipfs://".length).replace(/^ipfs\//, "");
-  } else {
-    let url: URL;
-    try {
-      url = new URL(raw);
-    } catch {
-      return null;
-    }
-    if (url.protocol !== "https:" || url.username || url.password || url.port) return null;
-    if (IPFS_HOSTS[url.hostname] !== true && !PINATA_SUBDOMAIN.test(url.hostname)) return null;
-    if (!url.pathname.startsWith("/ipfs/")) return null;
-    path = url.pathname.slice("/ipfs/".length);
-  }
-  path = path.replace(/\/+$/, "");
-  return IPFS_PATH.test(path) ? path : null;
-}
-
-/** An IPFS URL on pump's gateway, or null if `raw` is not IPFS content. */
-export function gatewayUrl(raw: string): string | null {
-  const path = ipfsPath(raw);
-  return path ? PUMP_GATEWAY + path : null;
-}
-
-/** A social link worth showing: an absolute http(s) URL, or nothing. */
-function webLink(raw: string | undefined): string | null {
-  if (!raw) return null;
-  try {
-    const url = new URL(raw);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
-/** GET with no redirects and a hard size cap, however the server behaves. */
-async function fetchCappedJson(url: string): Promise<unknown> {
-  const response = await fetch(url, {
-    redirect: "error",
-    signal: AbortSignal.timeout(8_000),
-    headers: { accept: "application/json" },
-  });
-  if (!response.ok || !response.body) {
-    await response.body?.cancel();
-    throw new Error(`${url} → ${response.status}`);
-  }
-  if (Number(response.headers.get("content-length") ?? 0) > METADATA_MAX_BYTES) {
-    await response.body.cancel();
-    throw new Error(`${url}: metadata larger than ${METADATA_MAX_BYTES} bytes`);
-  }
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > METADATA_MAX_BYTES) {
-      await reader.cancel();
-      throw new Error(`${url}: metadata larger than ${METADATA_MAX_BYTES} bytes`);
-    }
-    chunks.push(value);
-  }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
-}
-
-async function fetchMetadataDocument(uri: string): Promise<unknown> {
-  const path = ipfsPath(uri);
-  if (!path) throw new Error(`metadata URI is not IPFS content on a known gateway: ${uri}`);
-  let lastError: unknown = new Error("no gateway answered");
-  for (const gateway of [PUMP_GATEWAY, IPFS_IO]) {
-    try {
-      return await fetchCappedJson(gateway + path);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError;
-}
-
-/**
- * Pull the coin's name, symbol and image into the read model.
- *
- * pump.fun's `create_v2` writes name/symbol/uri into the Token-2022 metadata
- * extension on the mint itself (no Metaplex account), so the on-chain part is
- * one account read; the image, description and socials are in the document
- * the URI points at. Only for coins that already have a pool row.
+ * LaunchLab's `initialize_with_token_2022` writes name/symbol/uri into the
+ * Token-2022 metadata extension on the mint itself, so the on-chain part is
+ * one account read. Every IMAGINE coin's URI is a document hosted here (a
+ * launch refuses any other), so the rest is read from our own table rather
+ * than fetched over the network.
  */
 export async function backfillMetadata(mint: string) {
   const [pool] = await sql`SELECT 1 FROM pools WHERE mint = ${mint}`;
@@ -469,29 +386,23 @@ export async function backfillMetadata(mint: string) {
     return;
   }
   if (!onChain) return;
+  const [files] = onChain.uri === metadataUri(mint) ? await sql`SELECT metadata FROM coin_files WHERE mint = ${mint}` : [];
+  const parsed = files ? HostedMetadata.safeParse(files.metadata) : null;
+  const doc = parsed?.success ? parsed.data : {};
   await sql`
-    UPDATE pools SET name = ${onChain.name}, symbol = ${onChain.symbol}, metadata_uri = ${onChain.uri},
-      updated_at = NOW()
+    UPDATE pools SET
+      name = ${onChain.name}, symbol = ${onChain.symbol}, metadata_uri = ${onChain.uri},
+      image_url = ${files ? imageUrl(mint) : null},
+      description = ${doc.description ?? null},
+      twitter = ${doc.twitter ?? null}, telegram = ${doc.telegram ?? null},
+      website = ${doc.website ?? null}, updated_at = NOW()
     WHERE mint = ${mint}
   `;
-  try {
-    const meta = TokenMetadata.parse(await fetchMetadataDocument(onChain.uri));
-    await sql`
-      UPDATE pools SET
-        image_url = ${meta.image ? gatewayUrl(meta.image) : null},
-        description = ${meta.description ?? null},
-        twitter = ${webLink(meta.twitter)}, telegram = ${webLink(meta.telegram)},
-        website = ${webLink(meta.website)}, updated_at = NOW()
-      WHERE mint = ${mint}
-    `;
-  } catch {
-    // The document is cosmetic; a dead or refused gateway must not stall indexing.
-  }
 }
 
 async function subscribe() {
   connection.onLogs(
-    VISE_PROGRAM_ID,
+    IMAGINE_PROGRAM_ID,
     (log, context) => {
       if (log.err) return;
       if (seenSignatures.has(log.signature)) return;
@@ -508,7 +419,7 @@ async function subscribe() {
       const at = txTime(null);
       enqueue(async () => {
         try {
-          for (const event of parseViseEvents(log.logs)) {
+          for (const event of parseImagineEvents(log.logs)) {
             await handleEvent(event.name, event.data, log.signature, context.slot, at);
           }
           await sql`UPDATE indexer_cursor SET slot = ${context.slot},
@@ -521,7 +432,7 @@ async function subscribe() {
     },
     "confirmed",
   );
-  console.log("subscribed to", VISE_PROGRAM_ID.toBase58());
+  console.log("subscribed to", IMAGINE_PROGRAM_ID.toBase58());
 }
 
 /**
@@ -541,14 +452,20 @@ async function reconcile() {
   }
 }
 
-/** Discover pools created while the indexer was offline. */
+/** Discover pools founded while the indexer was offline. */
 async function discover() {
-  const accounts = await connection.getProgramAccounts(VISE_PROGRAM_ID, {
+  const accounts = await connection.getProgramAccounts(IMAGINE_PROGRAM_ID, {
     filters: [{ memcmp: { offset: 0, bytes: bs58.encode(DISCRIMINATOR.pool) } }],
   });
   for (const { account } of accounts) {
     const pool = decodePool(account.data);
     await upsertPoolFromChain(pool.mint);
+    if (!pool.founded) continue;
+    // Positions opened while the socket was down feed the diamond board and
+    // the activity joins; mirror every live one once at startup.
+    for (const position of await imagine.fetchPositionsByPool(pool.mint)) {
+      await syncPosition(pool.mint, position.address);
+    }
   }
   // Names and images are missing for anything created while the socket was
   // down, or before this read model existed. One mint read each, once.
@@ -563,8 +480,7 @@ async function discover() {
  *
  * Pools converge on their own through `reconcile`, but history does not: a
  * lock, claim or fee that landed while the socket was down is otherwise gone
- * from the tables that feed the activity feed, the reward chart and APR. The
- * cursor was always being written; this is the half that reads it.
+ * from the tables that feed the activity feed, the reward chart and APR.
  *
  * Signatures come newest-first and are replayed oldest-first, so a crash
  * halfway leaves the cursor behind the gap rather than past it. Bounded to a
@@ -579,11 +495,7 @@ async function backfill() {
   const signatures: Array<{ signature: string; slot: number }> = [];
   let before: string | undefined;
   for (let page = 0; page < 5; page++) {
-    const batch = await connection.getSignaturesForAddress(
-      VISE_PROGRAM_ID,
-      { until, before, limit: 1000 },
-      "confirmed",
-    );
+    const batch = await connection.getSignaturesForAddress(IMAGINE_PROGRAM_ID, { until, before, limit: 1000 }, "confirmed");
     for (const entry of batch) {
       if (!entry.err) signatures.push({ signature: entry.signature, slot: entry.slot });
     }
@@ -603,7 +515,7 @@ async function backfill() {
     if (!logs) continue;
     seenSignatures.add(signature);
     const at = txTime(tx.blockTime);
-    for (const event of parseViseEvents(logs)) {
+    for (const event of parseImagineEvents(logs)) {
       await handleEvent(event.name, event.data, signature, slot, at);
     }
     await sql`UPDATE indexer_cursor SET slot = ${slot}, signature = ${signature},
@@ -622,4 +534,4 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   console.log("indexer running");
 }
 
-export { bondingCurvePda, handleEvent, parseViseEvents, reconcile };
+export { handleEvent, parseImagineEvents, reconcile };

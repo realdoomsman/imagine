@@ -4,8 +4,8 @@
 # Railway services; ROLE picks which entrypoint runs.
 set -euo pipefail
 
-ROOT=/mnt/c/tech/Hold
-IMAGE=ghcr.io/realdoomsman/vise-api:latest
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+IMAGE="${IMAGE:-ghcr.io/realdoomsman/imagine-api:latest}"
 
 cd "$ROOT"
 docker build -f apps/api/Dockerfile -t "$IMAGE" .

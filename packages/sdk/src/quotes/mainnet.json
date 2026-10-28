@@ -1,0 +1,3456 @@
+[
+  {
+    "mint": "J6pQQ3FAcJQeWPPGppWRb4nM8jU3wLyYbRrLh7feMfvd",
+    "symbol": "2Z",
+    "name": "DoubleZero",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "vHF2krJTrtcZNhWZj4w5551dZgMWs9CvFbPSqD5bJVs",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "C1MHyoTJpRTeS9AQCyspNVu2EWAYCZwmJ1jNkEArFP1f",
+    "symbol": "APE",
+    "name": "ApeCoin",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "GYDrNGVw2zoqcMuejmBUkFwDzfcn3xPvBDeTprs3BNfF",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://crimson-acceptable-cow-17.mypinata.cloud/ipfs/bafkreicayywfovvxkqslgjsnb52iib2sdgagzzxaa4wijnzq6b6x2mcqiq",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "ARBzQTYDCW2KnVEjs1Mc81LekB1ibVFZKbSVmorkoT9d",
+    "symbol": "ARB",
+    "name": "Arbitrum",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "Bsy6Q84aM5fPkKKVo1ezD5VC8Utt2e9GvUpSbRyg2Jer",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/j-fCD9twgXHSwwFZrvlqe1mSu5pDdjL9Vs07npmwZMw",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "ASTERYpc2EhivYWSbtuWPuCMdXtZGmHwtH93NqYVw45Z",
+    "symbol": "ASTER",
+    "name": "Aster",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "8RvPWxK82CrsdxgPLLsUUZWBAhPV6QaLGaD1fUJyPkzT",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/BQhMLxk95SItE8-q4O_9rPRq8axrsABPM0y2vkQhinA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "avaxGHCq3T7hoxd73oY2KY9hJSTaeMibXvHy5KNzh5D",
+    "symbol": "AVAX",
+    "name": "AVAX",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "AWcHgXyD3DjCharpL9kUxGSM1eWtoaa5y2PowQoxYQfK",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/lNHrGDNhDfzgAhMxU5jezz7WU1_H3QqR6rh1iHIha9M",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "BPxxfRCXkUVhig4HS1Lh7kZqV6SPJhzfEk4x6fVBjPCy",
+    "symbol": "BP",
+    "name": "Backpack",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "7wJGx2FPZkrriYFzQVQfYrVf7nmTvr5WryUooZFBYS6X",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://trek-labs.github.io/heart-metadata/bp/bp.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "4qQeZ5LwSz6HuupUu8jCtgXyW1mYQcNbFAW1sWZp89HL",
+    "symbol": "Cake",
+    "name": "PancakeSwap Token",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "8c4MgRfXzLQsWYDKBM1ceRnSdNiRB7qexTQyzrDXSL6M",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://tokens.pancakeswap.finance/images/0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "cbADAmv9issuPfhFwyQG3xac4DGPd1LDSt1oz7vwJsg",
+    "symbol": "cbADA",
+    "name": "Coinbase Wrapped ADA",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "13Ltdz7kXWQ8Xp6izD5DAg34SYGCfCnmBj9NrbHvfLxV",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://gateway.pinata.cloud/ipfs/QmQHPc2oP1f2AABQ9PwkCrDKiGr1deNbBWt3GagLToKTJi",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "cbbtcf3aa214zXHbiAZQwf4122FBYbraNdFqgw4iMij",
+    "symbol": "cbBTC",
+    "name": "Coinbase Wrapped BTC",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "A8yp8vjDLTxEHnGpyFbgcBDjMs6xGmsh2zmCNdV2bSRt",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://gateway.pinata.cloud/ipfs/QmZ7L8yd5j36oXXydUiYFiFsRHbi3EdgC4RuFwvM7dcqge",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "cbLTC4T5NpzSUtQ7ekgEMZGaUPVJY1ko6BUikqa4gGf",
+    "symbol": "cbLTC",
+    "name": "Coinbase Wrapped LTC",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "FrfW4vMff4UTuKFRMnQNeYD5KfiTNygnAd7D4gWLg5gf",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/QmSVXVXWv8Z3gGZg5LcF4gdQWjKeBRxiyrsEJyKkcEUanx",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "chipCAT7vi5CZtbZsn9z7iMPXvFwyAnKz3QFu8XVuHm",
+    "symbol": "CHIP",
+    "name": "USD.AI",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "AJ6bVBAD2P1Gt8E4QqyJ2ryLtaL981i3eoGXAqimsby",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/73OWrBSVo3VRA4rqTpmFOX08xbGnkFfR-Y9GiQH-zvw",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "DoGEV7LASBkQbibMc5k5vKnTZoMg423GpJ5QtJEGfm7R",
+    "symbol": "DOGE",
+    "name": "Dogecoin",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "E4RpUdyhYkbcr2TtvryW2DaiP5AtQ6Bm1XdhEriUXL7H",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/ygw21WEL7f1phnN2lLWqv4LERCdMFuVd8AflgWo1sfE",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "72QvBVwpxqmheEPfaCwWSWqEFsUy3rhWt6JhQBMNTwD1",
+    "symbol": "ENA",
+    "name": "Ethena",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "5PMxpSLNeQsujXjs5Yoj7XwZWTh9EAdgDj9S9szR1mES",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs",
+    "symbol": "ETH",
+    "name": "Ether (Portal)",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "993qEdGYzDAr8Cdjo8uUfAp1YR2m6Gp2sg9vywwfNzyg",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs/logo.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "he1iusmfkpAdwvxLNGV8Y1iSbj4rUy6yMhEA3fotn9A",
+    "symbol": "hSOL",
+    "name": "Helius Staked SOL",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "36BSuKa5idDZXjSG5tHcyhYCYxtFpBEpQvD64CCJG2rx",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://raw.githubusercontent.com/igneous-labs/lst-offchain-metadata/master/hSOL/hSOL.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "98sMhvDwXj1RQi5c5Mndm3vPe9cBqPrbLaufMXFNMh5g",
+    "symbol": "HYPE",
+    "name": "HYPE",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "3yFuYHJBZ6Fw4KSVNFp7F6kJLk7BEPkTrnPcSmVWyPBV",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/QBRdRop8wI4PpScSRTKyibv-fQuYBua-WOvC7tuJyJo",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "1NJMqVM4PadjuzYmeB7zV7q7DV8oB3ExaQCd9x6KsLz",
+    "symbol": "INJ",
+    "name": "Injective",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "DzrG3ZMCznBPiJCAT1WDQsdKcbGthpA4f8UBP1pXxAoQ",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://turbo-gateway.com/rmtLlMruXZfggPXQmlfyMhI4uvPJEx-HBLkeRs0dIjo",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+    "symbol": "JUP",
+    "name": "Jupiter",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "6N92aeiaiShotXufESDeHKz4EAj8EDgFeExHgHHJmvS2",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://static.jup.ag/jup/icon.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "LinkhB3afbBKb2EQQu7s7umdZceV3wcvAUJhQAfQ23L",
+    "symbol": "LINK",
+    "name": "Chainlink Token",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "8uRAiDQ131E2purHuf3dBM5259Nqh3eX6YCidZDcReGa",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://d2f70xi62kby8n.cloudfront.net/LINK.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "EicWvteVi2fWepEzS3FYWsnuPoP6caZfjnKqNvydLjCH",
+    "symbol": "LIT",
+    "name": "Lighter",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "Ffv9pkxKxcLVS7NQRAqZD9HQia1biPAD4MccrxE7UGVp",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/tShwtnzLqUjqtZc-Ysok67ppQcOUIHhX3PgEYlO02mE",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "METvsvVRapdj9cFLzq4Tr43xK4tAjQfwX76z3n6mWQL",
+    "symbol": "MET",
+    "name": "Meteora",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "CWE4ah52UiQt1GXjfgD9SnuSQmeuFNGXSa7u1G52PLb6",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://assets.meteora.ag/met-token.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "METAwkXcqyXKy1AtsSgJ8JiUHwGCafnZL38n3vYmeta",
+    "symbol": "META",
+    "name": "MetaDAO",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "ArjqQZT1Ro6LN6diCjSYkEM68eSbfhmCSJPnAoQznJgs",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://raw.githubusercontent.com/metaDAOproject/futarchy/refs/heads/develop/scripts/assets/META/META.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "METAewgxyPbgwsseH8T16a39CQ5VyVxZi9zXiDPY18m",
+    "symbol": "MPLX",
+    "name": "Metaplex Token",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "G6KgEo3VwEz8SXkbcZQg7dnC4rYtCt91bRxNUnxESZA2",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/VRKOcXIvCxqp35RZ9I0-bDGk5qNfT46OTho-2oP9iGc",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "ondohH8Vssxiqcy5u6Efi4AYN17KZrzQtv2a91dnrgW",
+    "symbol": "ONDO",
+    "name": "Ondo",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "BpLmov1G1yknBKxxDPG3PVg6xP5FhvxVHowE4eJ2LfEo",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/mTzwNhTId5yNj6Nxi98z-7_dlWZz5LvZxfzO04u3s8s",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp",
+    "symbol": "ORE",
+    "name": "ORE",
+    "decimals": 11,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "7QV2swQrGvArbdrLFmg2861hdCZLEKBNiM77j4hvvE1g",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://ore.com/assets/icon.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "PEAQjk7SRS6rXHVFFmpRr7zrC4g5ZuEebpwTxvaLr3b",
+    "symbol": "PEAQ",
+    "name": "peaq",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "FJCgnCJPAQDkyuDrmz8YKfxgh2ze2NyjSjGfFfAbbaDL",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/GRDbV2NikfCG0oCaG9nZ-uSs_MbCCCVTQQGF6L6wdLA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "PEPEqnuuCDbBC89p1u9vpnP1KQ2oj1xTcQBsjt9X55m",
+    "symbol": "PEPE",
+    "name": "Pepe",
+    "decimals": 4,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "3kP4fvZE5tXKituTu3TT12r2LXuKNAP1Wfq5LvtYZJJu",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/FyNde0I6M7gOYB6Ui_wnCFPraX4AQIaEcr6rB9gWPAQ",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "poNSfquKq512ApeYjVghwViSun4x1MhCqHVH2Paq4jN",
+    "symbol": "PONS",
+    "name": "Pons",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "GM2awFc6TPQpwjMzbNRygZ9Z43kYnh2ixCq37LcC6cty",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/qM4qmPqKwW2_s2Hrz7zYCHYJsedNQiPvjTXSRhzA9MY",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "5eyib4qghYGHNh7VvxSFGYLFJSanjq9hug9fR52kksnm",
+    "symbol": "PSG",
+    "name": "Paris Saint-Germain",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "7aLxKSMHKpx3TMKVPqvWc3zcMAaUZEwPziFnQTX7zV1G",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://assets.chiliz.com/partner/c2d54ced-43c2-43e2-9d58-66684f02afb2/partner_logo/54adc1b8-bd96-4a86-9ed2-e5a149d940f8.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "pSo1f9nQXWgXibFtKf7NWYxb5enAM4qfP6UJSiXRQfL",
+    "symbol": "PSOL",
+    "name": "Phantom Staked SOL",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "GhS5tPXTKjZMcXe2ri3NVzs79bHpvs1rJ8BM88vSV99f",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://assets.phantom.app/assets/metadata/PSOL.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn",
+    "symbol": "PUMP",
+    "name": "Pump",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "7aojgjFgzz9k3fpQp1JXmU9rR6HVbhzJjVucTPyFGC9Q",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://gateway.pinata.cloud/ipfs/bafkreibyb3hcn7gglvdqpmklfev3fut3eqv3kje54l3to3xzxxbgpt5wjm",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "qntUzPUsJ51abNP7VYNxkmsQ4RnvEZAhavUxsCxpxH4",
+    "symbol": "QNT",
+    "name": "Quant",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "BMaFeJx9FQUXuH8metwuFNe2DJSNsUHzw5ByfLcGawQd",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/XzKnudnQ5APMkTxE8M-wcEClT53nMK2DsCwoD4-uD_c",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+    "symbol": "RAY",
+    "name": "Raydium",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "FATRfLS8REmE8iSBDQG6yF77HV5qQiedPY146CZ4Ydk6",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R/logo.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "shib5gSoVKPjwkXrxRk7SbQFzb2R9rQB3TgQWYX4RwW",
+    "symbol": "SHIB",
+    "name": "SHIBA INU",
+    "decimals": 4,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "8E7ULxn9uqHKWTkS4fC5CJNh8SM9PqYoKmhaWg6e38Er",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/s23feT-LlqZqbadQsS_8kRAL93dftyJSBmnPig4Emas",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "SKRbvo6Gf7GondiT3BbTfuRDPqLWei4j2Qy2NPGZhW3",
+    "symbol": "SKR",
+    "name": "Seeker",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "6BYhrqg6ybkJgUQ9Yn6wXUp4P3BBnwrzcEe6Su51rYZg",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://r2.solanamobiledappstore.com/skr/seeker.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "So11111111111111111111111111111111111111112",
+    "symbol": "SOL",
+    "name": "Solana",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "6s1xP3hpbAfFoNtUNF8mfHsjr2Bd97JxFJRWLbL6aHuX",
+    "issuer": "native",
+    "category": "crypto",
+    "verified": true,
+    "logo": "/quotes/sol.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "taoC6xyv2v8tDLcev4uaGUgV4vdQsWJrGft2kcBRrBY",
+    "symbol": "TAO",
+    "name": "Bittensor",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "DfiL4DPE464ijhTSPcv41f2dcj1gvTbYLiKHw48Ph9hd",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "GbbesPbaYh5uiAZSYNXTc7w9jty1rpg3P9L4JeN4LkKc",
+    "symbol": "TRX",
+    "name": "TRON",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "8rwbVXEX59bf2gJektpyBoLEg5PTgpZ8XyYyob7ypAFC",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/aO9owy2SUH92KGJ2CH3BFowep6XFAoYjjpRyDKObkww",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "3iQL8BFS2vE7mww4ehAqQHAsbmRNCrPxizWAT2Zfyr9y",
+    "symbol": "VIRTUAL",
+    "name": "Virtual Protocol",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "Dy1d6xC6sPxwpBGxdqYWHp2eJULuMcGHya6c9gSN4fay",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/bafkreifbjxsikdmuhk5qi6krg3sqk2fcqvqlcffrc44kg7ecfkmwhz6s5i",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "VVV4UdRywr7SLafPHzqXwRCw7myXkmgCtitXUvj8g8c",
+    "symbol": "VVV",
+    "name": "Venice Token",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "HwMaR5qdRHwr9E4dFx7Ns8NDBBhnSfs7GN7ECvVpEzcC",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/itwvr0HtYZUTWiYIJSIxLg7AAcHiI_uzANA7FNJYw38",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh",
+    "symbol": "WBTC",
+    "name": "Wrapped BTC (Portal)",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "8csjxupsXZT6mg1nHSRTfypa8oHLmxGSqz6Vk3oC4wDu",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh/logo.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "WLDTE73PPdfFFjhpBz8Yuhvx5N45gvgEgyMXqwa3rFn",
+    "symbol": "WLD",
+    "name": "Worldcoin",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "12xqdXDAvYnrTFJFneS78XE1Bqx6pkCG776E8ChRgW6w",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/u4sCkDWp0lFJ7kCdtp5C61ijDYsfNDAdf2tM0vj8Ux0",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "WLFinEv6ypjkczcS83FZqFpgFZYwQXutRbxGe7oC16g",
+    "symbol": "WLFI",
+    "name": "World Liberty Financial",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "642WxbeFJEdteWtXoh9VKzux5AfK9AtjLb4aNMp8g9Mh",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://raw.githubusercontent.com/worldliberty/usd1-metadata/refs/heads/main/wlfi-logo.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "3ZLekZYq2qkZiSpnSvabjit34tUkjSwD1JFuW9as9wBG",
+    "symbol": "wNEAR",
+    "name": "Wrapped NEAR fungible token",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "C4RwEFzNqD29zEUApaZtDNYasEFd12Dqwrk39nPs2nUA",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/bafkreiekxdv4uxm7ctijvj7wql6bto3cokws6xvfdbg7ylrvt2vtimnqri",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "XPLTrL1ZH3tZJBdFWbbtrNjK9qoqZWfuhQJnXibbdfT",
+    "symbol": "XPL",
+    "name": "Plasma",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "BdP9mmMgLbn4YoDjP6m5ZZgFnQVP6xNytT1m4i6UsFA7",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "4Zp52aF4hZi9fzH19xpbWKYKQvgLyCN67KFbrQDqeTKh",
+    "symbol": "ZAMA",
+    "name": "Zama",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "9iEYcMmB5X6XF2bLQEx6AZeViLru7gu3KN87wp3HjEB4",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://cdn.prod.website-files.com/61bc21e3a843412266a08eb3/6a30676ebd0f55b05237f70e_logo-zama-zsquareyellow%201.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS",
+    "symbol": "ZEC",
+    "name": "Zcash",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "E2fd24QycuwszEK8WyU8CgtCfp5bUkTMenUthzgShJxA",
+    "issuer": "other",
+    "category": "crypto",
+    "verified": true,
+    "logo": "https://arweave.net/QSYqnmB7NYlB7n1R6rz935Y07dlRK0tIuKe2mof5Sho",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr",
+    "symbol": "EURC",
+    "name": "EURC",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "5HbQHBAUEHb6DsHYnY5UuPCPNzNhr6pA2mdybrkigPeH",
+    "issuer": "stable",
+    "category": "currencies",
+    "verified": true,
+    "logo": "https://www.circle.com/eurc-icon",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D",
+    "symbol": "jlUSDC",
+    "name": "Jupiter Lend USDC",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "79WaaxpRrBGTMS321nDDeozaZr8Jj7HaZsAfnhD7wRi3",
+    "issuer": "stable",
+    "category": "currencies",
+    "verified": true,
+    "logo": "https://cdn.instadapp.io/solana/tokens/icons/usdc.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "5Y8NV33Vv7WbnLfq3zBcKSdYPrk7g2KoiQoe7M2tcxp5",
+    "symbol": "ONyc",
+    "name": "OnRe Tokenized Reinsurance",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "EgqxmbRBPGMQmTyDGpobW9TezM5aBT9HJH3LvyTSn19a",
+    "issuer": "stable",
+    "category": "currencies",
+    "verified": true,
+    "logo": "https://arweave.net/PyZzfGP-CqzaVlxTU3sb-I5uv4ZZKwnY8aCjcWn9S1A",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "symbol": "USDC",
+    "name": "USD Coin",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "8gj14w8vkNZjJTPak6e96Uf1sY438WKheH4s5dHyxiRw",
+    "issuer": "stable",
+    "category": "currencies",
+    "verified": true,
+    "logo": "/quotes/usdc.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "symbol": "USDT",
+    "name": "USDT",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "97yPgo2FSXbC1uzimwezv3n4MKkzhTvGkzQ45uiZ4XDu",
+    "issuer": "stable",
+    "category": "currencies",
+    "verified": true,
+    "logo": "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "AAPLEDt8RpzPgXyhvFzkMBofvFSQw9gpeMCoUdPdLnB8",
+    "symbol": "AAPL",
+    "name": "Apple",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "4S94hXz5mjHrPaSkLDzSs6JfXubZjQyDk7RmvQQ3Mt7k",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/AAPL",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsbEhLAtcf6HdfpFZ5xEMdqW8nfAvcsP5bdudRLJzJp",
+    "symbol": "AAPLx",
+    "name": "Apple xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "9RkoV181ksAPNnZmGMyici4MgswhewW2hqvhkVd4DoHi",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "/quotes/aaplx.svg",
+    "uiMultiplier": 1.0032690125398187,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "ABNB56TteaTZG1S3DY2W8VMncQmHMvNCGaZgAba49CLP",
+    "symbol": "ABNB",
+    "name": "Airbnb",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "EBtjd6qxjh9eD9EmdTiVU3dNzAWxjnVNYBwTxKBurkzg",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/ABNB",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "AMC1qwR9KhiyrQBRPrxnfo4JfMeMZqEBvt5tgTytNNoc",
+    "symbol": "AMC",
+    "name": "AMC Entertainment",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "7j4zuEkWm3QWPS1qhZfcFvwCALvMmrpN5xy9NweDEiZU",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://metadata.backpack.exchange/stock-images/backpack_securities.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "AMD8XwJXgQ9WV45Wyj9yFLejxzf2J6VM1PJY8bJEjeES",
+    "symbol": "AMD",
+    "name": "Advanced Micro Devices",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "AgiqUcrVg4EnnM52Hsyyf6qLYCF3Ytu9YphEQRDrM8Go",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/AMD",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "AMZNw7cwU9L9c7ewZXxTws2PwQYxBGm2Rxg3FLDBJz9B",
+    "symbol": "AMZN",
+    "name": "Amazon",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "Esy2wx4QNwxjdYwguWkVnqACrKmsPTScNk1yUrzNjfNm",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/AMZN",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xs3eBt7uRfJX8QUs4suhyU8p2M6DoUDrJyWBa8LLZsg",
+    "symbol": "AMZNx",
+    "name": "Amazon xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "EuXxVmsJ6Go46J8AQrBQKBAEki1zsFNYDvyimTxrepdg",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/AMZNx.png",
+    "uiMultiplier": 1,
+    "pythFeedId": "7148fbe6e493ff2580305c92a8d7f8628c9943b11b9b253aebc24863fec290e8",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "ARMbSB1MBRQrY6PNMao1HdQ431VafC6JRJCsGZ2Yv3iJ",
+    "symbol": "ARM",
+    "name": "Arm Holdings",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "43ieKzjkSEHboBGCim6u87UHjX2pQ4SMinzqF2F1dg8y",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/ARM",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "AVGoo4BQGsEfAmu4HU2deZTaTmLoqB3q3EzKXqAANGYD",
+    "symbol": "AVGO",
+    "name": "Broadcom",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "4pQiPfRqPJbqc3LVAMXQVUNkui6ZwB9kJeHcTBx5w1Pv",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/AVGO",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BArimz1PcKZr8PcPh3tcZ2dg4S7FJLk3cw6R5F8GsHKg",
+    "symbol": "BA",
+    "name": "The Boeing Company",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "CGP8kBFQeV4vjpx1ux5d9V3gnS3vmCjky4QRpDGCJSHB",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/BA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BABANGA4JE7Kkam4nTrALAwAVgsNJUuFJnnkF7S16BZp",
+    "symbol": "BABA",
+    "name": "Alibaba Group Holding",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "6nGs94rrtkAAKAUz17MWRBYFMVThNL5dqxzdD19zoCF4",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/BABA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BBosJLw8ZzoATiEyywiifx7AgmrD2Cm3XjFWbhbRhChy",
+    "symbol": "BB",
+    "name": "BlackBerry",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "8pM4qZhLSbj1UznajyvZuJQJWgS3PEKXVpQx77ZBkoQN",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/BB",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BEBVfXZ8uCxRBuunEbW9wcq9r7W9ySNo14oJBJkDgpZx",
+    "symbol": "BE",
+    "name": "Bloom Energy",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "9NCDTE9kf4oQ9VAT9WUuXHSwAhue3ie8QqLPqNRPkd3W",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/BE",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BLKKYfF41c6xRPrtX1rdYbxLE1xxEdZUnxQsB5hcZ8Nf",
+    "symbol": "BLK",
+    "name": "BlackRock",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "4SctAqd49Ym7BFMSFJt5rgDyGT4MdrmhvWjgc4iriCLd",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/BLK",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BoTx8y9ynfdxf5ZjWtCoBVkff52qKA82ysaLU8ZM6d8T",
+    "symbol": "BOT",
+    "name": "RoboStrategy",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "8PHdFQth26KUuJF97SjYb92PzdvYfm4ZAsefrciKu548",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/BOT",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xs6B6zawENwAbWVi7w92rjazLuAr5Az59qgWKcNb45x",
+    "symbol": "BRK.Bx",
+    "name": "Berkshire Hathaway xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "C4LW36CfMahiEQRveDPgpRGAF29zoovHPSjmasxq6ZMT",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/BRK.Bx.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BRVaZKg6J9iF2BEsdpsxJ9NyvN9PPxPZuoQUX2v8qqkk",
+    "symbol": "BROS",
+    "name": "Dutch Bros",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "HJxNmqkboc846XXcTvrKnp3o8LAqM1jGSkpApTAkxdiv",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/BROS",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BULL151gUXcFV5wXEUqu9Am2L7Qt4bTJRLRuAUjkcspC",
+    "symbol": "BULL",
+    "name": "Webull Corporation",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "FyA8mkfA7eEWGJ2NiGBnY8GyjaDDAgvxPnDkFqqBDRH9",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/BULL",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "CBRSFBbQPpp77NpMcwbTN6fhBHmZM94oFLJvruytw4Fi",
+    "symbol": "CBRS",
+    "name": "Cerebras Systems",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "5ixY82c6f9zEtLS4Pc2Va2MKKXrvoVwAnFSjLK6cZLHb",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/CBRS",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "CHWYHz2zfKajomqPV9it26n7vu7AgZZfqGHXCWtGWuJg",
+    "symbol": "CHWY",
+    "name": "Chewy",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "BLhWNTed6wm8YFfxGX7PenSfjwGPb6fUpPpzbx9HrTX2",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/CHWY",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "CMGi497VQA9RiHVWpQi5B847vN8RLaEwcMhB5kEUhkAQ",
+    "symbol": "CMG",
+    "name": "Chipotle Mexican Grill",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "3ZVnwGAhYk9wGa6nJUwd9T24TZ99VYNcT4nXjJZ8TFjj",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/CMG",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xs7ZdzSHLU9ftNJsii5fCeJhoRWSC32SQGzGQtePxNu",
+    "symbol": "COINx",
+    "name": "Coinbase xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "3iXUeMAmCcMw5ydJR3GooYGh1TyVLUmVEgTHTrn3bFwK",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/COINx.png",
+    "uiMultiplier": 1,
+    "pythFeedId": "641435d5dffb5311140b480517c79986d8488d5cf08a11eec53b83ad02cab33f",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "CZEB3WNZuF2Yz1z2H81RcCk8T7fsw82KB33zqamASVsg",
+    "symbol": "COST",
+    "name": "Costco Wholesale",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "8PxTUDQYrX6Mt8pchdgkiokcTFLQ9C9QUUMPDd4pXihM",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/COST",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsueG8BtpquVJX9LVLLEGuViXUungE6WmK5YZ3p3bd1",
+    "symbol": "CRCLx",
+    "name": "Circle xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "CW9f7d56a4idicgJ1CgTegjTMifgD3cKUnW5pkRRjA9V",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/CRCLx.png",
+    "uiMultiplier": 1,
+    "pythFeedId": "c13184461c0c80d98ffcd89be627c2220b94a96c7c67f0c4b16bc12fd3b17758",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "CRWVJeR2yEZuDUKYfGuKCHvLz8ywn4LGvovHfy5WiFmi",
+    "symbol": "CRWV",
+    "name": "CoreWeave",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "CED7BrVkXC5sbrmP69Y2gSPgAu4Wa9vk9cdBxw5Xw866",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/CRWV",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "CYPHuMmCL1GxJWa2tsPhLKykC7GrHJTCHwbXD4g5uawK",
+    "symbol": "CYPH",
+    "name": "Cypherpunk Technologies",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "Czu3omyeZZqZ4hq7gGqnaQ3oSJGMdpzRBw5ijerJpSK8",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/CYPH",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "DELL2aRKQz7DMq5DrKLtkn47ZCnbxXPZXrSGbkmd13wy",
+    "symbol": "DELL",
+    "name": "Dell Technologies",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "8KBVENQKocb6MCFFEXRh8Wv2Jq7b66X3F6dcwozo8Dq8",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/DELL",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xs2yquAgsHByNzx68WJC55WHjHBvG9JsMB7CWjTLyPy",
+    "symbol": "DFDVx",
+    "name": "DFDV xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "3uGDZazyFTPvdqKcLEPQNozBPWxg4wFRBgtDi9o3u4Ku",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/DFDVx.png",
+    "uiMultiplier": 1.01472895118,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "DJTu7vi8norVzdVAffgvb39VP7wjKeTsgaMBJrzfxvoF",
+    "symbol": "DJT",
+    "name": "Trump Media & Technology Group Corp. Common Stock",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "6LPSTaaEZozfUwbibN5Bbbbw9BtG5WZgenrELFbPV2Bf",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/DJT",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "DKNGQFNGQmoBdXSRGKJ8tTu7uPDasw5JDcfMmWniNfow",
+    "symbol": "DKNG",
+    "name": "DraftKings",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "BjXTyyU2Nmak9gcTgCD57SBMW6YPKSGhbJarwYdLQfmM",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/DKNG",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "DNUTsCvKbKwu2RM72cUuW3TD9YpzArzACcqYQssjPLSk",
+    "symbol": "DNUT",
+    "name": "Krispy Kreme, Inc. Common Stock",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "JufpLTt5zHWNxpZ9kXUNmrir8GFNB4w1y7TbPdeDjWp",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/DNUT",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "FLWSojG1gB5VStYR3Sb4nQFRt43UBYkqih1j2CpVLqgd",
+    "symbol": "FLWS",
+    "name": "1-800-FLOWERS.COM",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "3LmdGaCASoEVxZ5btoQCW33P1kAD2EiatCms3ZCT5caJ",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/FLWS",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "FLYRq3en8r2Z69gN3KyAnDrvnitEJNkwPYY7favinHeD",
+    "symbol": "FLY",
+    "name": "Firefly Aerospace",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "79ieaXEoa5DFxdvgzYk7ieZLY9zRuigDg9XKCxfscF2x",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/FLY",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "FWDtiB5fXHdVAewPqvHPL2dh4aBC1C6GacQbePoQXKjz",
+    "symbol": "FWDI",
+    "name": "Forward Industries, Inc.",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "AyBfMDLU99yVLk8GYUqV7KXzApJVqK6xBeA44uF1GeEv",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/FWDI",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xsf9mBktVB9BSU5kf4nHxPq5hCBJ2j2ui3ecFGxPRGc",
+    "symbol": "GMEx",
+    "name": "Gamestop xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "2TygvvGwVLxpJaGfQkFtGFzgvRMQmcFi6fM6iceLTTpu",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/GMEx.png",
+    "uiMultiplier": 1.005309167384,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsCPL9dNWBMvFtTmwcCA5v3xWPSMEBCszbQdiLLq6aN",
+    "symbol": "GOOGLx",
+    "name": "Alphabet xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "3exefyTZ6ves3Z6cvQ9nf1NtSPAnHX95ZtvKWedf7JX6",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/GOOGLx.png",
+    "uiMultiplier": 1.0023772500603487,
+    "pythFeedId": "b911b0329028cd0283e4259c33809d62942bd2716a58084e5f31d64c00b5424e",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "GPRR2u6NS5yBQHWGauoJ9HXgjrTH8dDsrBfTV5zAYvDH",
+    "symbol": "GPRO",
+    "name": "GoPro",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "4LepUxfTctEaLjsJHgBMhYptaCMiNM8f9syx27UhrVua",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/GPRO",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "GRNDYDpqwpCm6jVxpbh4xT5AM4r3p391qYsKTHqgaET2",
+    "symbol": "GRND",
+    "name": "Grindr",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "Ey2D9FsUpq9BNCSQVnbXzQS8hxVNHjPH8DezN58nyn3u",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/GRND",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "HiMSSzzwkZkrXJ4PGVJRdtfLaANeAztjjcgk5Dxe7Lwx",
+    "symbol": "HIMS",
+    "name": "Hims & Hers Health",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "ERbSzTkkhMtEUnurf3jxyBWUYRW49oFy5dDnhZbBCtB9",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/HIMS",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsvNBAYkrDRNhA7wPHQfX3ZUXZyZLdnCQDfHZ56bzpg",
+    "symbol": "HOODx",
+    "name": "Robinhood xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "2g2cjjSs8YLAesHXwszZqd1SreCbdVSE3AYpm6fzvv9N",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/HOODx.png",
+    "uiMultiplier": 1,
+    "pythFeedId": "dd49a9ac6df5cbfa9d8fc6371f7ae927a74d5c6763c1c01b4220d70314c647f9",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "HTZsLG4zqaNvWMwXSLHH3GG5KyJpKwpBRsKVdMG6hvzP",
+    "symbol": "HTZ",
+    "name": "Hertz Global Holdings, Inc Common Stock",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "GEHL56UmK46smbh1NKw8ucUtyz4RFjAv9e7WGSjeAhXX",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/HTZ",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "BMKdM4yUxX12moFqVk195k7coMbaybd4RUKCUdm7D1Sk",
+    "symbol": "IBM",
+    "name": "International Business Machines",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "EbmLFMDYjpBf6CPV8S3gynhGdtmVgfoC3PLxFG7Gtmt9",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/IBM",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XshPgPdXFRWB8tP1j82rebb2Q9rPgGX37RuqzohmArM",
+    "symbol": "INTCx",
+    "name": "Intel xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "3CXmnPmc9wtRRn3gRTnbwX1GgoaqqouXgNmjAoxc4vAk",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/INTCx.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "NQ5hSuXQZrbnrwcDVk2qN73njjd3E3v3badYHnj5thF",
+    "symbol": "IONQ",
+    "name": "IonQ",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "Fz2Skf1vSnMZZGiTYC6AoQeknVpB7XVajzyQv16Fqdqi",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/IONQ",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "RENzhrJQgmAnfcLhU1U5XwAMc6TC15UA6jCbPBaasnj",
+    "symbol": "IREN",
+    "name": "IREN",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "Em5sonKLfWSQ6rM5ym6bqtx5SoEDZjarDNfsJxr9Z2M2",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/IREN",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "JNJg1znKdF712Phe7L7z52AATAvEjEytBdN2w8Lnh1Y",
+    "symbol": "JNJ",
+    "name": "Johnson & Johnson",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "9m6Gt7ddte9gXtTVDhyhQWUKngieGj5DtsznMX9V1MvW",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/JNJ",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsaBXg8dU5cPM6ehmVctMkVqoiRG2ZjMo1cyBJ3AykQ",
+    "symbol": "KOx",
+    "name": "Coca-Cola xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "GfQaYtUGMCGuVuWPYtc2YZK2ojLAYow1Ts385otssUpe",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/KOx.png",
+    "uiMultiplier": 1.0225601246249238,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "LLYuwZ33keFihgwoxXsBawy31AiRFLFSva32TYq5TvD",
+    "symbol": "LLY",
+    "name": "Eli Lilly and Company",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "91q5iN7G8JreoSvErfeJKDCjV1SPwYXQAwMqog1FNoLo",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/LLY",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "LMT3i1BHgixFqPUgcyteJhnEz2dpy9i3cYy4pi9BoeV",
+    "symbol": "LMT",
+    "name": "Lockheed Martin",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "BnrznzfGvdjXQJGPFHPnBqFpDCS9ZZAJU4PGdPcbjzwi",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/LMT",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "LULUmT9VMttkfAJE236LXJcYJ2tTP7nunrSWR5G1BdS",
+    "symbol": "LULU",
+    "name": "lululemon athletica inc.",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "G7uZNBnZL7wJJyVgxnZzmUczkJCniRL8YbwYXM9E6wZo",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/LULU",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "LUV9GB51PNZNRyzzyYK3rtqFfvDvWtRiXZ34wVq2HrX",
+    "symbol": "LUV",
+    "name": "Southwest Airlines Co.",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "CC5s87tEpZ3hrdVJ8DLRvxwmtZnuiZTtKu4vkrecTAf8",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/LUV",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsqE9cRRpzxcGKDXj1BJ7Xmg4GRhZoyY1KpmGSxAWT2",
+    "symbol": "MCDx",
+    "name": "McDonald's xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "48bT2fMdhXScMFDFuUCzDZyF92ifEsBQMKgjXrGvFzN3",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/MCDx.png",
+    "uiMultiplier": 1.0211807004882871,
+    "pythFeedId": "27cac3c00ed32285b8686611bbc4a654279c1ea11ab4dc90822c2edd20734bca",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "METAaH6MMZZgy2CTEJq3QdNi7AFVTV3NxHFBfFgLEDd",
+    "symbol": "META",
+    "name": "Meta Platforms",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "3JwBCySqrp9pZGgqnjEryxxe43boFuCQiBnC95xbqb7z",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/META",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xsa62P5mvPszXL1krVUnU5ar38bBSVcWAB6fmPCo5Zu",
+    "symbol": "METAx",
+    "name": "Meta xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "G9NjYUD96DfCBUnduDHoZ7TCRrvdG41GLUkuoRch6qFC",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/METAx.png",
+    "uiMultiplier": 1.0028515433272898,
+    "pythFeedId": "bf3e5871be3f80ab7a4d1f1fd039145179fb58569e159aee1ccd472868ea5900",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "MGMuubtUEirmkhfEQdmGUh4pr7HuUdMWcZXFtpPbVJD",
+    "symbol": "MGM",
+    "name": "MGM Resorts International",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "EWaWnpihQEvC5nvUMhg17j6xHwL29WHyehqY49M24mTd",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/MGM",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "MRNAzXzhNcaEXJPibHEn8cd4vyekCDiivTyEwswLUCT",
+    "symbol": "MRNA",
+    "name": "Moderna",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "Ew4mwPTBrE7qazshbWo9qaKVEqVzZsv2tz8go9vHk6pi",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/MRNA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "MRVLSjkR2ceUBukujaD3xCyHP1H3B2SzpsNTZF546jo",
+    "symbol": "MRVL",
+    "name": "Marvell Technology",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "DiZy5P1pFdfkY4XKrycgAiqvyF4YvKiMhfRS4dABf5f",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/MRVL",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XspzcW1PRtgf6Wj92HCiZdjzKCyFekVD8P5Ueh3dRMX",
+    "symbol": "MSFTx",
+    "name": "Microsoft xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "G9uCP4DwMDzMxQCQ38TnNGbVaoiAY2pP1BWd7rev1LmS",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/MSFTx.png",
+    "uiMultiplier": 1.0059033904787456,
+    "pythFeedId": "bb723a70af731ab56b9a650eb7e8ac22b7bc07ea77f8670bd1fa9a37bf6df3f5",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsP7xzNPvEHS1m6qfanPUGjNmdnmsLKEoNAnHjdxxyZ",
+    "symbol": "MSTRx",
+    "name": "MicroStrategy xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "t9CXBViTixE8jEHzLwZXZYRdzojg9rAArYGoK4Vut4u",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "/quotes/mstrx.svg",
+    "uiMultiplier": 1,
+    "pythFeedId": "53f95ba4e23ed15ea56083e2ee9a5eec48055d6f59033d4bb95f1ca2a2349c28",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "MUxEsUKSMACyw5fZf68wxf5FLnZVhtU9CwH8uNNGay1",
+    "symbol": "MU",
+    "name": "Micron Technology",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "CKVcp3iWp1Gs3oe1ZvEMfJESTrMN6yRPu9XDi1r3RU6v",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/MU?cacheburst=1",
+    "uiMultiplier": 1.0001069665635376,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "NBiSF3UaVUFtRzHwAfxyHsBCAZWGEKnMpewAE4oh7BG",
+    "symbol": "NBIS",
+    "name": "Nebius Group N.V.",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "2qUies5k7JCQcxKRUShfgGX2tBJMq84h5cwzU6Kd55M5",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/NBIS",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "NFLX7qV57zuVxCoHy3s1jiGZyALraLNwttbxdvmYJLJ",
+    "symbol": "NFLX",
+    "name": "Netflix",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "A9NpW59NYEK3FuutZ7VDwAx1uY5gDxQuWDEcJU18Yw3T",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/NFLX",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "NKEda5nHhNGgjrE9nDdMvaEmkmJ96qqxzBVZEcKmjSg",
+    "symbol": "NKE",
+    "name": "Nike",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "7yXLcuU4HNEjjEYbz7rAYJUK11SXfdR6df84LyfEQWuM",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/NKE",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "N7Q5fYX7YRnDQksfdBKnoUb3awm92n7QNAD35X3Rq1X",
+    "symbol": "NOK",
+    "name": "Nokia Oyj",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "D4XCFknHkhgWHura4vcZAd1ZD9efdpWtWLVGWeZFTjqX",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/NOK",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "NVDAVuiB7hwd3m5Wa1JuHNovPaPG6BH1QNztbKFxNjv",
+    "symbol": "NVDA",
+    "name": "Nvidia",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "7WQAkFGjiqfXTBYWvM6qtFsR7nUy5GAm6ntrP4TJjn1L",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/NVDA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xsc9qvGR1efVDFGLrVsmkzv3qi45LTBjeUKSPmx9qEh",
+    "symbol": "NVDAx",
+    "name": "NVIDIA xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "2NuVPU5ViAyQsZamVfJ1vU6Cp77WSzret4LtNTMiWFQ4",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "/quotes/nvdax.svg",
+    "uiMultiplier": 1.001701196801074,
+    "pythFeedId": "4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "PFER6ENqP8r8NF3CqVt4mFowxsin3V5MLidBNQFCC3x",
+    "symbol": "PFE",
+    "name": "Pfizer",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "FWEDLXDVAj2Gpi8Q4dTSauH2oEiVUZoTqDSQ5g6pqYXa",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/PFE",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsoBhf2ufR8fTyNSjqfU71DYGaE6Z3SUGAidpzriAA4",
+    "symbol": "PLTRx",
+    "name": "Palantir xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "HtvFPh65mJ43MzLBF4UF1MriDiEZmeH3FLTpoaMMhB9T",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/PLTRx.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "PTNzAfFAB4LvoUQEUUGrFMyUoRLExMYjH6CcfyQfsVP",
+    "symbol": "PTN",
+    "name": "Palatin Technologies, Inc.",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "8pau2Xq5wCkfnEW6Y9G6oBESLEkS7Jat78w4L7WqMSn2",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/PTN",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "PUSAG1stksTcAoK9MjinEHUwAYRJsbovywYCk37m6hy",
+    "symbol": "PUSA",
+    "name": "Powerus Corporation",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "4g9jnd7kSr9ehTarotv2wk9RJeeoh1yKAoZeYMLtPWNM",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/PUSA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "QUBTAD8C9bMU9LvmMNgKPhrmBGbHvxpu6vfWQtThxxw",
+    "symbol": "QUBT",
+    "name": "Quantum Computing",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "G83PyRMRBaUi2A8oEjxv4rP1g8wogiV8uPk6hdkQAZ3",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/QUBT",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "RACEyWiM2ztEZcJx2AHXU2eWjhxU57x3vXn92b39dLD",
+    "symbol": "RACE",
+    "name": "Ferrari",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "AdxNwMXUxe3faj5hz6w7LKQBE8BSjviQBLBZA9Sh2pfm",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/RACE",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "RBLXDGRD64AtRamHMFVcjqne3Ar7NLWtFtYNtsrf1cE",
+    "symbol": "RBLX",
+    "name": "Roblox",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "3C5bWuc9Fy3WAjbprdRyJ3VXGsdqreFHsdg1vrtGyaxQ",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/RBLX",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "RDDTGbhHwVXfyCvQMXzzowKjf5qrYBZAnehoXW83ooh",
+    "symbol": "RDDT",
+    "name": "Reddit",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "BGHzTFVQNX5QsqkFYQbL4FQE68vJ15d3oQHDdqSQyiQ2",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/RDDT",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "RUKx7nBgm94pwRPbVm99xYVdcTDTUyGs8Cw3VSYQXHf",
+    "symbol": "RIOT",
+    "name": "Riot Platforms",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "2kND2pkJwU95bBp3g9evnPLnZQ9dykfaF2WixMXSJUWv",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/RIOT",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "RcZmt84VMJv9bDhKqmw1uWDahYrUT468VwAChTnfD8p",
+    "symbol": "RIVN",
+    "name": "Rivian Automotive",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "ASnUEJfSezy15M3AM97Ft1V2kZYSdQbF6s2MSAnDeuPh",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/RIVN",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "RKLBnAXGqv31iZomqsuAWkQm1aqC7JwwvbCfzGdqAhz",
+    "symbol": "RKLB",
+    "name": "Rocket Lab",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "5rYgshiWG6PvYi9jLwopE3muTd22FjB49WBZqnSazEr3",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/RKLB",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "RUMsPfFZFnN1ZmGANwP7FNMJMjKH4m9RiMePrtVtLe7",
+    "symbol": "RUM",
+    "name": "RUM Group Inc.",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "8StG72Rq8rzC3QTgD4VPrNoneeB1FNoCwjk97eiZJkKg",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/RUM",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "SH55hfaipFAbwT42nQYhRoM5o5t61QpkmJ6p62vXB3m",
+    "symbol": "SHOP",
+    "name": "Shopify",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "7p8Gh9TsxNwyLRupVm3pv4JDNSNCRdRRQRxtZve3UJhM",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/SHOP",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "SKHYhSjuRWHgikq8eRKbtBbpABgJSkd7ytQV14i9EQ3",
+    "symbol": "SKHY",
+    "name": "SK Hynix",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "DmJhbwoEnETqaBczYLBY3hmW61mo78273r97MCpyDCF3",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/SKHY",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "SNAPcESrvnH8yUdgeMF6xm1hym9b6hW6s8YeqeHdZFz",
+    "symbol": "SNAP",
+    "name": "Snap",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "6GB4wD9359bGzbj44nGVsGDLou3Gg1fhQGoEMyMfKNaQ",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/SNAP",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "SNDKbwMUQvZhnLnxLduradgLHG5KrPuKwpnrkkGRhfH",
+    "symbol": "SNDK",
+    "name": "Sandisk",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "7Rtqq4aMaBVDyPwBNAJiUghKpWC1W8imxE4c9r8JXcdZ",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/SNDK",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xs3oZwbHvqis4NYcf4YKWmEia2eC84wSiVrcYcTqpH8",
+    "symbol": "SPCXx",
+    "name": "SpaceX xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "9mfQRzhyaACD49VhrSwCWKjrHVLcNfhxSdhg2hDSwCd8",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/SPCXx.png",
+    "uiMultiplier": 1,
+    "pythFeedId": "e8e2234a06b288fedde43ae9450cb288886ecb3259ad2f41d0067f02244a0101",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "SPHRp8cZaSQBTp1KMNP4V1X821SXhXWt4Q2yLdyHzju",
+    "symbol": "SPHR",
+    "name": "Sphere Entertainment Co.",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "HF2VzPPNoYjaSgDaDr4uhdUDq6QzhG57qPkExUcpbcRW",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/SPHR",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xs78JED6PFZxWc2wCEPspZW9kL3Se5J7L5TChKgsidH",
+    "symbol": "STRCx",
+    "name": "Strategy PP Variable xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "2WasvghGAHFPDxri83HoNap8s6kWjs8EWJS9bNktsgMa",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/STRCx.png",
+    "uiMultiplier": 1.0972861057669483,
+    "pythFeedId": "5f5193ed44dd1f4b0732dbffa2e27caf953e16a2d911854c8c3766d8bc609a47",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "TSLAqBbv4CNCnzWFeB7LmydAyEiNMJtve7DYKLpdK4S",
+    "symbol": "TSLA",
+    "name": "Tesla",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "95fxNtRGLnbL2y1BNfWpbbCjXRQUPBwAFc4P1Lv6BnFf",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/TSLA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB",
+    "symbol": "TSLAx",
+    "name": "Tesla xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "Fny7wPYnkeR5AU285YLSJv9giQUbxDA2DpXQAinTe2nR",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "/quotes/tslax.svg",
+    "uiMultiplier": 1,
+    "pythFeedId": "47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "TSM2Hiuf7Z9REcwZFQvsBEekBYCYziWBABfFnj6V6gQ",
+    "symbol": "TSM",
+    "name": "Taiwan Semiconductor Manufacturing Company",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "FRTdWwESs15JBdBzRs3o2zDHqZThUdvPLgSVyBU962iP",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/TSM",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "TTWofwAge91oFhZs7kpQdyrVRkmevgM88xijGvQFbKo",
+    "symbol": "TTWO",
+    "name": "Take-Two Interactive Software",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "XBmHAG1qHfVZS6zJLXKBTW7zvQZAEmhsX8H2fUzco4V",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/TTWO",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "UPSqUeMHcWbkdg784XuBUEF9DtySSnW9ur5LAVdcuB9",
+    "symbol": "UPS",
+    "name": "United Parcel Service",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "G3764PGzqPGeNn1fhJFNdXCjkqMskYWtbETbpAxtkQYp",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/UPS",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsfCC9VL4DamVGNgdJpfLXB3sBVa158Gbx8sh7NzmTk",
+    "symbol": "VIDAx",
+    "name": "Vida Global xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "78nUhNtTCs2GhvUFT7kAqLJgDbiAoszZnVymV15PJcCj",
+    "issuer": "xstocks",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/VIDAx.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "WENAZ2WyPbmgvUcKfQ8hyMDfBQP9bZ65hsZ5KTFrRGZ",
+    "symbol": "WEN",
+    "name": "The Wendy's Company",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "BwQPUeBsuCbPUVvoJj2EMGFSJtmxE2zV78V6pvw8YBKR",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/WEN",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "WULFeyfrj1VJKD9HhRTcW8R4g5HefUA11HDEdBv2WxD",
+    "symbol": "WULF",
+    "name": "TeraWulf",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "8LioETwZJJMDN1NuzcLCJjcxuKanEkATtbuV6HLaUGHi",
+    "issuer": "backpack",
+    "category": "stocks",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/WULF",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "CzLTZppPdZtTjyq3WGpHLstoc3GLhu7zH5Zg6xUa6Gv5",
+    "symbol": "COPX",
+    "name": "Global X Copper Miners ETF",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "ArTL5Yzty5DgvJAvJvJypJCWhVM36tK8KsQcAEMB6W6E",
+    "issuer": "backpack",
+    "category": "etfs",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/COPX",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "DRAMjSWR7HRfJKjRkvQWYL2bcaejaVhuxEcjf4pAY4Cw",
+    "symbol": "DRAM",
+    "name": "Roundhill Memory ETF",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "DzhYJgtBkYazeysVcFkk4HJRQU7Wn6juiFzbcQCsSUfE",
+    "issuer": "backpack",
+    "category": "etfs",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/DRAM",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "EWY4owSJYMpwN33qGDu5gGxpkQkpMJu8ZUsQJaNZG5dv",
+    "symbol": "EWY",
+    "name": "iShares MSCI South Korea ETF",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "DZykfspqy8U88GFZnbWPVzJDJV7ZGeEbuLHWXf3rncky",
+    "issuer": "backpack",
+    "category": "etfs",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/EWY",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "EWZzCki1igp2y73UyUM4RCG4QUVMQAtnrQUVNaDHzDxJ",
+    "symbol": "EWZ",
+    "name": "iShares MSCI Brazil ETF",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "5JPQv7BZ4iCUkEGe4Uz9cKwLPiR1YkqyBWvdULsWAbrH",
+    "issuer": "backpack",
+    "category": "etfs",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/EWZ",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xs8S1uUs1zvS2p7iwtsG3b6fkhpvmwz4GYU3gWAmWHZ",
+    "symbol": "QQQx",
+    "name": "Nasdaq xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "83KjqrTThSwY5dL1nDAf3Mi8eM9nZi33yM8Ntx2aJYuE",
+    "issuer": "xstocks",
+    "category": "etfs",
+    "verified": true,
+    "logo": "/quotes/qqqx.svg",
+    "uiMultiplier": 1.0034560758968376,
+    "pythFeedId": "178a6f73a5aede9d0d682e86b0047c9f333ed0efe5c6537ca937565219c4054d",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "SCHHJ3jRdSjeFEVAaLrnYdx3Brphn92Ys7z1qkiCtPX",
+    "symbol": "SCHH",
+    "name": "Schwab U.S. REIT ETF",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "J4yvP1SHfbafkyzdGAq2uDiAJnKXJ2bEQ4yT4buF5Swq",
+    "issuer": "backpack",
+    "category": "etfs",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/SCHH",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "XsoCS1TfEyfFhfvj8EtZ528L3CaKBDBRqRapnBbDF2W",
+    "symbol": "SPYx",
+    "name": "SP500 xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "B7ctMMdGvy46Am56myTtzfkNzt9kWZVTNGM2BWrJ9adg",
+    "issuer": "xstocks",
+    "category": "etfs",
+    "verified": true,
+    "logo": "/quotes/spyx.svg",
+    "uiMultiplier": 1.005714560286254,
+    "pythFeedId": "2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "SQQQAa3gUxgnqcEsdjPA4RQNQBgB97TnG2hJhk2WaGE",
+    "symbol": "SQQQ",
+    "name": "ProShares UltraPro Short QQQ",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "325UNQSTL1oQKJEYyF8L2GLNS4ZmTREqHs9pcoomHPKF",
+    "issuer": "backpack",
+    "category": "etfs",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/SQQQ",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "URARfsinxCRw4JpvQhuT4CxavdZXZEMjv9ZwWmWpwag",
+    "symbol": "URA",
+    "name": "Global X Uranium ETF",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "AhPwBvNzVi5DxeK1daAr2NPb6NVrpG5qPhwdFoBWonZj",
+    "issuer": "backpack",
+    "category": "etfs",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/URA",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "UVXY4ojmAMTaPwUmrRmcuxWHjMHCbz3BxX2RBMzjYKx",
+    "symbol": "UVXY",
+    "name": "ProShares Ultra VIX Short-Term Futures ETF",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "8xj4XA3inyza5DNfV5zBW9JpeJEoUiTieSZn3Vro84aC",
+    "issuer": "backpack",
+    "category": "etfs",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/UVXY",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "Xsv9hRk1z5ystj9MhnA7Lq4vjSsLwzL2nxrwmwtD3re",
+    "symbol": "GLDx",
+    "name": "Gold xStock",
+    "decimals": 8,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "Crvp3VHo4eqyARzFsnwygu3Y9aWgfy9zupQtcVVuZN2K",
+    "issuer": "xstocks",
+    "category": "commodities",
+    "verified": true,
+    "logo": "https://xstocks-metadata.backed.fi/logos/tokens/GLDx.png",
+    "uiMultiplier": 1,
+    "pythFeedId": "e7d1138d0083368634087268c64b7bea0b4101a6365f83915cba9e76a8364b96",
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "USNv3NkKA27Dh4nsHJDPhW4VoEcTQmjoZyJt2dqdwFu",
+    "symbol": "USO",
+    "name": "United States Oil Fund, LP",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "FwMtMHzQFqd3EM47qrG2VQZrktJssB7PjuMpwiKCE8wd",
+    "issuer": "backpack",
+    "category": "commodities",
+    "verified": true,
+    "logo": "https://backpack.exchange/api/stock-logo/USO",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": true,
+      "pausable": true,
+      "freezable": true
+    }
+  },
+  {
+    "mint": "2zCo6bUowJMvr89ajxuWsPadAqJ2F9akCkxumNsSdgsL",
+    "symbol": "xBTC",
+    "name": "Hylo Leveraged BTC",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "6kKxXTejzU7iWxEUUMEx22mREDjSg5VHvww6UNmX8U4Q",
+    "issuer": "other",
+    "category": "leverage",
+    "verified": true,
+    "logo": "https://hylo-token-metadata.s3.us-east-2.amazonaws.com/xBTC/icon.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "7ga6rtE9qSb3wdEiDCpTu2kHqoGVfT52jD8ign1rYTvx",
+    "symbol": "xHYPE",
+    "name": "Hylo Leveraged HYPE",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "HVQUb3bTSjhiGRrDihBaqx7xdTzeQK77XMwgPSykfJrr",
+    "issuer": "other",
+    "category": "leverage",
+    "verified": true,
+    "logo": "https://hylo-token-metadata.s3.us-east-2.amazonaws.com/xHYPE/icon.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "4sWNB8zGWHkh6UnmwiEtzNxL4XrN7uK9tosbESbJFfVs",
+    "symbol": "xSOL",
+    "name": "Hylo Leveraged SOL",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "89Jix6Gj2s3UgMZLzDfbqVGB6h2tLhdhPxv8KzVFZzCE",
+    "issuer": "other",
+    "category": "leverage",
+    "verified": true,
+    "logo": "https://hylo-token-metadata.s3.us-east-2.amazonaws.com/xSOL/icon.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "58QyXQ1UDgHh64EiTsCeevVM9cLPqBDNf3qZE6EdfUhZ",
+    "symbol": "FRONTIER",
+    "name": "AI Frontier",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "8vChNhMLR5X3YAvHJ4s6PPWo2272eRcCvmhNwmLWkvSZ",
+    "issuer": "other",
+    "category": "baskets",
+    "verified": true,
+    "logo": "https://assets.diversifi.trade/basket_images/diversifi/frontier.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "ysPp2Bt2j2UQu2tZwtSJz7JxyrmQ8GJcNJE5NyDoS5a",
+    "symbol": "MUSK4",
+    "name": "MUSK Index",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "6k9BeZy15VW54ga75ebohrU9bhimtWnGZDuJqmB6Tzb",
+    "issuer": "other",
+    "category": "baskets",
+    "verified": true,
+    "logo": "https://assets.diversifi.trade/basket_images/diversifi/musk4.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "7V1evjzUMFi4QDK7kAntcfdr9MyYC6S5bvsUCtxX1dSJ",
+    "symbol": "SAMA4",
+    "name": "SAMA Index",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "31WUZ2UsqHCxDaZTZEX1z9noY5rxGmw6ZyAqmG53rirH",
+    "issuer": "other",
+    "category": "baskets",
+    "verified": true,
+    "logo": "https://assets.diversifi.trade/basket_images/diversifi/sama4.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "5MQhtwFmgwZugLUaA7JRzGptrdCURormQLERHo7Av3JT",
+    "symbol": "SAYLOR3",
+    "name": "Saylor Index",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "6cWrj8sritaxKz2pRQwC2XEZ9WJXqTkzcD2jWLjQ14co",
+    "issuer": "other",
+    "category": "baskets",
+    "verified": true,
+    "logo": "https://assets.diversifi.trade/basket_images/diversifi/saylor3.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "6s2umN1sqM8mS8ERRmt9cqcFwAoWu5ofma7DN3KfFiue",
+    "symbol": "TRUMP3",
+    "name": "Trump Index",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "5qE4MiQuuD5SofA8rAWccm1Muc2BUsohPvvndWn6bUvT",
+    "issuer": "other",
+    "category": "baskets",
+    "verified": true,
+    "logo": "https://assets.diversifi.trade/basket_images/diversifi/trump3.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "HeeBovJNKd27tQ6xkeP1dfSyTr8LyLwhJz9wfFTbPLEX",
+    "symbol": "HEEBOO",
+    "name": "HEEBOO",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "2fpCFtnj9jxKKuicXiEKXVuGGFWJBsLRNvSsreQ5RrqH",
+    "issuer": "other",
+    "category": "collectibles",
+    "verified": true,
+    "logo": "https://www.heeboo.com/logo.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "SV151D5pjygAKA8aJJcKzm4wFnRX5G92Fye94jQJk7g",
+    "symbol": "SV151",
+    "name": "Scarlet & Violet 151",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "pXpJDD8Cz3mAXJrsdzhrV4aX932dhEJBYNm2nbEKpc2",
+    "issuer": "other",
+    "category": "collectibles",
+    "verified": true,
+    "logo": "",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+    "symbol": "$WIF",
+    "name": "dogwifhat",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "E1KQcJbcYsHWFG9uJ3wCUpBrBDEHotNvgSL9fQwiuW87",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/bafkreibk3covs5ltyqxa272uodhculbr6kea6betidfwy3ajsav2vjzyum",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+    "symbol": "ANSEM",
+    "name": "The Black Bull",
+    "decimals": 6,
+    "tokenProgram": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "globalConfig": "udvdyPqL8FYYiPBvk92ARTJ1CHTG51uAWREMjkJUTiz",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "Https://www.blackbullsol.com/images/icon-ansem.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "G7vQWurMkMMm2dU3iZpXYFTHT9Biio4F4gZCrwFpKNwG",
+    "symbol": "BIRB",
+    "name": "Moonbirds",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "Bg98KQtqL18Ae9r2eq41fXfAP7utXJvqV2FZRTdZcxr6",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://static.datapi.jup.ag/images/asset-icon/G7vQWurMkMMm2dU3iZpXYFTHT9Biio4F4gZCrwFpKNwG.svg",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
+    "symbol": "BOME",
+    "name": "BOOK OF MEME",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "4AupynAMfPWJpR9PHQXrLYiaMgJX5T4Hdubj1JrB8VdV",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/bafkreihztk5poge7f2lz6logfjmhc7h7u6shvgacoktnuezks5oblmieue",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    "symbol": "Bonk",
+    "name": "Bonk",
+    "decimals": 5,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "7G6Gg6rCnaegAhPBdZnRKCkzDWB6K6j4vmhtivSJhVtA",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://arweave.net/hQiPZOsRZXGXBJd_82PhVdlM_hACsT_q6wqwf5cSY7I",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "CARDSccUMFKoPRZxt5vt3ksUbxEFEcnZ3H2pd3dKxYjp",
+    "symbol": "CARDS",
+    "name": "Collector Crypt",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "7em1KfyK7cGENxXhLXn17sRbUHB3WJY3rUqwcsxQFmy1",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://dtuun44arxijmo4xqgzhiiciv6fwyagkk2gt3iaub7mvzcfgktaa.mainnet-1.datasprite-cdn.com/2wrjAk4pYAACF3siDHAxt7yJY7kHgt57TZAkbgecKHMR/",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",
+    "symbol": "Fartcoin",
+    "name": "Fartcoin",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "D6rhMEJEyL2weM26iXXcfvj9J6V7SFDbRgZJRMjA3xM1",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/QmQr3Fz4h1etNsF7oLGMRHiCzhB5y9a7GjyodnF7zLHK1g",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
+    "symbol": "GOAT",
+    "name": "Goatseus Maximus",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "C6Cqx5y6qFVAsHHdTHerjyEKs43kpwizyw69FvWQ3JCB",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/QmapAq9WtNrtyaDtjZPAHHNYmpSZAQU6HywwvfSWq4dQVV",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "FeR8VBqNRSUD5NtXAj2n3j1dAHkZHfyDktKuLXD4pump",
+    "symbol": "jellyjelly",
+    "name": "jelly-my-jelly",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "GhQ3LL1q9btMkXuswznktY54uJfYLgYr8ujqiEuUaZzP",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/QmWT4jA2ipuevUfBi1a2LW2gfnPJyvHn1JayAe2qz5kRQJ",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
+    "symbol": "MOODENG",
+    "name": "Moo Deng",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "BB13LxvH17Rg4dZxbUGgvwNbzyWxwUu6Ue2tFkBGW4bU",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://gateway.pinata.cloud/ipfs/Qmf1g7dJZNDJHRQru7E7ENwDjcvu7swMUB6x9ZqPXr4RV2",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "Ce2gx9KGXJ6C9Mp5b5x1sn9Mg87JwEbrQby4Zqo3pump",
+    "symbol": "neet",
+    "name": "NotInEmploymentEducationTraining",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "944Uoa6qhFsQfxHMXuQ9tCFSinF9mdQiaE9G1TtffY58",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/QmXVKWN3i56vyh4Xot9sTb3XsCu92ihypcArFJLujuwzoS",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3",
+    "symbol": "Old Slerf",
+    "name": "Unmigrated Slerf",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "6zg3y2JtegGZ4bQbop8gsvV4mEKW8PSEY3XgFoCyZLBC",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://cdn.dexscreener.com/cms/images/6f43abd0ed3d46732e02f2a5f15610beed2b25d0d25fac7aa4ca113d6f45012f?width=64&height=64&fit=crop&quality=95&format=auto",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv",
+    "symbol": "PENGU",
+    "name": "Pudgy Penguins",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "31MEtWqA2JRrBnhDzgsaRbQFPaxwBHhYAh8YpSsCCLfb",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://arweave.net/BW67hICaKGd2_wamSB0IQq-x7Xwtmr2oJj1WnWGJRHU",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "Dfh5DzRgSvvCFDoYc2ciTkMrbDfRKybA4SoFbPmApump",
+    "symbol": "pippin",
+    "name": "Pippin",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "3oDZS3fuz4riAcr7BeQDPo9WcZrDjYyZ6C8XS2os3Csb",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://gateway.pinata.cloud/ipfs/QmdcvSSBg7gWD4tvfXv3PuLtAiPyDZ5Z9w4LQVeRJKL3Lz",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",
+    "symbol": "Pnut",
+    "name": "Peanut the Squirrel",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "5tswbrycaiSECKCBeWUQ6joA9f9Usdw7ronGwBKcQ8VL",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/QmNdTtJauw39u4DzGyTaZ35rRx4VgAxqb91wE89zjyHWd2",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+    "symbol": "POPCAT",
+    "name": "Popcat",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "6jXanjL81nMi2gtogbY4kp9NCf5hyMV8UGo8tESPVah6",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://arweave.net/A1etRNMKxhlNGTf-gNBtJ75QJJ4NJtbKh_UXQTlLXzI",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "SoLo9oxzLDpcq1dpqAgMwgce5WqkRDtNXK7EPnbmeta",
+    "symbol": "SOLO",
+    "name": "Solomon",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "EMuyHwioGZaroYKtQhih3yxqRSqkBBx5yD32LqkwH4oU",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://solomonlabs.org/assets/solo.png",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "J3NKxxXZcnNiMjKw9hYb2K4LUxgwB6t1FtPtQVsv3KFr",
+    "symbol": "SPX",
+    "name": "SPX6900 (Wormhole)",
+    "decimals": 8,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "46SCnurWeBnzZhZJxwQhfse5FMZUjhcj2pMc2Cckapa9",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx",
+    "symbol": "STONK",
+    "name": "STONK",
+    "decimals": 9,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "4Rb2joMnuDt9zRPuTYxUjQRGQ8oNBbKdXnCJSCojvBsW",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://static.datapi.jup.ag/images/asset-icon/stonk.webp",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2",
+    "symbol": "TROLL",
+    "name": "TROLL",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "soWaFsLEdErqMupkMoBrNKdkozXYwcLn2FbFDHx9u7L",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/QmWV8QgmH1gSw41yapzsFwkC8yPbzoSreAcJbzqfvo2sVq",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN",
+    "symbol": "TRUMP",
+    "name": "OFFICIAL TRUMP",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "BnNFqodfHAQ5ACTQQFrdPkCPqSM2x3jZz5Kb1bXfywET",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://arweave.net/VQrPjACwnQRmxdKBTqNwPiyo65x7LAT773t8Kd7YBzw",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk",
+    "symbol": "USELESS",
+    "name": "USELESS COIN",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "34TVbScog38SKZav9BZB66QYECzbuk7LCsVp6QgR2GKc",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/bafkreihsdoqkmpr5ryebaduoutyhj3nxco6wdp4s4743l2qrae4sz4hqrm",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "DrZ26cKJDksVRWib3DVVsjo9eeXccc7hKhDJviiYEEZY",
+    "symbol": "YZY",
+    "name": "YZY",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "HnBKYgXpDCyMGFpdEK9a75eCsyTwSss2A8F3bSsfoxGr",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://arweave.net/8AKeunEmIMk-UfVUnSR1SK0LKL2pGzlpQdDMBkbu5HM",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  },
+  {
+    "mint": "8x5VqbHA8D7NkD52uNuS5nnt3PwA8pLD34ymskeSo2Wn",
+    "symbol": "ZEREBRO",
+    "name": "zerebro",
+    "decimals": 6,
+    "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "globalConfig": "GqQ6ssFp7AeFWttoaX7aFCtUSK2LuPEHe8kRkS2LoAvQ",
+    "issuer": "other",
+    "category": "community",
+    "verified": true,
+    "logo": "https://ipfs.filebase.io/ipfs/QmZ1HDSibY2LdEmC1tPHK36ApGCQACJENqsbPsT2nc29AD",
+    "uiMultiplier": 1,
+    "risk": {
+      "permanentDelegate": false,
+      "pausable": false,
+      "freezable": false
+    }
+  }
+]

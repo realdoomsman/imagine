@@ -4,9 +4,10 @@ import { env } from "./env.ts";
 /**
  * A single pooled connection shared by the HTTP server and the indexer.
  *
- * `bigint` columns come back as JS strings rather than numbers: reward amounts
- * are lamports and weights routinely exceed 2^53, so silently losing precision
- * here would corrupt every number the UI shows.
+ * `bigint` columns come back as JS strings rather than numbers (as `numeric`
+ * ones already do): reward amounts are quote base units and weights routinely
+ * exceed 2^53, so silently losing precision here would corrupt every number
+ * the UI shows.
  */
 export const sql = postgres(env.databaseUrl, {
   max: 10,

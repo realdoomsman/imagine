@@ -3,5 +3,5 @@
 set -eu
 PATH="/opt/node/bin:/usr/bin:/bin"
 export PATH
-cd /mnt/c/tech/Hold/apps/web
+cd "$(dirname "${BASH_SOURCE[0]}")/../apps/web"
 exec node node_modules/next/dist/bin/next build

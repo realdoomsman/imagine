@@ -1,542 +1,290 @@
 /**
- * End-to-end smoke test against a local validator carrying the real pump.fun
- * programs (see scripts/localnet.sh).
+ * End-to-end run against the mainnet fork (scripts/mainnet-fork.sh) through
+ * the API, for a SOL-paired and an SPYx-paired coin, in the order a user goes:
  *
- * Exercises the whole product in the order a user does:
- *   1. launch a coin on pump.fun through VISE
- *   2. point its pump creator-fee stream at the lock pool, permanently
- *   3. open the lock pool with the creator's founding lock
- *   4. a second wallet buys the coin, paying the 2% app fee into the pool
- *   5. that wallet locks, and both lockers accrue by weight
- *   6. claims pay real SOL, and the pool stays solvent throughout
+ *   1. upload the coin's image and details (/api/metadata), read them back
+ *      from /files/*;
+ *   2. launch on StonkFun: imagine.launch + LaunchLab dev buy + imagine.found
+ *      (/api/tx/launch), signed by the creator and the mint;
+ *   3. a trader buys with the 1% app fee paid into the pool, then sells part;
+ *   4. the trader locks;
+ *   5. a StonkFun creator-share forward is simulated — a plain transfer into
+ *      the pool's vault (native SOL, or SPYx to the vault's token account) —
+ *      and `sync` folds it into the lockers' stream;
+ *   6. both lockers claim real quote; the trader breaks their lock early.
  *
- * Run: node --env-file=.env.local scripts/e2e.ts
+ * Every transaction is built by the API and signed here, exactly as a wallet
+ * would. Needs the API running against the fork with a database, the IMAGINE
+ * program deployed there and its config initialised (scripts/init-config.ts).
+ *
+ *   API_URL=http://localhost:8080 RPC_URL=http://127.0.0.1:8999 node scripts/e2e.ts [sol|spyx]
  */
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { BN } from "@coral-xyz/anchor";
+import { setTimeout as sleep } from "node:timers/promises";
 import {
-  creatorVaultPda,
-  feeSharingConfigPda,
-  getBuyTokenAmountFromSolAmount,
-  OnlinePumpSdk,
-  PUMP_SDK,
-} from "@pump-fun/pump-sdk";
-import {
+  createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
   NATIVE_MINT,
   TOKEN_2022_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
-  ComputeBudgetProgram,
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
   SystemProgram,
   Transaction,
-  type TransactionInstruction,
+  VersionedTransaction,
 } from "@solana/web3.js";
 import {
-  accrued,
-  appFeeLamports,
-  DAY,
+  decodeLaunchLabPool,
   ECONOMICS,
-  FeeKind,
-  formatSol,
-  poolPda,
+  ImagineClient,
+  launchLabPoolPda,
   rewardVaultPda,
-  splitInflow,
-  VISE_PROGRAM_ID,
-  ViseClient,
+  STONKFUN_PLATFORM,
 } from "@imagine/sdk";
-import { distributable } from "../src/keeper.ts";
-import { sweepCreatorFees } from "../src/pump.ts";
+import { forkWallet, SPYX_MINT } from "./fork-fixtures.ts";
 
-const RPC = process.env.RPC_URL ?? "http://127.0.0.1:8899";
-const TRADE_FEE_BPS = 200;
-
-const connection = new Connection(RPC, "confirmed");
-const vise = new ViseClient(connection);
-const onlinePump = new OnlinePumpSdk(connection);
+const API = (process.env.API_URL ?? "http://localhost:8080").replace(/\/+$/, "");
+const connection = new Connection(process.env.RPC_URL ?? "http://127.0.0.1:8999", "confirmed");
+const imagine = new ImagineClient(connection);
 
 let failures = 0;
-
 function check(label: string, ok: boolean, detail = "") {
   console.log(`${ok ? "  ok  " : " FAIL "} ${label}${detail ? ` — ${detail}` : ""}`);
   if (!ok) failures += 1;
 }
+const step = (title: string) => console.log(`\n${title}`);
 
-function step(title: string) {
-  console.log(`\n${title}`);
+async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${API}${path}`, init);
+  const body = (await response.json()) as T & { error?: string };
+  if (!response.ok) throw new Error(`${init?.method ?? "GET"} ${path} → ${response.status}: ${JSON.stringify(body)}`);
+  return body;
 }
 
-async function fund(keypair: Keypair, sol: number) {
-  const signature = await connection.requestAirdrop(
-    keypair.publicKey,
-    sol * LAMPORTS_PER_SOL,
-  );
-  const latest = await connection.getLatestBlockhash();
-  await connection.confirmTransaction({ signature, ...latest }, "confirmed");
-}
+const post = <T>(path: string, body: unknown) =>
+  api<T>(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
-/**
- * Pre-create every writable account in a transaction that does not exist yet.
- *
- * A fresh local ledger has none of pump.fun's fee-collecting accounts, and pump
- * rotates which one it credits by slot. A fee smaller than the rent-exempt
- * minimum would leave a brand-new destination rent-paying, and the runtime
- * rejects the whole transaction — an intermittent "insufficient funds for rent"
- * that has nothing to do with the program under test. On devnet and mainnet
- * those accounts already exist and are funded.
- */
-async function fundMissingAccounts(tx: Transaction): Promise<number> {
-  const message = tx.compileMessage();
-  const missing: PublicKey[] = [];
-  for (const [index, key] of message.accountKeys.entries()) {
-    if (!message.isAccountWritable(index)) continue;
-    if (await connection.getAccountInfo(key)) continue;
-    missing.push(key);
-  }
-  for (const key of missing) {
-    const signature = await connection.requestAirdrop(key, LAMPORTS_PER_SOL);
-    const latest = await connection.getLatestBlockhash();
-    await connection.confirmTransaction({ signature, ...latest }, "confirmed");
-  }
-  return missing.length;
-}
-
-async function send(
-  instructions: TransactionInstruction[],
-  signers: Keypair[],
-  label: string,
-  options: { seedFeeAccounts?: boolean } = {},
-): Promise<string> {
-  const latest = await connection.getLatestBlockhash();
-  const tx = new Transaction({
-    feePayer: signers[0].publicKey,
-    blockhash: latest.blockhash,
-    lastValidBlockHeight: latest.lastValidBlockHeight,
-  });
-  tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }));
-  tx.add(...instructions);
-  // Only for trades. Seeding indiscriminately would also fund accounts the
-  // transaction is supposed to create — including a pool's own reward vault,
-  // which would then count the airdrop as fee inflow.
-  if (options.seedFeeAccounts) await fundMissingAccounts(tx);
-
+/** Sign an API-built transaction with `signers`, send it, and wait for confirmation. */
+async function signAndSend(base64: string, signers: Keypair[], label: string): Promise<string> {
+  const tx = VersionedTransaction.deserialize(Buffer.from(base64, "base64"));
+  tx.sign(signers);
+  const latest = await connection.getLatestBlockhash("confirmed");
   try {
-    const signature = await connection.sendTransaction(tx, signers, {
-      skipPreflight: false,
-    });
-    await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+    const signature = await connection.sendRawTransaction(tx.serialize(), { maxRetries: 5 });
+    const result = await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+    if (result.value.err) throw new Error(`failed on chain: ${JSON.stringify(result.value.err)}`);
+    console.log(`       ${label}: ${signature}`);
     return signature;
   } catch (error) {
-    console.error(`\n${label} failed`);
-    const message = tx.compileMessage();
-    for (const [index, key] of message.accountKeys.entries()) {
-      if (!message.isAccountWritable(index)) continue;
-      const info = await connection.getAccountInfo(key);
-      console.error(
-        `  [${index}] ${key.toBase58()} ${info ? `${info.lamports} lamports, ${info.data.length}B, owner ${info.owner.toBase58().slice(0, 8)}` : "MISSING"}`,
-      );
-    }
-    if (error && typeof error === "object" && "transactionMessage" in error) {
-      console.error(String((error as { transactionMessage?: string }).transactionMessage));
-    }
+    const logs = (error as { logs?: string[] }).logs;
+    console.error(`\n${label} failed: ${(error as Error).message}`);
+    if (logs) console.error(logs.join("\n"));
     throw error;
   }
 }
 
-async function main() {
-  step("0. Fund wallets");
-  // The config may only be created by the program's upgrade authority, which
-  // scripts/localnet.sh sets to the local CLI keypair.
-  const admin = Keypair.fromSecretKey(
-    Uint8Array.from(
-      JSON.parse(
-        readFileSync(
-          process.env.UPGRADE_AUTHORITY ??
-            `${homedir()}/.config/solana/id.json`,
-          "utf8",
-        ),
-      ) as number[],
-    ),
-  );
-  const creator = Keypair.generate();
-  const trader = Keypair.generate();
-  await Promise.all([fund(admin, 50), fund(creator, 50), fund(trader, 50)]);
-  check("wallets funded", true);
-
-  step("1. Initialise platform config");
-  const configIx = await vise.program.methods
-    .initializeConfig(
-      ViseClient.configArgs({
-        treasury: admin.publicKey,
-        // The suite's stream is short so a window can elapse inside one run.
-        overrides: { tradeFeeBps: TRADE_FEE_BPS, rewardStreamSecs: 3_600 },
-      }),
-    )
-    .accountsPartial({
-      admin: admin.publicKey,
-      program: VISE_PROGRAM_ID,
-      programData: PublicKey.findProgramAddressSync(
-        [VISE_PROGRAM_ID.toBuffer()],
-        new PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"),
-      )[0],
-    })
-    .instruction();
-  const existing = await vise.fetchConfig();
-  // Only the upgrade authority may create the config. On this local validator
-  // the program is loaded without a ProgramData account, so the very first run
-  // against a fresh ledger cannot initialise it; a real deploy always can.
-  if (!existing) await send([configIx], [admin], "initialize_config");
-  const config = await vise.fetchConfig();
-  if (!config) throw new Error("config missing after initialize");
-  // The config is a singleton on this cluster: reuse whatever treasury is
-  // already stamped on it rather than assuming this run created it.
-  const treasury = config.treasury;
-  check("config exists", true, `fee ${config.tradeFeeBps} bps, treasury ${treasury.toBase58().slice(0, 8)}…`);
-
-  step("2. Launch a coin on pump.fun");
-  const mintKp = Keypair.generate();
-  const mint = mintKp.publicKey;
-  const global = await onlinePump.fetchGlobal();
-  const feeConfig = await onlinePump.fetchFeeConfig().catch(() => null);
-  const devBuy = BigInt(2 * LAMPORTS_PER_SOL);
-  const expectedTokens = getBuyTokenAmountFromSolAmount({
-    global,
-    feeConfig,
-    mintSupply: null,
-    bondingCurve: null,
-    amount: new BN(devBuy.toString()),
-    quoteMint: PublicKey.default,
+async function action(owner: Keypair, body: Record<string, unknown>, label: string) {
+  const built = await post<Record<string, string | number> & { transaction: string }>("/api/tx/action", {
+    owner: owner.publicKey.toBase58(),
+    ...body,
   });
-
-  // create_v2 and the first buy do not fit in one legacy transaction
-  // (~1457 bytes against a 1232 limit), so they are sent back to back.
-  const createIx = await PUMP_SDK.createV2Instruction({
-    mint,
-    name: "Vise Test Coin",
-    symbol: "VTEST",
-    uri: "https://example.com/vtest.json",
-    creator: creator.publicKey,
-    user: creator.publicKey,
-    mayhemMode: false,
-    holderReward: false,
-  });
-  await send([createIx], [creator, mintKp], "create");
-
-  const freshCurveInfo = await connection.getAccountInfo(
-    PublicKey.findProgramAddressSync(
-      [Buffer.from("bonding-curve"), mint.toBuffer()],
-      new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"),
-    )[0],
-  );
-  if (!freshCurveInfo) throw new Error("bonding curve was not created");
-  const devBuyIxs = await PUMP_SDK.buyV2Instructions({
-    global,
-    bondingCurveAccountInfo: freshCurveInfo,
-    bondingCurve: PUMP_SDK.decodeBondingCurve(freshCurveInfo),
-    associatedUserAccountInfo: null,
-    mint,
-    user: creator.publicKey,
-    amount: expectedTokens,
-    quoteAmount: new BN(devBuy.toString()),
-    slippage: 10,
-  });
-  await send(devBuyIxs, [creator], "dev buy", { seedFeeAccounts: true });
-
-  const creatorAta = getAssociatedTokenAddressSync(
-    mint,
-    creator.publicKey,
-    true,
-    TOKEN_2022_PROGRAM_ID,
-  );
-  const creatorBalance = await connection.getTokenAccountBalance(creatorAta);
-  check(
-    "coin created and dev buy landed",
-    BigInt(creatorBalance.value.amount) > 0n,
-    `${creatorBalance.value.uiAmountString} VTEST`,
-  );
-
-  step("3. Open the lock pool with the creator's founding lock");
-  const lockAmount = BigInt(creatorBalance.value.amount) / 2n;
-  const createPoolIx = await vise.createPool({
-    creator: creator.publicKey,
-    mint,
-    treasury,
-    tokenProgram: TOKEN_2022_PROGRAM_ID,
-    creatorShareBps: 0,
-    initialLockAmount: lockAmount,
-    initialLockDuration: 90 * DAY,
-  });
-  await send([createPoolIx], [creator], "create_pool");
-
-  let pool = await vise.fetchPool(mint);
-  check("pool open with weight from birth", (pool?.totalWeight ?? 0n) > 0n,
-    `weight ${pool?.totalWeight}`);
-  check("creator's founding lock recorded", pool?.totalLocked === lockAmount);
-
-  step("4. Route pump creator fees to the lock pool, permanently");
-  // Must come after create_pool: this rewrites BondingCurve::creator to the
-  // sharing_config PDA, and the pool needs to read the original creator there.
-  const vault = rewardVaultPda(mint);
-  const shareIxs = [
-    await PUMP_SDK.createFeeSharingConfig({
-      creator: creator.publicKey,
-      mint,
-      pool: null,
-    }),
-    await PUMP_SDK.updateFeeSharesV2({
-      authority: creator.publicKey,
-      mint,
-      currentShareholders: [creator.publicKey],
-      newShareholders: [{ address: vault, shareBps: 10_000 }],
-      quoteMint: NATIVE_MINT,
-      quoteTokenProgram: TOKEN_PROGRAM_ID,
-    }),
-  ];
-  // The migration points creator fees at a new pump vault; seed it above the
-  // rent floor so the first trade cannot be rejected for leaving it rent-paying.
-  shareIxs.push(
-    SystemProgram.transfer({
-      fromPubkey: creator.publicKey,
-      toPubkey: creatorVaultPda(feeSharingConfigPda(mint)),
-      lamports: await connection.getMinimumBalanceForRentExemption(0),
-    }),
-  );
-  await send(shareIxs, [creator], "fee sharing");
-  check("pump fee sharing points at the vault", true, vault.toBase58());
-
-  step("5. A trader buys, paying the 2% app fee into the pool");
-  const curveInfo = await connection.getAccountInfo(
-    PublicKey.findProgramAddressSync(
-      [Buffer.from("bonding-curve"), mint.toBuffer()],
-      new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"),
-    )[0],
-  );
-  if (!curveInfo) throw new Error("bonding curve missing");
-  const curve = PUMP_SDK.decodeBondingCurve(curveInfo);
-
-  const spend = BigInt(3 * LAMPORTS_PER_SOL);
-  const fee = appFeeLamports(spend, TRADE_FEE_BPS);
-  const toCurve = spend - fee;
-  const supply = await connection.getTokenSupply(mint);
-  const tokensOut = getBuyTokenAmountFromSolAmount({
-    global,
-    feeConfig,
-    mintSupply: new BN(supply.value.amount),
-    bondingCurve: curve,
-    amount: new BN(toCurve.toString()),
-    quoteMint: PublicKey.default,
-  });
-  const traderAta = getAssociatedTokenAddressSync(
-    mint,
-    trader.publicKey,
-    true,
-    TOKEN_2022_PROGRAM_ID,
-  );
-  const buyIxs = await PUMP_SDK.buyInstructions({
-    global,
-    bondingCurveAccountInfo: curveInfo,
-    bondingCurve: curve,
-    associatedUserAccountInfo: await connection.getAccountInfo(traderAta),
-    mint,
-    user: trader.publicKey,
-    amount: tokensOut,
-    solAmount: new BN(toCurve.toString()),
-    slippage: 10,
-    tokenProgram: TOKEN_2022_PROGRAM_ID,
-  });
-  const feeIx = await vise.depositReward({
-    payer: trader.publicKey,
-    mint,
-    lamports: fee,
-    kind: FeeKind.Buy,
-  });
-
-  const vaultBefore = await connection.getBalance(vault);
-  await send([...buyIxs, feeIx], [trader], "buy + app fee", { seedFeeAccounts: true });
-  const vaultAfter = await connection.getBalance(vault);
-  check(
-    "app fee landed in the pool atomically with the trade",
-    BigInt(vaultAfter - vaultBefore) === fee,
-    `${formatSol(fee)} SOL`,
-  );
-
-  pool = await vise.fetchPool(mint);
-  const expected = splitInflow(fee, {
-    treasuryShareBps: ECONOMICS.treasuryShareBps,
-    creatorShareBps: 0,
-  });
-  check(
-    "split matches the pool's frozen terms: 90 / 10 / 0",
-    pool?.treasuryClaimable === expected.toTreasury &&
-      pool?.creatorClaimable === 0n &&
-      pool?.undistributed === expected.toLockers,
-    `lockers ${formatSol(expected.toLockers)} / treasury ${formatSol(pool?.treasuryClaimable ?? 0n)} / creator 0`,
-  );
-
-  step("6. Fees stream out rather than landing all at once");
-  pool = await vise.fetchPool(mint);
-  check(
-    "the lockers' share is queued, not handed out",
-    pool!.undistributed > 0n && pool!.lifetimeRewards === 0n,
-    `${formatSol(pool!.undistributed)} SOL queued over ${pool!.terms.rewardStreamSecs}s`,
-  );
-
-  step("6b. The keeper sweeps pump's creator fee into the pool");
-  // The buy in step 5 paid pump.fun a creator fee. That fee sits in the
-  // sharing-config vault until someone calls distribute — which is the
-  // keeper's whole job. Nothing else in this suite touches that path.
-  const waiting = (await distributable(mint)).pump;
-  check("pump credited the creator fee to the sharing-config vault", waiting > 0n, `${formatSol(waiting)} SOL waiting`);
-  const vaultBeforeSweep = BigInt(await connection.getBalance(vault));
-  const inflowBeforeSweep = (await vise.fetchPool(mint))!.lifetimeInflow;
-  const sweepIxs = await sweepCreatorFees({ payer: trader.publicKey, mint, includeAmm: false });
-  check("the sweep builds distribute + sync", sweepIxs.length === 2, `${sweepIxs.length} instructions`);
-  await send(sweepIxs, [trader], "keeper sweep", { seedFeeAccounts: true });
-  const vaultAfterSweep = BigInt(await connection.getBalance(vault));
-  const swept = vaultAfterSweep - vaultBeforeSweep;
-  check(
-    "the creator fee arrived in the pool's reward vault",
-    swept === waiting,
-    `${formatSol(swept)} SOL moved`,
-  );
-  pool = await vise.fetchPool(mint);
-  check(
-    "the same sync folded it into the pool's accounting",
-    pool!.lifetimeInflow === inflowBeforeSweep + swept,
-    `lifetime inflow ${formatSol(pool!.lifetimeInflow)} SOL`,
-  );
-  check(
-    "nothing is left waiting at pump",
-    (await distributable(mint)).pump === 0n,
-  );
-
-  step("7. The trader locks, and rewards split by weight");
-  const traderBalance = await connection.getTokenAccountBalance(traderAta);
-  const lockIx = await vise.lock({
-    owner: trader.publicKey,
-    mint,
-    index: 0,
-    amount: BigInt(traderBalance.value.amount) / 2n,
-    durationSecs: 7 * DAY,
-    tokenProgram: TOKEN_2022_PROGRAM_ID,
-  });
-  await send([lockIx], [trader], "lock");
-
-  // Let a slice of the window elapse so the stream has released something to
-  // split, then crank it in.
-  await new Promise((resolve) => setTimeout(resolve, 12_000));
-  await send([await vise.sync(mint)], [trader], "sync");
-  pool = await vise.fetchPool(mint);
-  check(
-    "the stream released a share over time",
-    pool!.lifetimeRewards > 0n,
-    `${formatSol(pool!.lifetimeRewards)} SOL released so far`,
-  );
-
-  const sellFee = BigInt(LAMPORTS_PER_SOL) / 2n;
-  await send(
-    [
-      await vise.depositReward({
-        payer: trader.publicKey,
-        mint,
-        lamports: sellFee,
-        kind: FeeKind.Sell,
-      }),
-    ],
-    [trader],
-    "second fee deposit",
-  );
-
-  pool = await vise.fetchPool(mint);
-  const positions = await vise.fetchPositionsByPool(mint);
-  check("two positions in the pool", positions.length === 2);
-
-  const dues = positions.map((position) => ({
-    owner: position.owner.toBase58(),
-    weight: position.weight,
-    due: accrued(position.weight, pool!.accRewardPerWeight, position.rewardDebt),
-  }));
-  for (const entry of dues) {
-    console.log(
-      `        ${entry.owner.slice(0, 8)}… weight ${entry.weight} → ${formatSol(entry.due)} SOL`,
-    );
-  }
-  const creatorDue = dues.find((d) => d.owner === creator.publicKey.toBase58())!;
-  const traderDue = dues.find((d) => d.owner === trader.publicKey.toBase58())!;
-  check(
-    "the longer lock earns more per coin",
-    creatorDue.due > traderDue.due,
-    "90d at 1.70x beats 7d at 1.00x",
-  );
-
-  step("8. Claims pay real SOL");
-  const before = await connection.getBalance(creator.publicKey);
-  await send(
-    [await vise.claim({ owner: creator.publicKey, mint, index: 0 })],
-    [creator],
-    "claim",
-  );
-  const after = await connection.getBalance(creator.publicKey);
-  check(
-    "claim credited the wallet",
-    after > before,
-    `+${formatSol(BigInt(after - before))} SOL after fees`,
-  );
-
-  step("9. Solvency");
-  pool = await vise.fetchPool(mint);
-  const live = await vise.fetchPositionsByPool(mint);
-  const owed =
-    live.reduce(
-      (sum, p) => sum + accrued(p.weight, pool!.accRewardPerWeight, p.rewardDebt),
-      0n,
-    ) +
-    pool!.creatorClaimable +
-    pool!.treasuryClaimable +
-    pool!.rewardRemainder +
-    pool!.undistributed;
-  const held = BigInt(await connection.getBalance(vault)) - pool!.vaultReserve;
-  check("the vault can pay everyone it owes", owed <= held,
-    `owes ${formatSol(owed)} holds ${formatSol(held)}`);
-
-  step("10. Treasury payout; the creator has no cut to claim");
-  // 90 / 10 / 0: the creator's share is zero by the pool's frozen terms, so
-  // claim_creator has nothing to pay and the program says so.
-  let creatorRefused = false;
-  try {
-    await send(
-      [await vise.claimCreator({ creator: creator.publicKey, mint })],
-      [creator],
-      "claim_creator (expected to refuse)",
-    );
-  } catch (error) {
-    creatorRefused = /0x177a|NothingToClaim/.test(String(error) + String((error as { transactionMessage?: string }).transactionMessage ?? ""));
-  }
-  check("claim_creator refuses: nothing allocated to the creator", creatorRefused);
-  await send(
-    [
-      await vise.claimTreasury({ payer: trader.publicKey, mint, treasury }),
-    ],
-    [trader],
-    "claim_treasury",
-  );
-  pool = await vise.fetchPool(mint);
-  check(
-    "treasury drained, creator never owed anything",
-    pool?.creatorClaimable === 0n && pool?.treasuryClaimable === 0n && pool?.lifetimeCreator === 0n,
-    `lifetime treasury ${formatSol(pool?.lifetimeTreasury ?? 0n)} SOL`,
-  );
-
-  console.log(
-    `\n${failures === 0 ? "PASS" : `FAIL (${failures})`} — coin ${mint.toBase58()} pool ${poolPda(mint).toBase58()}`,
-  );
-  process.exit(failures === 0 ? 0 : 1);
+  const signature = await signAndSend(built.transaction, [owner], label);
+  return { signature, meta: built };
 }
 
-await main();
+async function airdrop(to: PublicKey, sol: number) {
+  const signature = await connection.requestAirdrop(to, sol * LAMPORTS_PER_SOL);
+  const latest = await connection.getLatestBlockhash();
+  await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+}
+
+async function tokenBalance(mint: PublicKey, owner: PublicKey, program: PublicKey): Promise<bigint> {
+  const ata = getAssociatedTokenAddressSync(mint, owner, true, program);
+  return connection
+    .getTokenAccountBalance(ata, "confirmed")
+    .then((b) => BigInt(b.value.amount))
+    .catch(() => 0n);
+}
+
+/** What a wallet holds of a quote: native lamports for SOL, else its token balance. */
+async function quoteBalance(quote: PublicKey, program: PublicKey, owner: PublicKey): Promise<bigint> {
+  return quote.equals(NATIVE_MINT)
+    ? BigInt(await connection.getBalance(owner, "confirmed"))
+    : tokenBalance(quote, owner, program);
+}
+
+/** The smallest valid PNG (1×1, transparent). */
+const PNG_1X1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+interface QuoteRow {
+  mint: string;
+  symbol: string;
+  decimals: number;
+  tokenProgram: string;
+}
+
+async function run(label: "sol" | "spyx", creator: Keypair, trader: Keypair) {
+  const quoteMint = label === "sol" ? NATIVE_MINT : SPYX_MINT;
+  const quotes = await api<QuoteRow[]>("/api/quotes");
+  const quote = quotes.find((q) => q.mint === quoteMint.toBase58());
+  check(`${label}: /api/quotes lists the pair`, Boolean(quote), `${quotes.length} launchable quotes`);
+  if (!quote) return;
+  const quoteProgram = new PublicKey(quote.tokenProgram);
+  const one = 10n ** BigInt(quote.decimals);
+  const native = quoteMint.equals(NATIVE_MINT);
+
+  step(`[${label}] 1. metadata`);
+  const mint = Keypair.generate();
+  const symbol = label === "sol" ? "DREAM" : "DRMSPY";
+  const form = new FormData();
+  form.append("mint", mint.publicKey.toBase58());
+  form.append("name", `Dream ${label.toUpperCase()}`);
+  form.append("symbol", symbol);
+  form.append("description", `End-to-end test coin paired with ${quote.symbol}`);
+  form.append("file", new Blob([PNG_1X1], { type: "image/png" }), "coin.png");
+  const uploaded = await api<{ uri: string; image: string }>("/api/metadata", { method: "POST", body: form });
+  const doc = (await (await fetch(uploaded.uri)).json()) as { name: string; image: string; website: string };
+  const image = Buffer.from(await (await fetch(uploaded.image)).arrayBuffer());
+  check("metadata JSON is served", doc.name === `Dream ${label.toUpperCase()}`, uploaded.uri);
+  check("its website is the coin's IMAGINE page", doc.website === `https://imagine.fun/coins/${mint.publicKey.toBase58()}`);
+  check("image round-trips byte for byte", image.equals(PNG_1X1), uploaded.image);
+
+  step(`[${label}] 2. launch on StonkFun`);
+  const config = await imagine.fetchConfig();
+  if (!config) throw new Error("config not initialised; run scripts/init-config.ts");
+  const devBuy = native ? LAMPORTS_PER_SOL / 2 : Number(one / 20n);
+  const launch = await post<{
+    pool: string;
+    lockAmount: string;
+    expectedTokens: string;
+    transactions: Array<{ label: string; transaction: string; mintSigns: boolean }>;
+  }>("/api/tx/launch", {
+    creator: creator.publicKey.toBase58(),
+    mint: mint.publicKey.toBase58(),
+    name: `Dream ${label.toUpperCase()}`,
+    symbol,
+    uri: uploaded.uri,
+    quoteMint: quoteMint.toBase58(),
+    devBuy: String(devBuy),
+    lockPercent: 50,
+    lockDurationSecs: config.defaultMaxLockSecs,
+  });
+  check("launch fits in one transaction", launch.transactions.length === 1, `${launch.transactions.length} step(s)`);
+  for (const tx of launch.transactions) {
+    await signAndSend(tx.transaction, tx.mintSigns ? [creator, mint] : [creator], tx.label);
+  }
+  const pool = await imagine.fetchPool(mint.publicKey);
+  check("pool is founded", pool?.founded === true);
+  check("pool is paid in the pair asset", pool?.quoteMint.equals(quoteMint) === true, pool?.quoteMint.toBase58());
+  const llInfo = await connection.getAccountInfo(launchLabPoolPda(mint.publicKey, quoteMint));
+  const ll = llInfo ? decodeLaunchLabPool(llInfo.data) : null;
+  check("LaunchLab pool is under StonkFun's platform", ll?.platformConfig.equals(STONKFUN_PLATFORM) === true);
+  check(
+    "LaunchLab creator is the pool's reward vault",
+    ll?.creator.equals(rewardVaultPda(mint.publicKey)) === true,
+    ll?.creator.toBase58(),
+  );
+  const founding = await imagine.fetchPosition(mint.publicKey, creator.publicKey, 0);
+  check("founding lock opened position 0", founding?.amount === BigInt(launch.lockAmount), `${founding?.amount} locked`);
+  if (!pool || !founding) return;
+
+  const detail = await api<{ quote: { mint: string }; curve: { status: string } | null; links: { stonkfun: string } }>(
+    `/api/pools/${mint.publicKey.toBase58()}`,
+  );
+  check("/api/pools/:mint reads the curve", detail.curve?.status === "curve", detail.links.stonkfun);
+
+  step(`[${label}] 3. trade with the app fee`);
+  const inflowBefore = pool.lifetimeInflow;
+  const buyAmount = native ? LAMPORTS_PER_SOL / 5 : Number(one / 50n);
+  const buy = await action(trader, { kind: "swap", mint: mint.publicKey.toBase58(), side: "buy", amount: String(buyAmount) }, "buy");
+  const fee = BigInt(buy.meta.appFee as string);
+  check("app fee is 1% of the buy", fee === (BigInt(buyAmount) * BigInt(config.tradeFeeBps)) / 10_000n, `${fee} of ${buyAmount}`);
+  const afterBuy = await imagine.fetchPool(mint.publicKey);
+  check("fee reached the pool", afterBuy !== null && afterBuy.lifetimeInflow - inflowBefore === fee, `inflow +${afterBuy && afterBuy.lifetimeInflow - inflowBefore}`);
+  const held = await tokenBalance(mint.publicKey, trader.publicKey, TOKEN_2022_PROGRAM_ID);
+  check("trader received coins", held > 0n, `${held}`);
+  const sell = await action(trader, { kind: "swap", mint: mint.publicKey.toBase58(), side: "sell", amount: String(held / 4n) }, "sell");
+  check("sell paid an app fee too", BigInt(sell.meta.appFee as string) > 0n, `${sell.meta.appFee}`);
+
+  step(`[${label}] 4. lock`);
+  const lockAmount = await tokenBalance(mint.publicKey, trader.publicKey, TOKEN_2022_PROGRAM_ID);
+  await action(
+    trader,
+    { kind: "lock", mint: mint.publicKey.toBase58(), index: 0, amount: String(lockAmount), durationSecs: config.defaultMinLockSecs },
+    "lock",
+  );
+  const traderLock = await imagine.fetchPosition(mint.publicKey, trader.publicKey, 0);
+  check("trader's lock is open", traderLock?.amount === lockAmount, `${traderLock?.amount}`);
+
+  step(`[${label}] 5. a forwarded creator share, then sync`);
+  const forward = native ? BigInt(LAMPORTS_PER_SOL / 100) : one / 100n;
+  const forwardTx = new Transaction().add(
+    native
+      ? SystemProgram.transfer({ fromPubkey: creator.publicKey, toPubkey: pool.rewardVault, lamports: forward })
+      : createTransferCheckedInstruction(
+          getAssociatedTokenAddressSync(quoteMint, creator.publicKey, false, quoteProgram),
+          quoteMint,
+          pool.rewardTokenAccount,
+          creator.publicKey,
+          forward,
+          quote.decimals,
+          [],
+          quoteProgram,
+        ),
+  );
+  const forwardSig = await connection.sendTransaction(forwardTx, [creator]);
+  await connection.confirmTransaction(forwardSig, "confirmed");
+  console.log(`       forward: ${forwardSig}`);
+  const beforeSync = await imagine.fetchPool(mint.publicKey);
+  const synced = await action(trader, { kind: "sync", mint: mint.publicKey.toBase58() }, "sync");
+  check("API saw the unsynced forward", BigInt(synced.meta.unsynced as string) === forward, `${synced.meta.unsynced}`);
+  const afterSync = await imagine.fetchPool(mint.publicKey);
+  check(
+    "sync folded the forward into inflow",
+    beforeSync !== null && afterSync !== null && afterSync.lifetimeInflow - beforeSync.lifetimeInflow === forward,
+    `inflow +${afterSync && beforeSync && afterSync.lifetimeInflow - beforeSync.lifetimeInflow}`,
+  );
+
+  step(`[${label}] 6. claim and break a lock`);
+  await sleep(5_000); // let the stream release something
+  for (const [who, wallet] of [
+    ["creator", creator],
+    ["trader", trader],
+  ] as const) {
+    const before = await quoteBalance(quoteMint, quoteProgram, wallet.publicKey);
+    const claimed = await action(wallet, { kind: "claim", mint: mint.publicKey.toBase58(), index: 0 }, `${who} claim`);
+    const position = await imagine.fetchPosition(mint.publicKey, wallet.publicKey, 0);
+    const after = await quoteBalance(quoteMint, quoteProgram, wallet.publicKey);
+    check(`${who} was paid in ${quote.symbol}`, (position?.claimed ?? 0n) > 0n, `claimed ${position?.claimed}, balance ${before} → ${after} (${claimed.signature})`);
+  }
+  await action(trader, { kind: "unlock", mint: mint.publicKey.toBase58(), index: 0, early: true }, "early unlock");
+  check("trader's lock is closed", (await imagine.fetchPosition(mint.publicKey, trader.publicKey, 0)) === null);
+  const final = await imagine.fetchPool(mint.publicKey);
+  check("pool still holds the founding lock", final?.totalLocked === founding.amount, `${final?.totalLocked}`);
+}
+
+const which = process.argv[2];
+const creator = forkWallet("creator");
+const trader = forkWallet("trader");
+console.log(`creator ${creator.publicKey.toBase58()}, trader ${trader.publicKey.toBase58()}`);
+await airdrop(creator.publicKey, 20);
+await airdrop(trader.publicKey, 20);
+console.log(`economics: trade fee ${ECONOMICS.tradeFeeBps} bps, treasury ${ECONOMICS.treasuryShareBps} bps`);
+
+for (const label of ["sol", "spyx"] as const) {
+  if (which && which !== label) continue;
+  try {
+    await run(label, creator, trader);
+  } catch (error) {
+    failures += 1;
+    console.error(`[${label}] aborted:`, error instanceof Error ? error.message : error);
+  }
+}
+
+console.log(failures === 0 ? "\nPASS" : `\nFAIL (${failures})`);
+process.exit(failures === 0 ? 0 : 1);

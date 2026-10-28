@@ -6,7 +6,7 @@ import { sql } from "./db.ts";
 import { env } from "./env.ts";
 
 /**
- * VISE accounts.
+ * IMAGINE accounts.
  *
  * A Google sign-in is an identity; a wallet is what it controls. On first
  * login the API generates a Solana keypair for the account, encrypts the
@@ -19,7 +19,7 @@ import { env } from "./env.ts";
  *    the API's environment; the database alone cannot recover a wallet.
  *  - Every action is authenticated by a session the API issued after
  *    verifying a Google ID token against Google's own signing keys.
- *  - The account can withdraw or export its key at any time; VISE never has a
+ *  - The account can withdraw or export its key at any time; IMAGINE never has a
  *    reason to say no, and there is no instruction that lets it keep funds.
  */
 
@@ -68,14 +68,14 @@ export async function verifyGoogleIdToken(credential: string): Promise<GoogleIde
  * with the client secret, and the ID token that comes back is verified like
  * any other before an account is touched.
  */
-export const OAUTH_STATE_COOKIE = "vise_oauth";
+export const OAUTH_STATE_COOKIE = "imagine_oauth";
 
 export async function beginGoogleLogin(returnTo: string): Promise<{ url: string; nonce: string }> {
   const nonce = randomBytes(16).toString("hex");
   const state = await new SignJWT({ nonce, returnTo })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setIssuer("vise-oauth")
+    .setIssuer("imagine-oauth")
     .setExpirationTime("10m")
     .sign(env.sessionSecret);
   const params = new URLSearchParams({
@@ -95,7 +95,7 @@ export async function completeGoogleLogin(params: {
   state: string;
   nonceCookie: string | undefined;
 }): Promise<{ identity: GoogleIdentity; returnTo: string }> {
-  const { payload } = await jwtVerify(params.state, env.sessionSecret, { issuer: "vise-oauth" });
+  const { payload } = await jwtVerify(params.state, env.sessionSecret, { issuer: "imagine-oauth" });
   if (typeof payload.nonce !== "string" || payload.nonce !== params.nonceCookie) {
     throw new Error("oauth state does not match this browser");
   }
@@ -126,10 +126,8 @@ const NONCE_BYTES = 12;
 const TAG_BYTES = 16;
 const SECRET_KEY_BYTES = 64;
 const FORMAT_V1 = 0x01;
-/** Legacy rows: nonce || ciphertext || tag, no version byte, no AAD. */
-const V0_BYTES = NONCE_BYTES + SECRET_KEY_BYTES + TAG_BYTES;
 /** 0x01 || nonce || ciphertext || tag, with the row's identity as AAD. */
-const V1_BYTES = 1 + V0_BYTES;
+const V1_BYTES = 1 + NONCE_BYTES + SECRET_KEY_BYTES + TAG_BYTES;
 
 /** The row a wallet ciphertext belongs to; v1 ciphertexts open only there. */
 export interface WalletBinding {
@@ -139,12 +137,11 @@ export interface WalletBinding {
 
 /** The AAD: a v1 blob copied onto another account's row fails to decrypt. */
 function walletAad(binding: WalletBinding): Buffer {
-  return Buffer.from(`vise-wallet:v1:${binding.googleSub}:${binding.walletPubkey}`);
+  return Buffer.from(`imagine-wallet:v1:${binding.googleSub}:${binding.walletPubkey}`);
 }
 
 /** AES-256-GCM under the master key, format v1, sealed to its row. */
 export function encryptSecret(secret: Uint8Array, binding: WalletBinding): Buffer {
-  // The formats are told apart by length, which holds only for 64-byte keys.
   if (secret.length !== SECRET_KEY_BYTES) throw new Error(`wallet secret must be ${SECRET_KEY_BYTES} bytes`);
   const nonce = randomBytes(NONCE_BYTES);
   const cipher = createCipheriv("aes-256-gcm", env.walletMasterKey, nonce);
@@ -153,24 +150,17 @@ export function encryptSecret(secret: Uint8Array, binding: WalletBinding): Buffe
   return Buffer.concat([Buffer.of(FORMAT_V1), nonce, body, cipher.getAuthTag()]);
 }
 
-/**
- * Either format. `legacy` marks a v0 blob, which the caller re-seals as v1
- * once it has checked the key is the account's.
- */
-export function decryptSecret(blob: Uint8Array, binding: WalletBinding): { secret: Buffer; legacy: boolean } {
+/** Open a v1 blob sealed to `binding`; anything else is refused. */
+export function decryptSecret(blob: Uint8Array, binding: WalletBinding): Buffer {
   const buf = Buffer.from(blob);
-  let legacy: boolean;
-  if (buf.length === V1_BYTES && buf[0] === FORMAT_V1) legacy = false;
-  else if (buf.length === V0_BYTES) legacy = true;
-  else throw new Error("unrecognised wallet ciphertext");
-  const sealed = legacy ? buf : buf.subarray(1);
-  const nonce = sealed.subarray(0, NONCE_BYTES);
-  const tag = sealed.subarray(sealed.length - TAG_BYTES);
-  const body = sealed.subarray(NONCE_BYTES, sealed.length - TAG_BYTES);
+  if (buf.length !== V1_BYTES || buf[0] !== FORMAT_V1) throw new Error("unrecognised wallet ciphertext");
+  const nonce = buf.subarray(1, 1 + NONCE_BYTES);
+  const tag = buf.subarray(buf.length - TAG_BYTES);
+  const body = buf.subarray(1 + NONCE_BYTES, buf.length - TAG_BYTES);
   const decipher = createDecipheriv("aes-256-gcm", env.walletMasterKey, nonce);
-  if (!legacy) decipher.setAAD(walletAad(binding));
+  decipher.setAAD(walletAad(binding));
   decipher.setAuthTag(tag);
-  return { secret: Buffer.concat([decipher.update(body), decipher.final()]), legacy };
+  return Buffer.concat([decipher.update(body), decipher.final()]);
 }
 
 // --- accounts ---------------------------------------------------------------
@@ -222,32 +212,16 @@ export async function upsertAccount(identity: GoogleIdentity): Promise<Account> 
   return rowToAccount(rows[0]);
 }
 
-/**
- * The account's signing key, decrypted for the duration of one action. A
- * legacy (v0) ciphertext is re-sealed as v1 on the way through, once the key
- * it holds is known to be the account's and the new blob is known to open.
- */
+/** The account's signing key, decrypted for the duration of one action. */
 export async function loadKeypair(account: Account): Promise<Keypair> {
   const [row] = await sql`SELECT wallet_secret FROM accounts WHERE id = ${account.id}`;
   if (!row) throw new Error("account vanished");
-  const stored = row.wallet_secret as Uint8Array;
-  const { secret, legacy } = decryptSecret(stored, account);
-  const keypair = Keypair.fromSecretKey(secret);
+  const keypair = Keypair.fromSecretKey(decryptSecret(row.wallet_secret as Uint8Array, account));
   // Belt and braces: the decrypted key must be the key we advertised.
   const advertised = Buffer.from(account.walletPubkey);
   const actual = Buffer.from(keypair.publicKey.toBase58());
   if (advertised.length !== actual.length || !timingSafeEqual(advertised, actual)) {
     throw new Error("wallet key does not match the account");
-  }
-  if (legacy) {
-    const resealed = encryptSecret(keypair.secretKey, account);
-    if (decryptSecret(resealed, account).secret.equals(secret)) {
-      // Compare-and-set on the old blob; a failure leaves the v0 row, which
-      // still opens, so the action goes ahead either way.
-      await sql`UPDATE accounts SET wallet_secret = ${resealed} WHERE id = ${account.id} AND wallet_secret = ${stored}`.catch(
-        (error: unknown) => console.warn(`wallet re-seal failed for account ${account.id}: ${(error as Error).message}`),
-      );
-    }
   }
   return keypair;
 }
@@ -267,7 +241,7 @@ export async function recordAction(
 }
 // --- sessions ---------------------------------------------------------------
 
-export const SESSION_COOKIE = "vise_session";
+export const SESSION_COOKIE = "imagine_session";
 const SESSION_TTL_SECONDS = 7 * 86_400;
 /** How old a sign-in may be and still export the key or withdraw. */
 export const RECENT_AUTH_SECONDS = 15 * 60;
@@ -277,7 +251,7 @@ export async function issueSession(account: Account): Promise<string> {
   return new SignJWT({ sub: String(account.id), ep: account.sessionEpoch })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setIssuer("vise")
+    .setIssuer("imagine")
     .setExpirationTime(`${SESSION_TTL_SECONDS}s`)
     .sign(env.sessionSecret);
 }
@@ -297,7 +271,7 @@ export interface Session {
 /** A session token's claims if we signed it and it is unexpired; else null. */
 export async function verifySessionToken(token: string): Promise<SessionClaims | null> {
   try {
-    const { payload } = await jwtVerify(token, env.sessionSecret, { issuer: "vise" });
+    const { payload } = await jwtVerify(token, env.sessionSecret, { issuer: "imagine" });
     const accountId = Number(payload.sub);
     // Tokens from before epochs existed carry no `ep`; they are void.
     if (!Number.isInteger(accountId) || typeof payload.ep !== "number" || typeof payload.iat !== "number") return null;
@@ -322,7 +296,7 @@ export function sessionCookieOptions() {
   return {
     path: "/",
     httpOnly: true,
-    // The site and the API are the same site (vise.fun / api.vise.fun, or
+    // The site and the API are the same site (imagine.fun / api.imagine.fun, or
     // localhost on two ports), so Lax is enough for our own fetches and it
     // keeps the cookie off every cross-site request: a form on another
     // domain cannot post a withdrawal with it.

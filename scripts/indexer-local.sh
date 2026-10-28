@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Run the indexer (with the keeper) against the local rig, signing cranks with
-# the local CLI keypair — the same wallet the validator was seeded with.
+# Run the indexer (with the keeper) against the mainnet fork, signing cranks
+# with the local CLI keypair. Reads apps/api/.env.local for the database and
+# the fork's RPC.
 set -eu
-cd /mnt/c/tech/Hold/apps/api
+cd "$(dirname "${BASH_SOURCE[0]}")/../apps/api"
 export KEEPER_KEYPAIR="$(cat "$HOME/.config/solana/id.json")"
 export KEEPER_INTERVAL_MS="${KEEPER_INTERVAL_MS:-30000}"
-# Localnet trades are tiny; sweep anything above rent so the path is exercised.
-export SWEEP_MIN_LAMPORTS="${SWEEP_MIN_LAMPORTS:-100000}"
-/opt/node/bin/node --env-file=.env.local src/migrate.ts
-exec /opt/node/bin/node --env-file=.env.local src/indexer.ts
+# Fork trades are tiny; sync anything worth a cent so the path is exercised.
+export SYNC_MIN_USD="${SYNC_MIN_USD:-0.01}"
+node --env-file=.env.local src/migrate.ts
+exec node --env-file=.env.local src/indexer.ts

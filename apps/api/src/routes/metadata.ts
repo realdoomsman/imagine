@@ -1,24 +1,25 @@
+import { PublicKey } from "@solana/web3.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { pubkey } from "../actions.ts";
 import { sql } from "../db.ts";
-import { env } from "../env.ts";
+import { coinPageUrl, imageUrl, metadataUri } from "../files.ts";
+import { connection } from "../solana.ts";
 
 /**
- * Pin a coin's image and metadata document.
+ * Coin metadata, hosted here.
  *
  * The browser sends the image straight from disk with the name, ticker,
- * description and socials; we hand it to pump.fun's own pinning endpoint,
- * which writes the Metaplex-shaped JSON pump reads and returns its IPFS URI.
- * The same host pump's frontend uses, so a coin launched here looks exactly
- * like one launched there.
+ * description and socials. We store the image and a Metaplex-shaped JSON
+ * document in Postgres and serve both from `API_PUBLIC_ORIGIN`; the JSON's
+ * URI is what `imagine.launch` writes into the Token-2022 mint, which is what
+ * StonkFun, Raydium, Jupiter and wallets read.
  *
- * The coin's website is always its VISE page, so it has to be pinned for a
- * mint chosen up front. The URI is recorded against that mint, and a launch
- * only accepts a URI pinned here for its own mint: every VISE coin links
- * back to where it is locked.
+ * The coin's website is always its IMAGINE page, so the document is keyed by
+ * a mint chosen up front, and a launch only accepts this document's URI for
+ * its own mint. Once that mint exists on chain the document is frozen:
+ * nobody can swap a live coin's image.
  */
-const PUMP_IPFS = "https://pump.fun/api/ipfs";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
@@ -31,22 +32,22 @@ const FieldsSchema = z.object({
   telegram: z.string().trim().url().max(200).or(z.literal("")).default(""),
 });
 
-/** The website written into every coin launched on VISE: its own coin page. */
-export function coinPageUrl(mint: string): string {
-  return `${env.siteOrigin}/coins/${mint}`;
-}
-
-interface PumpPinResponse {
-  metadataUri: string;
-  metadata: { image: string };
+/** A social link worth publishing: an absolute http(s) URL, or nothing. */
+function webLink(raw: string): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export async function metadataRoutes(app: FastifyInstance) {
-  // Pinning proxies a 4 MB upload to a third party: a handful a minute is a
-  // launch, hundreds is someone using us as free storage.
+  // A handful a minute is a launch; hundreds is someone using us as free storage.
   app.post("/metadata", { config: { rateLimit: { max: 12, timeWindow: "1 minute" } } }, async (request, reply) => {
     const fields: Record<string, string> = {};
-    let image: { buffer: Buffer; type: string; filename: string } | null = null;
+    let image: { buffer: Buffer; type: string } | null = null;
 
     for await (const part of request.parts({ limits: { fileSize: MAX_IMAGE_BYTES, files: 1, fields: 8 } })) {
       if (part.type === "file") {
@@ -57,7 +58,7 @@ export async function metadataRoutes(app: FastifyInstance) {
         if (part.file.truncated) {
           return reply.code(400).send({ error: "image must be 4 MB or smaller" });
         }
-        image = { buffer, type: part.mimetype, filename: part.filename };
+        image = { buffer, type: part.mimetype };
       } else if (typeof part.value === "string") {
         fields[part.fieldname] = part.value;
       }
@@ -65,27 +66,67 @@ export async function metadataRoutes(app: FastifyInstance) {
     if (!image) return reply.code(400).send({ error: "an image is required" });
     const body = FieldsSchema.parse(fields);
 
-    const form = new FormData();
-    form.append("file", new Blob([image.buffer], { type: image.type }), image.filename || "image");
-    form.append("name", body.name);
-    form.append("symbol", body.symbol);
-    form.append("description", body.description);
-    if (body.twitter) form.append("twitter", body.twitter);
-    if (body.telegram) form.append("telegram", body.telegram);
-    form.append("website", coinPageUrl(body.mint));
-    form.append("showName", "true");
-
-    const response = await fetch(PUMP_IPFS, { method: "POST", body: form });
-    if (!response.ok) {
-      request.log.error({ status: response.status, body: (await response.text()).slice(0, 300) }, "pin failed");
-      return reply.code(502).send({ error: "could not pin the metadata right now; try again in a moment" });
+    if (await connection.getAccountInfo(new PublicKey(body.mint))) {
+      return reply.code(409).send({ error: "this mint already exists; its metadata can no longer change" });
     }
-    const pinned = (await response.json()) as PumpPinResponse;
-    if (!pinned.metadataUri) return reply.code(502).send({ error: "pinning service returned no URI" });
+
+    const twitter = webLink(body.twitter);
+    const telegram = webLink(body.telegram);
+    const document = {
+      name: body.name,
+      symbol: body.symbol,
+      description: body.description,
+      image: imageUrl(body.mint),
+      showName: true,
+      createdOn: "https://imagine.fun",
+      website: coinPageUrl(body.mint),
+      ...(twitter ? { twitter } : {}),
+      ...(telegram ? { telegram } : {}),
+      properties: { files: [{ uri: imageUrl(body.mint), type: image.type }], category: "image" },
+    };
     await sql`
-      INSERT INTO pinned_metadata (uri, mint) VALUES (${pinned.metadataUri}, ${body.mint})
-      ON CONFLICT (uri) DO UPDATE SET mint = EXCLUDED.mint
+      INSERT INTO coin_files (mint, name, symbol, image, image_type, metadata)
+      VALUES (${body.mint}, ${body.name}, ${body.symbol}, ${image.buffer}, ${image.type},
+              ${JSON.stringify(document)}::text::jsonb)
+      ON CONFLICT (mint) DO UPDATE SET
+        name = EXCLUDED.name, symbol = EXCLUDED.symbol, image = EXCLUDED.image,
+        image_type = EXCLUDED.image_type, metadata = EXCLUDED.metadata, created_at = NOW()
     `;
-    return { uri: pinned.metadataUri, image: pinned.metadata.image };
+    return { uri: metadataUri(body.mint), image: imageUrl(body.mint) };
+  });
+}
+
+/**
+ * The public file routes, at the root (not under /api): `/files/meta/<mint>.json`
+ * and `/files/img/<mint>`. Immutable once the mint exists, so cached hard.
+ */
+export async function fileRoutes(app: FastifyInstance) {
+  const mintParam = z.object({ mint: pubkey });
+
+  app.get("/files/meta/:file", { config: { rateLimit: false } }, async (request, reply) => {
+    const { file } = z.object({ file: z.string().max(64) }).parse(request.params);
+    const match = /^([1-9A-HJ-NP-Za-km-z]{32,44})\.json$/.exec(file);
+    if (!match) return reply.code(404).send({ error: "not found" });
+    const [row] = await sql`SELECT metadata FROM coin_files WHERE mint = ${match[1]!}`;
+    if (!row) return reply.code(404).send({ error: "not found" });
+    return reply
+      .header("cache-control", "public, max-age=300")
+      .header("access-control-allow-origin", "*")
+      .type("application/json")
+      .send(row.metadata);
+  });
+
+  app.get("/files/img/:mint", { config: { rateLimit: false } }, async (request, reply) => {
+    const parsed = mintParam.safeParse(request.params);
+    if (!parsed.success) return reply.code(404).send({ error: "not found" });
+    const [row] = await sql`SELECT image, image_type FROM coin_files WHERE mint = ${parsed.data.mint}`;
+    if (!row) return reply.code(404).send({ error: "not found" });
+    return reply
+      .header("cache-control", "public, max-age=300")
+      .header("access-control-allow-origin", "*")
+      .header("x-content-type-options", "nosniff")
+      .header("content-security-policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'")
+      .type(row.image_type as string)
+      .send(row.image as Buffer);
   });
 }

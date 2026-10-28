@@ -1,240 +1,222 @@
 # Security review — internal pass
 
-Reviewed: `programs/vise/src/` at the pre-deployment working tree, 2026-09-22.
-Method: full manual read of the program source, every `address =` / `seeds =` /
-`has_one` / `Signer` constraint traced, accounting invariants re-derived by hand
-and checked against the Rust unit tests and the LiteSVM suite.
+Scope: `programs/imagine/src/` at the pre-deployment working tree.
+IMAGINE's program is the lock-to-earn engine reviewed earlier for its
+predecessor, ported to StonkFun: the reward accumulator, stream, caps, exits
+and admin model are carried over; the launch path, pricing and every payout are
+new (LaunchLab CPI, LaunchLab/CPMM pricing, quote-asset payouts). Earlier
+findings are kept below only where the fix is still load-bearing in this code,
+renumbered and re-scoped. New surfaces follow.
+
+Method: manual read of the program source, every `address =` / `seeds =` /
+`has_one` / `Signer` constraint traced, accounting invariants re-derived and
+checked against the Rust unit tests and the LiteSVM suites, which run the real
+mainnet LaunchLab, CPMM and Token-2022 builds (`tests/fixtures/raydium/`).
 
 **This is an internal review. An independent external audit is still required
 before mainnet** — see `docs/RUNBOOK.md`.
 
-## Outcome
+Regression tests: `describe("audit regressions")` in
+`packages/sdk/test/imagine.test.ts`; launch and pricing guards in
+`describe("StonkFun launch guards")` and `describe("migrated coins")` in
+`packages/sdk/test/stonkfun.test.ts`.
 
-Fourteen findings: one critical, three high, one medium, four low, five
-informational. No solvency break, no custody break, no missing signer or owner
-check, no PDA collision, and no admin path to pool funds was found. A
-post-deployment pass added R02–R04, below.
+## Carried-over findings, still enforced
 
-Every finding at low severity and above is fixed. Each fix carries a regression
-test that fails against the old code — see `describe("audit regressions")` in
-`packages/sdk/test/vise.test.ts`.
+### IMG-01 — Critical — `increase()` on a matured position
 
-## Findings and resolutions
+A matured, unclosed position kept its multiplier, so topping it up minted
+full-multiplier weight with no term left, then exited penalty-free.
+*Enforced:* `increase` rejects a matured position (`ImagineError::PositionMatured`)
+and reprices the whole position against the term still to run. `unlock` is
+permissionless once matured, paying the recorded owner, and the keeper closes
+matured positions so served-out locks stop diluting. `early_unlock` stays
+owner-only.
 
-### VISE-01 — Critical — `increase()` minted full-multiplier weight with no remaining term
+### IMG-02 — High — inflow recognised at an attacker-chosen moment
 
-A position that had matured but was never closed kept its original multiplier.
-`increase()` applied that multiplier to newly deposited principal without
-checking that any lock term remained, and `unlock()` on a matured position
-charges no penalty. An attacker could keep a ladder of dust positions opened at
-365 days, wait them out, then in one transaction top one up with a large bag,
-claim a pro-rata slice of the reward stream, and withdraw everything — capital
-exposed for a single slot, cost limited to transaction fees.
+More acute on StonkFun than before: forwarded creator shares arrive as plain
+transfers with no instruction, so a backlog is readable from public state at
+any time. *Enforced:* inflow is streamed over `reward_stream_secs` (frozen per
+pool, 1 hour – 7 days, default 1 hour, shorter than the 4-hour minimum lock),
+so weight created after funds arrive earns nothing from them.
+`MIN_PENALTY_BPS = 500` keeps a floor under the exit cost.
 
-*Fixed:* `increase` now rejects a matured position (`ViseError::PositionMatured`)
-and reprices the whole position against the term still to run, so added
-principal can never buy more weight than the time it is actually committed for.
+### IMG-03 — High — remainder scoopable when nothing is locked
 
-A second, deeper problem the finding exposed: a matured position keeps full
-weight indefinitely, diluting people who are still committed. `unlock` is now
-permissionless for matured positions — principal, rewards and rent all go to the
-position's recorded owner — so a third party *can* close them out. Nothing does
-so yet: the program only makes the crank possible, and the keeper that closes
-matured positions is being added to the API separately. Until it ships,
-matured-but-open positions keep diluting. `early_unlock` remains owner-only,
-because burning someone else's principal is not a third party's decision.
+*Enforced:* with zero weight the lockers' share goes to the treasury instead of
+parking for the next minimum-size lock.
 
-### VISE-02 — High — reward inflow was recognised at an attacker-chosen moment
+### IMG-04 — High — anyone could open a pool for anyone's coin
 
-Inflow was folded into the accumulator only when somebody triggered a sync, and
-pump.fun credits the vault with no instruction at all. An attacker could read
-the unassigned backlog straight from public state, then atomically lock, sync,
-claim a share of rewards that accrued while only honest lockers were committed,
-and exit for at most the early-exit penalty.
+Re-scoped. A pool can no longer be opened for an existing coin at all: `launch`
+creates the coin itself, through a LaunchLab CPI, in the same instruction that
+creates the pool, with the signer as the pool's creator. The pool PDA is
+`["pool", mint]` and the mint is a fresh keypair that must sign, so there is
+nothing to front-run. After the CPI the handler reads the LaunchLab `PoolState`
+back and requires `base_mint`, `quote_mint`, `creator == reward vault` and
+`platform_config == config.launchlab_platform`
+(`ImagineError::InvalidLaunchLabAccount`).
 
-*Fixed:* rewards now stream. Arriving lamports go into `Pool::undistributed` and
-are released linearly over `reward_stream_secs`, a term frozen on the pool at
-creation (1 hour to 7 days, default 24 hours). A reward share is therefore a
-function of weight *held over time*, and weight created after lamports arrive
-earns nothing from them. The early-exit penalty also gained a floor
-(`MIN_PENALTY_BPS = 500`) so a pool cannot be configured with no exit cost at
-all.
+### IMG-05 — Medium — `initialize_config` permissionless
 
-### VISE-03 — High — the parked remainder was scoopable when nothing was locked
+*Enforced:* `InitializeConfig` takes the program and its ProgramData and
+requires the signer to be the upgrade authority (`NotUpgradeAuthority`).
 
-Once every position exited, `total_weight` reached zero and the entire locker
-share parked in `reward_remainder`, growing for as long as fees kept arriving. A
-single minimum-size lock could then take the whole pot.
+### IMG-06 — Low — unbounded accumulator growth at tiny weight
 
-*Fixed:* with no weight there is nobody to pay, so the lockers' share is credited
-to the treasury instead of parking. The creator's share is unaffected — it was
-always theirs.
+*Enforced:* `MIN_LOCK_AMOUNT_FLOOR` (one whole token; every LaunchLab coin has 6
+decimals). The `SCALE` bound is now stated in quote base units: about 1e18 of
+lifetime inflow into one pool (1e9 SOL, or 1e10 of an 8-decimal xStock) before
+an overflow, which is rejected, not wrapped.
 
-### VISE-04 — High — anyone could create a pool for anyone's coin
+### IMG-07 — Low — `sync` absorbing an unexplained balance drop
 
-The pool PDA is one-per-mint and `create_pool` authenticated nobody, so the
-first caller permanently owned up to 30% of every lamport that coin ever
-generated — including fees routed there by the real creator, who could then
-never open a competing pool.
+*Enforced:* `sync` requires the distributable balance to be at least
+`last_vault_balance` (`VaultAccountingMismatch`), in both asset paths.
 
-*Fixed:* `create_pool` reads `BondingCurve::creator` out of pump.fun's own
-account for that mint and requires it to equal the signer. The account is proven
-canonical by a `seeds::program` constraint plus an owner check, and the field is
-read by offset because pump exposes no read instruction.
+### IMG-08 — Low — rent reserve
 
-This makes ordering load-bearing: the pool must be created *before* the
-fee-sharing migration, which rewrites `BondingCurve::creator` to the sharing
-config PDA. Both `apps/api/src/routes/tx.ts` and the end-to-end script follow
-that order, and the e2e would fail loudly if either were reordered.
+*Enforced:* the SOL vault reserve is funded at twice the rent-exempt minimum at
+launch and excluded from the distributable balance.
 
-### VISE-05 — Medium — `initialize_config` was permissionless
+### IMG-09 — Medium — forfeited rewards bypassed the stream
 
-Between deploying the program and initialising it, anyone could seize the
-singleton config PDA. There is no re-init path, so the treasury address stamped
-into every future pool would have been theirs.
+*Enforced:* `Pool::forfeit` puts an early exit's forfeited rewards into
+`undistributed` and restarts the stream; with no weight left they go to the
+treasury.
 
-*Fixed:* `InitializeConfig` now takes the program and its ProgramData account
-and requires the signer to be the recorded upgrade authority.
+### IMG-10 — Medium — `increase()` kept the original penalty basis
 
-### VISE-06 — Low — unbounded accumulator growth at tiny weight
-
-`acc_reward_per_weight` grows as `lamports / total_weight`, so a pool held open
-by dust could inflate it until legitimate large locks overflowed. The `SCALE`
-safety comment also assumed a 4.0x ceiling where 10.0x is enforced.
-
-*Fixed:* `MIN_LOCK_AMOUNT_FLOOR` (one whole token at 6 decimals) is enforced in
-`ConfigArgs::validate`, and the comment now states the enforced ceiling and
-expresses the bound as a function of the minimum lock.
-
-### VISE-07 — Low — matured unlock emitted no `Claimed` event
-
-Real lamports were paid with no event, so indexers missed every position's final
-and largest harvest. *Fixed:* `unlock` now emits `Claimed`. This matters more
-since unlock became permissionless, as the payout is no longer attributable to
-the signer.
-
-### VISE-08 — Low — `sync` silently absorbed an unexplained balance drop
-
-Not reachable today, since every outflow path calls `debit`, but a future path
-that forgot to would have silently made recorded obligations exceed holdings.
-*Fixed:* `sync` now requires the balance to be at least `last_vault_balance` and
-fails with `VaultAccountingMismatch` otherwise.
-
-### VISE-09 — Low — `vault_reserve` frozen against a future rent increase
-
-*Fixed:* the reserve is funded at twice the rent-exempt minimum at creation.
-
-### VISE-10 to VISE-14 — Informational
-
-- `redistribute` no longer re-counts forfeited lamports into `lifetime_rewards`.
-  (Since replaced by `Pool::forfeit`; see R02.)
-- The `reward_debt` doc comment now states it is `SCALE`-scaled, not lamports —
-  it is load-bearing, and "cleaning it up" would reintroduce a solvency bug.
-- The dead `PositionIndexInUse` error was removed; `VaultReserveMissing` was
-  repurposed for VISE-08.
-- `accept_admin` now rejects a default `pending_admin`.
-- No `mint_authority` check: deliberate. A live mint authority can dilute a coin
-  but cannot touch locked principal, and requiring a revoked one would exclude
-  every coin still on its bonding curve.
-
-## Post-deployment review — 2026-09-24
-
-A second pass over the live program found three economic issues. All are fixed
-in the upgrade without any account-layout change: `Pool`, `Position` and
-`Config` keep every field, in order, at the same size, so existing mainnet
-accounts deserialise unchanged. Each fix has a regression test in
-`describe("audit regressions")`.
-
-### R02 — Medium — forfeited rewards bypassed the stream
-
-`early_unlock` handed the exiting position's unclaimed rewards to the remaining
-lockers through `credit_lockers`, jumping `acc_reward_per_weight` in one step.
-That reopened the timing attack VISE-02 closed for inflow: a sniper locking a
-large bag in the same bundle as a big early exit took a pro-rata slice of the
-forfeit for one slot of exposure.
-
-*Fixed:* `Pool::forfeit` adds the forfeited lamports to `undistributed` and
-restarts the stream, so they are released over `reward_stream_secs` like any
-inflow. `last_vault_balance` is untouched (the lamports never move) and
-`lifetime_inflow` is untouched (nothing arrived). `lifetime_rewards` gives the
-forfeit back when it enters the stream and counts it again when the stream
-releases it, so `lifetime_rewards + reward_remainder + undistributed` stays equal
-to every lamport ever routed to lockers; it can dip by the forfeit for up to one
-window. With no weight left, the forfeit still goes to the treasury.
-
-### R03 — Medium — `increase()` kept the original penalty basis
-
-`increase` left `lock_start` alone, so the early-exit penalty on added principal
-was computed over the position's original term. Topping up a year-long lock a
-week before it ends and exiting at once burned ~0.5% instead of the 25% a fresh
-week-long lock pays — a cheap way to buy multiplier weight with an exit option.
-
-*Fixed:* `increase` moves `lock_start` to `math::blended_lock_start`. With old
-principal `A` over term `T`, top-up `B` and time left `R`, the new term `T'`
-satisfies
+*Enforced:* `increase` moves `lock_start` to `math::blended_lock_start`, so with
+old principal `A` over term `T`, top-up `B` and time left `R`:
 
     (A + B) / T' = A / T + B / R
     lock_start' = lock_end - floor((A + B) * T * R / (A * R + B * T))
 
-Because the penalty is linear in time remaining, the combined penalty at every
-later moment equals the old position's penalty plus that of a fresh lock of `B`
-over `R` — the existing principal's basis is exactly preserved. The plain
-amount-weighted average of the two start times was rejected: it under-charges
-the top-up whenever `T > R`: with a 1:1 top-up a week before the end of a
-year-long lock, exiting at once would burn ~1.1% of the position instead of
-~12.7% (25% of the top-up plus ~0.5% of the old principal). `T'` rounds down,
-so rounding only ever raises the penalty, and
-`lock_start <= lock_start' <= now < lock_end` holds.
+The combined penalty at every later moment equals the old position's plus a
+fresh lock of `B` over `R`; rounding only raises it.
 
-### R04 — Low — matured unlock could pay principal into a stray account
+### IMG-11 — Low — matured unlock into a stray account
 
-The permissionless matured `unlock` accepted any token account whose owner field
-was the position's owner. A third party could create such an account at an
-address of their choosing and close the victim's lock into it; the tokens were
-still the owner's, but in an account no wallet or the app ever displays.
+*Enforced:* `owner_token_account` must be the owner's canonical ATA for
+`(mint, owner, token_program)`, and the quote payout goes to the owner's
+canonical quote ATA. The SDK prepends idempotent ATA creates.
 
-*Fixed:* the `Unlock` accounts (shared by `unlock` and `early_unlock`) require
-`owner_token_account` to be the owner's canonical associated token account for
-`(mint, owner, token_program)`. The program does not create it —
-`init_if_needed` would have added an account and a crate feature to a live
-instruction — so it must exist; the SDK's `unlockInstructions` prepends an
-idempotent ATA create paid by `payer`, which keepers and the API use.
+### Informational, still true
+
+- `reward_debt` is `SCALE`-scaled, not base units. Load-bearing for solvency.
+- `accept_admin` rejects a default `pending_admin`.
+- `unlock` emits `Claimed`, so the final payout of a permissionless close is
+  indexed.
+
+## New surfaces
+
+### N-01 — LaunchLab CPI in `launch`
+
+`launch` invokes LaunchLab `initialize_with_token_2022` with the creator as
+payer and the mint keypair as signer (both propagate) and the reward vault PDA
+as a non-signing creator. Checked:
+
+- The LaunchLab program account is pinned to `LAUNCHLAB_PROGRAM_ID`; Token-2022
+  is pinned.
+- `launchlab_platform` must equal `config.launchlab_platform`
+  (`PlatformMismatch`), StonkFun's PlatformConfig on mainnet.
+- GlobalConfig, authority, pool, vaults and event authority are validated by
+  LaunchLab itself; the pool is then read back (IMG-04).
+- When StonkFun's platform restricts global configs or curve params, the
+  platform allow-config and curve-rule PDAs are forwarded and LaunchLab
+  enforces them; curve parameters come from StonkFun's pricing API via the
+  API, and a mismatch fails the whole transaction.
+- No lamports or tokens owned by the pool move during the CPI; the vault PDA
+  never signs it.
+
+Residual: IMAGINE trusts LaunchLab's program at its mainnet address. A LaunchLab
+upgrade that changes `PoolState` offsets breaks reads (they fail closed on owner,
+discriminator and length) rather than corrupting accounts.
+
+### N-02 — Pricing for the earnings cap (`price.rs`)
+
+On the curve the `PoolState` is pinned to `pool.launchlab_pool`, owner and
+discriminator checked. After migration the CPMM pool must be the canonical PDA
+for its own `amm_config`, hold exactly (coin, quote), and its vault keys must
+match; fees parked in the vaults are excluded. The price is spot and
+manipulable within a transaction; manipulation only moves a lock's cap, never
+its share of inflow, so the gain is bounded by avoiding the cap and costs a
+round trip through venue fees. Accepted.
+
+### N-03 — Quote-asset payouts
+
+Rewards for a non-SOL quote sit in `ATA(reward_vault, quote_mint,
+quote_token_program)`, recorded on the pool as `reward_token_account`; every
+payout is `transfer_checked` signed by the vault PDA to the recipient's
+canonical quote ATA. Every instruction that touches it checks the account,
+mint and program against the pool (`QuoteAccountMismatch`). `launch` refuses a
+quote mint with a transfer fee or a fee authority (`QuoteTransferFee`), an
+active transfer-hook program (`QuoteHookActive`), frozen-by-default accounts or
+non-transferability (`QuoteNotTransferable`), because any of them would make
+the books disagree with the balance. Solvency is asserted by the churn test in
+both the SOL and SPYx paths.
+
+### N-04 — StonkFun's off-chain forwarding (trust assumption)
+
+The creator share is forwarded by StonkFun off-chain to the LaunchLab pool's
+`creator` — for IMAGINE coins, the reward vault. Nothing on chain obliges
+StonkFun to forward, fixes the amount, or prevents it from changing its policy.
+IMAGINE's correctness does not depend on it: forwards are simply inflow when
+they arrive. Product copy must not promise amounts or timing. The keeper syncs
+vaults once their unsynced balance passes `SYNC_MIN_USD`; anyone can `sync`.
+
+### N-05 — xStock issuer powers
+
+xStocks are Token-2022 mints carrying a PermanentDelegate, Pausable,
+ScaledUiAmount, a TransferHook with only its authority set, a
+DefaultAccountState authority and a freeze authority. These are accepted for
+**quote** mints (never for the coin): the issuer could freeze or pause the
+vault's token account, or move tokens out of it with the permanent delegate.
+Effects: payouts of that quote stop (pause/freeze), or the vault holds less
+than the books (delegate transfer) — then `sync` fails with
+`VaultAccountingMismatch` and every payout of that pool stops until the
+balance is restored. No other pool and no locked principal (the coin) is
+affected. ScaledUiAmount changes only the UI amount; the program works in raw
+base units. This is the issuer risk every xStock holder already carries;
+lockers of an xStock-paired coin take it on for their rewards.
+
+### N-06 — Founding gate
+
+Between `launch` and `found` the pool exists unfounded: `lock`, `increase`,
+`extend` and `deposit_reward` require `founded` (`NotFounded`), `sync` is a
+no-op, and `found` runs once, creator only (`AlreadyFounded`,
+`NotPoolCreator`). The API sends all three in one v0 transaction; anything
+forwarded meanwhile is inflow on the first sync after founding.
 
 ## Verified correct
 
-Confirmed by reading the source and, where noted, asserted by tests:
-
-- Solvency holds by construction: `distribute` rounds the pool's committed
-  amount *up* from the scaled credit handed out while each position's claim
-  rounds *down*, and `reward_debt` keeps the sub-lamport residue on the position.
-  Asserted after every step of a randomised churn test.
-- The reward vault can never be drained below rent-exemption.
-- No admin path moves pool SOL or tokens. The only signers over a pool's funds
-  are the vault PDA (paying the locker, creator, or treasury that earned it) and
-  the pool PDA (returning or burning locked tokens).
-- Pause blocks only `create_pool`; claiming and unlocking are unpausable.
-- Pool terms are written once at creation and never rewritten.
-- Sync ordering is correct in every instruction, including `early_unlock`, which
-  drops the exiting position's weight before streaming its forfeited rewards.
-- Closed positions cannot be revived or double-claimed; a re-created position at
-  the same seeds starts with a fresh credit line.
-- Every arithmetic site is checked and returns an error rather than panicking;
-  `overflow-checks = true` for release builds.
-- Token-2022 handling is deny-by-default and fails closed on extensions the
-  compiled library does not know about.
-- No loop over caller-supplied data anywhere, so no compute-unit griefing.
+- Solvency by construction in both asset paths: the pool rounds its committed
+  amount up, each claim rounds down, `reward_debt` keeps the residue. Asserted
+  after every step of a randomised churn test, SOL and SPYx.
+- The SOL vault can never be drained below its reserve.
+- No admin path moves pool funds. The only signers over a pool's funds are the
+  vault PDA (paying the locker, creator or treasury that earned it) and the pool
+  PDA (returning or burning locked tokens).
+- Pause blocks only `launch`; claiming and unlocking are unpausable.
+- Pool terms are written once at launch and never rewritten.
+- Every arithmetic site is checked; `overflow-checks = true` for release builds.
+- Coin mints: exactly the Token-2022 shape LaunchLab creates passes; anything
+  with a freeze authority (`FreezeAuthoritySet`) or another extension
+  (`UnsupportedMintExtension`) fails. Quote mints are scanned by raw TLV type,
+  so extensions newer than the linked `spl-token-2022` (ScaledUiAmount,
+  Pausable) do not break parsing.
+- No loop over caller-supplied data, so no compute-unit griefing.
 
 ## Accepted residual risks
 
-- **`pool.treasury` is frozen per pool.** If the treasury key is ever rotated,
-  existing pools keep paying the old address. This is the cost of immutability;
-  use an address you can hold for years — a multisig, not a hot wallet.
-- **`trade_fee_bps` is advisory.** The 2% app fee is enforced by the API when it
-  builds a transaction, not by the program; anyone can trade on pump directly
-  without paying it. The transaction-building service is therefore
-  revenue-critical infrastructure.
-- **Tokens sent directly to a pool's token vault are unrecoverable.** Adding a
-  sweep would mean adding an admin token-movement path, which is exactly the
-  thing the design refuses to have.
-- **Position enumeration is off-chain only.** Nothing bounds how many positions a
-  wallet opens, so the indexer must paginate.
+- **`pool.treasury` is frozen per pool.** Rotating the treasury key leaves
+  existing pools paying the old address. Use a multisig.
+- **`trade_fee_bps` is advisory.** The 1% app fee is added by the API; trading
+  on StonkFun, Raydium or an aggregator directly does not pay it.
+- **StonkFun forwarding is off-chain** (N-04) and **xStock issuers hold
+  powers over quote balances** (N-05).
+- **Tokens sent directly to a pool's token vault are unrecoverable.** A sweep
+  would be an admin token-movement path.
+- **Position enumeration is off-chain only.** The indexer must paginate.

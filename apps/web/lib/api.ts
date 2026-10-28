@@ -1,23 +1,46 @@
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
+/**
+ * A StonkFun pair asset: what a coin is priced in, what its trades pay in, and
+ * so what its lockers earn. SOL, USDC, an xStock like NVDAx, a currency…
+ */
+export interface QuoteInfo {
+  mint: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  tokenProgram: string;
+  category: string;
+  logoUrl: string | null;
+  /** USD per one whole token; null when no price source answers. */
+  usdPrice: number | null;
+}
+
 export interface PoolSummary {
   mint: string;
   symbol: string | null;
   name: string | null;
   image_url: string | null;
   creator: string;
+  quote: QuoteInfo;
   total_locked: string;
   total_weight: string;
   token_supply: string | null;
   token_decimals: number;
+  /** Quote base units. */
   lifetime_rewards: string;
+  /** Quote base units. */
   lifetime_inflow: string;
   open_positions: number;
   creator_share_bps: number;
   treasury_share_bps: number;
   max_multiplier_bps: number;
-  price_lamports: number | null;
-  market_cap_lamports: string | null;
+  /** Quote UI units per one whole coin. */
+  price_quote: number | null;
+  price_usd: number | null;
+  /** Quote base units. */
+  market_cap_quote: string | null;
+  market_cap_usd: number | null;
   curve_progress: number | null;
   graduated: boolean;
   created_at: string;
@@ -25,11 +48,18 @@ export interface PoolSummary {
   apr: number | null;
 }
 
+export type CurveStatus = "curve" | "migrating" | "graduated";
+
 export interface PoolDetail {
   mint: string;
   /** Total supply in base units; size tiers are a share of it. */
   tokenSupply: string | null;
   tokenDecimals: number;
+  quote: QuoteInfo;
+  links: { stonkfun: string; raydium: string | null };
+  /** Quote base units at spot; null when the price is unknown. */
+  marketCapQuote: string | null;
+  marketCapUsd: number | null;
   metadata: {
     name: string | null;
     symbol: string | null;
@@ -42,6 +72,10 @@ export interface PoolDetail {
   pool: {
     creator: string;
     rewardVault: string;
+    /** Holds a token-quoted pool's rewards; null when the pair is SOL. */
+    rewardTokenAccount: string | null;
+    /** The coin's LaunchLab pool state. */
+    launchlabPool: string;
     tokenVault: string;
     tokenProgram: string;
     terms: {
@@ -60,6 +94,7 @@ export interface PoolDetail {
     totalLocked: string;
     totalWeight: string;
     accRewardPerWeight: string;
+    /** Every amount below is quote base units. */
     lifetimeInflow: string;
     lifetimeRewards: string;
     lifetimeBurned: string;
@@ -69,25 +104,25 @@ export interface PoolDetail {
     streamEnd: number;
     openPositions: number;
     createdAt: number;
-    /** Each lock earns at most its SOL value when locked × its multiplier. */
-    capped: boolean;
-    /** Lamports the open locks can still earn in total. */
+    /** Quote base units the open locks can still earn in total (each lock is capped at its value × multiplier). */
     rewardCapacity: string;
   };
-  /** Realised fee flow over the last 24 hours, lamports; rewards track the coin's own volume. */
+  /** Realised fee flow over the last 24 hours, quote base units. */
   rewardRate: {
     lockersPerDay: string;
     feesPerDay: string;
-    waitingAtPump: string;
+    /** Sitting in the vault, not yet booked by `sync`. */
+    unsynced: string;
     siteVolume: string;
     trades: number;
   };
   curve: {
-    complete: boolean;
+    status: CurveStatus;
     progress: number;
-    priceLamports: number;
-    virtualSolReserves: string;
-    realSolReserves: string;
+    priceQuote: number;
+    priceUsd: number | null;
+    realQuote: string;
+    fundRaising: string;
   } | null;
 }
 
@@ -101,8 +136,8 @@ export interface Locker {
   claimed: string;
   pending: string;
   share: number;
-  /** Capped pools: the most this lock may ever be paid, lamports. */
-  rewardCap: string | null;
+  /** The most this lock may ever be paid, quote base units. */
+  rewardCap: string;
   /** Gave up its earnings for good: tokens locked, earns nothing. */
   renounced: boolean;
 }
@@ -123,22 +158,81 @@ export interface PortfolioPosition {
   name: string | null;
   imageUrl: string | null;
   decimals: number;
+  /** The pair asset this lock earns in; null if the pool could not be read. */
+  quote: QuoteInfo | null;
   index: number;
   amount: string;
   weight: string;
   multiplierBps: number;
   lockStart: number;
   lockEnd: number;
+  /** Quote base units. */
   claimed: string;
+  /** Quote base units. */
   pending: string;
   share: number;
   /** The pool's frozen lock window, so an extend offers only legal terms. */
   minLockSecs: number | null;
   maxLockSecs: number | null;
-  /** Capped pools: the most this lock may ever be paid, lamports. */
-  rewardCap: string | null;
+  /** The most this lock may ever be paid, quote base units. */
+  rewardCap: string;
   /** Gave up its earnings for good: tokens locked, earns nothing. */
   renounced: boolean;
+}
+
+export interface PortfolioTotals {
+  pendingUsd: number | null;
+  claimedUsd: number | null;
+  positions: number;
+}
+
+export interface LeaderboardEarner {
+  owner: string;
+  earned_usd: number | null;
+  coins: number;
+  last_claim: string | null;
+  earned: Array<{ quote: QuoteInfo; amount: string }>;
+}
+
+export interface LeaderboardCoin {
+  mint: string;
+  symbol: string | null;
+  name: string | null;
+  image_url: string | null;
+  quote: QuoteInfo;
+  lifetime_rewards: string;
+  lifetime_inflow: string;
+  lifetime_rewards_usd: number | null;
+  open_positions: number;
+  total_locked: string;
+  token_supply: string | null;
+}
+
+export interface LeaderboardDiamond {
+  owner: string;
+  mint: string;
+  symbol: string | null;
+  image_url: string | null;
+  amount: string;
+  multiplier_bps: number;
+  /** ISO timestamp. */
+  lock_end: string;
+  term_secs: number;
+  token_decimals: number;
+}
+
+export type Leaderboard =
+  | { board: "earners"; rows: LeaderboardEarner[] }
+  | { board: "coins"; rows: LeaderboardCoin[] }
+  | { board: "diamond"; rows: LeaderboardDiamond[] };
+
+export interface Stats {
+  pools: number;
+  open_positions: number;
+  trades_24h: number;
+  paid_to_lockers_usd: number | null;
+  total_inflow_usd: number | null;
+  lockers_24h_usd: number | null;
 }
 
 /**
@@ -150,8 +244,8 @@ export interface PortfolioPosition {
  */
 function serverHeaders(): Record<string, string> {
   if (typeof window !== "undefined") return {};
-  const key = process.env.VISE_INTERNAL_KEY;
-  return key ? { "x-vise-internal": key } : {};
+  const key = process.env.IMAGINE_INTERNAL_KEY;
+  return key ? { "x-imagine-internal": key } : {};
 }
 
 /**
@@ -170,7 +264,7 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`api ${path} failed: ${response.status} ${detail.slice(0, 200)}`);
+    throw new ApiError(response.status, `api ${path} failed: ${response.status} ${detail.slice(0, 200)}`);
   }
   return (await response.json()) as T;
 }
@@ -227,8 +321,14 @@ export interface Holding {
   symbol: string | null;
   name: string | null;
   imageUrl: string | null;
-  priceLamports: number | null;
+  /** Quote UI units per one whole coin, for a coin with a pool. */
+  priceQuote: number | null;
+  priceUsd: number | null;
   hasPool: boolean;
+  /** The coin's pair, when it has a pool. */
+  quote: QuoteInfo | null;
+  /** Set when the holding is itself a pair asset (NVDAx, USDC…). */
+  asset: QuoteInfo | null;
 }
 
 export interface WalletPosition extends PortfolioPosition {
@@ -245,7 +345,7 @@ export interface WalletView {
   solAvailable: string;
   holdings: Holding[];
   positions: WalletPosition[];
-  totals: { pending: string; claimed: string; positions: number };
+  totals: PortfolioTotals;
   actions: Array<{
     kind: string;
     detail: Record<string, unknown>;
@@ -255,63 +355,50 @@ export interface WalletView {
   }>;
 }
 
+export interface ActivityRow {
+  type: string;
+  owner: string;
+  amount: string;
+  at: string;
+  signature: string;
+}
+
 export const api = {
-  pools: (params: { sort?: string; limit?: number; search?: string } = {}) => {
+  pools: (params: { sort?: string; limit?: number; search?: string; category?: string } = {}) => {
     const query = new URLSearchParams();
     if (params.sort) query.set("sort", params.sort);
     if (params.limit) query.set("limit", String(params.limit));
     if (params.search) query.set("search", params.search);
+    if (params.category) query.set("category", params.category);
     return get<{ pools: PoolSummary[] }>(`/api/pools?${query}`);
   },
   pool: (mint: string) => get<PoolDetail>(`/api/pools/${mint}`),
   lockers: (mint: string) =>
     get<{ lockers: Locker[]; totalWeight: string }>(`/api/pools/${mint}/lockers`),
   rewards: (mint: string) => get<RewardHistory>(`/api/pools/${mint}/rewards`),
-  activity: (mint: string) =>
-    get<{
-      activity: Array<{
-        type: string;
-        owner: string;
-        amount: string;
-        at: string;
-        signature: string;
-      }>;
-    }>(`/api/pools/${mint}/activity`),
+  activity: (mint: string) => get<{ activity: ActivityRow[] }>(`/api/pools/${mint}/activity`),
+  /** Every pair StonkFun can launch against right now. */
+  quotes: () => get<QuoteInfo[]>("/api/quotes"),
   portfolio: (owner: string) =>
-    get<{
-      positions: PortfolioPosition[];
-      totals: { pending: string; claimed: string; positions: number };
-    }>(`/api/portfolio/${owner}`),
-  leaderboard: (board: string) =>
-    get<{ board: string; rows: Array<Record<string, string | number | null>> }>(
-      `/api/leaderboard?board=${board}`,
-    ),
-  stats: () =>
-    get<{
-      pools: number;
-      paid_to_lockers: string;
-      total_inflow: string;
-      open_positions: number;
-      lockers_24h: string;
-      trades_24h: number;
-    }>("/api/stats"),
+    get<{ positions: PortfolioPosition[]; totals: PortfolioTotals }>(`/api/portfolio/${owner}`),
+  leaderboard: <B extends Leaderboard["board"]>(board: B) =>
+    get<Extract<Leaderboard, { board: B }>>(`/api/leaderboard?board=${board}`),
+  stats: () => get<Stats>("/api/stats"),
   config: () =>
-    get<{ cluster: string; treasury: string; tradeFeeBps: number; googleClientId: string }>(
-      "/config",
-    ),
+    get<{ cluster: string; treasury: string; tradeFeeBps: number; googleClientId: string }>("/config"),
 
-  /** VISE accounts: Google sign-in and the wallet the API holds for it. */
+  /** Imagine wallet: Google sign-in and the wallet the API holds for it. */
   me: () => get<{ account: AccountInfo }>("/api/me"),
   wallet: () => get<WalletView>("/api/me/wallet"),
   loginWithGoogle: (credential: string) =>
     post<{ account: AccountInfo }>("/api/auth/google", { credential }),
   logout: () => post<{ ok: true }>("/api/auth/logout", {}),
   act: (action: Record<string, unknown>) =>
-    post<{ signature: string } & Record<string, string | number>>("/api/me/action", action),
+    post<{ signature: string } & Record<string, unknown>>("/api/me/action", action),
   withdraw: (body: { to: string; amount: string; mint?: string }) =>
     post<{ signature: string }>("/api/me/withdraw", body),
   exportKey: () => post<{ wallet: string; secretKey: string }>("/api/me/export-key", {}),
-  /** Pin the coin's image and metadata JSON; returns the URI pump.fun reads. */
+  /** Store the coin's image and metadata JSON; returns the URI the coin is created with. */
   pinMetadata: (form: FormData) => post<{ uri: string; image: string }>("/api/metadata", form),
   /** Choose the mint for an account launch, so its metadata can link to its page. */
   launchMint: () => post<{ mint: string; nonce: string }>("/api/me/launch/mint", {}),

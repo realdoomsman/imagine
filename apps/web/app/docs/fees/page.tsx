@@ -1,148 +1,112 @@
-import Link from "next/link";
-import { DocPage, DocSection } from "@/components/doc-page";
+import { DocLinks, DocPage, DocSection } from "@/components/doc-page";
 
 export const metadata = {
   title: "Fees",
   description:
-    "Every fee VISE charges, who pays it, where it goes, and what it costs to leave early.",
+    "Every fee on an IMAGINE coin: who charges it, where it lands, and what it costs to leave a lock early.",
 };
 
 export default function FeesPage() {
   return (
     <DocPage
-      eyebrow="Fees"
+      eyebrow="Docs · Fees"
       title="Every fee, and where it lands"
-      lede="Four numbers matter. All of them are on this page, and none of them can be changed on a pool once it exists."
+      lede="Some fees are StonkFun's and Raydium's, some are ours, and one stream is forwarded to the vault. Here is each of them, and the split that applies once money reaches a pool."
     >
-      <DocSection title="The app fee: 2% of the SOL leg">
+      <DocSection title="The app fee: 1% on trades imagine.fun routes">
         <p>
-          Trades routed through vise.fun pay 2% of the SOL side — what you spend
-          on a buy, what you receive on a sell. The instruction that takes it
-          rides in the same transaction as the swap, so a failed trade costs you
-          nothing and lockers are credited the moment the trade confirms.
+          Trades routed through imagine.fun pay 1% of the pair-asset side: what you spend on a buy,
+          what you receive on a sell. The deposit that carries it rides in the same transaction as
+          the trade and pays straight into that coin&apos;s pool, so a failed trade costs nothing
+          and lockers are credited the moment the trade confirms.
         </p>
         <p>
-          It is charged by the transaction our API builds, not by the on-chain
-          program. Trading the same coin directly on pump.fun pays no app fee and
-          the coin&apos;s lockers earn nothing from it. That is honest rather
-          than ideal: no front-end can tax a trade it did not build.
-        </p>
-        <p>
-          The rate is a platform setting, adjustable between 0% and a hard
-          on-chain ceiling of 10%. Any change applies to future trades; it cannot
-          reach into a pool and alter what it already owes.
+          It is applied by the transaction our API builds, not enforced by the on-chain program.
+          Trading the same coin elsewhere does not pay it. No front-end can charge for a trade it
+          did not build.
         </p>
       </DocSection>
 
-      <DocSection title="pump.fun creator fees: all of them">
+      <DocSection title="StonkFun and Raydium LaunchLab fees">
         <p>
-          pump.fun pays every coin&apos;s creator a share of its trading volume.
-          At launch, VISE points that entire stream at the coin&apos;s lock pool
-          using pump&apos;s own fee-sharing program.
+          IMAGINE coins are StonkFun coins, so StonkFun&apos;s own fees apply to them as to any
+          other: StonkFun charges 1% on curve trades, and the Raydium LaunchLab protocol fee
+          applies. Those fees are theirs.
         </p>
         <p>
-          The instruction that sets it — <code>update_fee_shares_v2</code> —
-          revokes its own admin as it runs. After it lands, the routing is
-          permanent. The creator cannot redirect it. Neither can we. Anyone can
-          then run the permissionless sweep that pushes accrued fees into the
-          vault, and VISE runs it on a schedule so nobody has to think about it.
+          StonkFun forwards a creator share to each coin&apos;s creator address. For an IMAGINE coin
+          that address is the pool&apos;s vault, so whatever StonkFun forwards lands where the
+          lockers are and is credited to the pool. Forwarding is StonkFun&apos;s policy; we
+          don&apos;t promise an amount.
         </p>
       </DocSection>
 
       <DocSection title="The split: 90 / 10 / 0">
-        <p>Every lamport entering a pool is divided the same way, in this order:</p>
+        <p>Everything that reaches a pool, whatever the source, is divided the same way:</p>
         <ul>
           <li>
-            <strong>10% to the treasury.</strong> Taken off the top. This pays
-            for indexing, hosting, audits, and the keeper that moves pump.fun
-            creator fees into pools every minute.
+            <strong>90% to lockers</strong>, streamed by weight.
           </li>
           <li>
-            <strong>0% to the creator.</strong> The program supports a creator
-            share; the platform sets its ceiling to zero. A creator who wants to
-            earn from their coin does what everyone else does: locks it.
+            <strong>10% to the treasury</strong>, taken off the top.
           </li>
           <li>
-            <strong>90% to lockers</strong>, split by weight.
+            <strong>0% to the creator</strong> by default. A creator earns the way everyone else
+            does: by locking.
           </li>
         </ul>
         <p>
-          These percentages are written onto the pool when it is created and
-          there is no instruction anywhere that rewrites them. Changing the
-          platform defaults affects coins launched later and nothing else.
+          The split is frozen on the pool when it is created. Changing the platform defaults
+          affects coins launched later and nothing else. All of it is paid in the coin&apos;s pair
+          asset: NVDAx for an NVDAx-paired coin, SOL for a SOL-paired one.
         </p>
       </DocSection>
 
-      <DocSection title="Fees do not land all at once">
+      <DocSection title="Fees stream, they don't land all at once">
         <p>
-          Arriving fees stream out to lockers linearly over a release window —
-          one hour by default, frozen per pool like everything else.
-        </p>
-        <p>
-          This is deliberate. If a fee were handed out the instant it arrived,
-          your share would be decided by who held weight at one moment, and
-          anyone could watch lamports pile up in a vault, lock a large bag, claim
-          a slice of a backlog they were never present for, and leave. Streaming
-          makes a reward share a function of weight held <em>over time</em>,
-          which is the thing the product actually claims to pay for.
+          Arrivals are released to lockers over a window, one hour by default and frozen per pool
+          like everything else. If a fee were handed out the instant it arrived, anyone could
+          watch a vault fill, lock a large bag a moment before, take a slice they were never
+          present for, and leave. Streaming makes a share a function of weight held over time.
         </p>
       </DocSection>
 
       <DocSection title="Every lock has a ceiling">
         <p>
-          On coins launched from now on, a lock can earn at most the SOL value
-          of its tokens when locked, times its multiplier: 1 SOL worth locked
-          at 6.00× can earn up to 6 SOL. The price comes from pump.fun&apos;s own
-          bonding curve, or its AMM pool once the coin has graduated, read by
-          the program when you lock.
-        </p>
-        <p>
-          A lock that reaches its ceiling stops earning and the locks still
-          earning split what arrives. The pool only keeps what its open locks
-          can still earn; every fee beyond that goes to the treasury the moment
-          it arrives. Coins launched before this keep their original,
-          uncapped terms.
+          A lock can earn at most what its tokens were worth when it was opened, measured in the
+          pair asset, times its multiplier. The price is read by the program from the coin&apos;s
+          LaunchLab curve, or from its Raydium pool once it has migrated. A lock that reaches its
+          ceiling stops earning and the locks still earning split what arrives.
         </p>
       </DocSection>
 
       <DocSection title="Leaving early">
-        <p>Breaking a lock before its term costs two things, both to the benefit of the people who stayed:</p>
+        <p>Breaking a lock before its term costs two things:</p>
         <ul>
+          <li>Unclaimed rewards are forfeited and redistributed across the remaining weight.</li>
           <li>
-            Unclaimed rewards are forfeited and immediately redistributed across
-            the remaining weight.
-          </li>
-          <li>
-            A slice of principal is burned, scaled linearly by how much of your
-            term is left unserved. The headline rate is 25%; breaking a 100-day
-            lock on day 50 burns half of that, and on day 99 it rounds to
-            nothing.
+            A slice of principal is burned, scaled linearly by how much of the term is left. The
+            headline rate is 25%; leaving a 100-day lock on day 50 burns half of that, and on day
+            99 almost nothing.
           </li>
         </ul>
-        <p>
-          Claiming is never penalised and never touches your lock. You can
-          harvest every day of a one-year position and the position does not
-          move.
-        </p>
+        <p>Claiming is never penalised and never touches your lock.</p>
       </DocSection>
 
       <DocSection title="What it costs to launch">
         <p>
-          A pool creation fee of 0.05 SOL, plus ordinary Solana rent for the
-          accounts your coin needs — roughly 0.02 SOL, most of which comes back
-          when positions close. Your dev buy is yours; the part you choose to
-          lock is locked on the same terms as everyone else&apos;s.
+          A pool creation fee of 0.05 SOL to the treasury, plus Solana rent for the new accounts,
+          shown in your wallet before you sign. Your dev buy is yours; the part you lock is locked
+          on the same terms as everyone else&apos;s.
         </p>
       </DocSection>
 
-      <div className="hairline mt-12 flex flex-wrap gap-3 pt-8">
-        <Link href="/launch" className="btn btn-primary">
-          Launch a coin
-        </Link>
-        <Link href="/docs/security" className="btn btn-ghost">
-          Read the security model
-        </Link>
-      </div>
+      <DocLinks
+        links={[
+          { href: "/launch", label: "Launch a coin" },
+          { href: "/docs/security", label: "Security model" },
+        ]}
+      />
     </DocPage>
   );
 }

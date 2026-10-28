@@ -9,7 +9,10 @@
     "indexer": "node src/indexer.ts",
     "migrate": "node src/migrate.ts",
     "typecheck": "tsc --noEmit",
-    "e2e": "node scripts/e2e.ts"
+    "e2e": "node scripts/e2e.ts",
+    "fork:fixtures": "node scripts/fork-fixtures.ts",
+    "init-config": "node scripts/init-config.ts",
+    "create-alt": "node scripts/create-alt.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -17,7 +20,6 @@
     "@fastify/cors": "^10.0.2",
     "@fastify/multipart": "^9.4.0",
     "@fastify/rate-limit": "^10.2.2",
-    "@pump-fun/pump-sdk": "^2.0.0",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
     "@imagine/sdk": "workspace:*",

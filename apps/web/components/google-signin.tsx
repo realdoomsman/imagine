@@ -16,7 +16,7 @@ export function GoogleSignIn({ className = "" }: { className?: string }) {
     window.location.href = googleSignInUrl(`${window.location.pathname}${window.location.search}`);
   };
   return (
-    <button type="button" onClick={start} className={`btn btn-ghost h-[46px] w-full gap-3 ${className}`}>
+    <button type="button" onClick={start} className={`btn btn-ghost w-full gap-3 ${className}`}>
       <GoogleGlyph />
       Continue with Google
     </button>

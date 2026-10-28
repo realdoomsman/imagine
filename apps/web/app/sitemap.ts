@@ -5,7 +5,7 @@ export const revalidate = 600;
 
 /** Every public page plus a URL per coin, read from the index. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = "https://vise.fun";
+  const base = "https://imagine.fun";
   const fixed: MetadataRoute.Sitemap = [
     { url: base, changeFrequency: "daily", priority: 1 },
     { url: `${base}/coins`, changeFrequency: "hourly", priority: 0.9 },
@@ -13,6 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/leaderboard`, changeFrequency: "hourly", priority: 0.7 },
     { url: `${base}/article`, changeFrequency: "yearly", priority: 0.8 },
     { url: `${base}/how-it-works`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${base}/docs`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${base}/docs/fees`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${base}/docs/security`, changeFrequency: "monthly", priority: 0.6 },
     { url: `${base}/privacy`, changeFrequency: "yearly", priority: 0.2 },

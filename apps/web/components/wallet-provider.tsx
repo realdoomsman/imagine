@@ -5,8 +5,8 @@ import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { useMemo } from "react";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
-const RPC =
-  process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
+// StonkFun lives on mainnet only; a local fork sets NEXT_PUBLIC_RPC_URL.
+const RPC = process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.mainnet-beta.solana.com";
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   // Wallet Standard auto-discovers Phantom, Solflare, Backpack and friends, so

@@ -1,8 +1,8 @@
 {
-  "name": "vise",
+  "name": "imagine",
   "private": true,
   "version": "0.1.0",
-  "description": "VISE — time-weighted lock-to-earn vaults for pump.fun coins",
+  "description": "IMAGINE — lock-to-earn vaults for StonkFun coins, paid in each coin's pair asset",
   "packageManager": "pnpm@10.13.1",
   "engines": {
     "node": ">=20"

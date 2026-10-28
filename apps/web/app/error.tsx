@@ -2,14 +2,11 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import { ViseMark } from "@/components/vise-mark";
+import { ImagineMark } from "@/components/imagine-mark";
 
 /**
- * Route error boundary.
- *
- * Says what broke and what still works. A memecoin site that swallows an error
- * behind "something went wrong" teaches people their money might be gone; being
- * explicit that funds live on-chain and the program never stops is the point.
+ * Route error boundary. Says what broke and what still works: funds live
+ * on-chain and claiming never depends on this site.
  */
 export default function RouteError({
   error,
@@ -23,22 +20,16 @@ export default function RouteError({
   }, [error]);
 
   return (
-    <div className="mx-auto flex min-h-[70vh] max-w-[760px] flex-col items-center justify-center px-5 py-28 text-center sm:px-8">
-      <span className="text-rust">
-        <ViseMark size={40} grip={0.2} />
-      </span>
-      <p className="rule-label mt-8">Something slipped</p>
-      <h1 className="t-section mt-4">This page could not load.</h1>
-      <p className="t-lede mx-auto mt-6 text-center">
-        Your locks and rewards are on-chain and untouched by this. Claiming and
-        unlocking never depend on this site being up.
+    <div className="mx-auto flex min-h-[70vh] max-w-[760px] flex-col items-center justify-center px-5 py-24 text-center sm:px-8">
+      <ImagineMark size={44} className="opacity-60" />
+      <p className="eyebrow mt-8">Something broke</p>
+      <h1 className="t-h1 mt-3">This page couldn&apos;t load.</h1>
+      <p className="t-lede mx-auto mt-5 text-center">
+        Your locks and rewards are on-chain and untouched by this. Claiming and unlocking never
+        depend on this site being up.
       </p>
-      {error.digest ? (
-        <p className="num mt-6 text-[12px] text-steel-600">
-          Reference {error.digest}
-        </p>
-      ) : null}
-      <div className="mt-10 flex flex-wrap justify-center gap-3">
+      {error.digest ? <p className="num mt-5 text-[12px] text-muted">Reference {error.digest}</p> : null}
+      <div className="mt-9 flex flex-wrap justify-center gap-3">
         <button type="button" onClick={reset} className="btn btn-primary">
           Try again
         </button>

@@ -1,20 +1,8 @@
 import { PublicKey } from "@solana/web3.js";
 
-/** VISE program, identical on devnet and mainnet. */
-export const VISE_PROGRAM_ID = new PublicKey(
-  "VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb",
-);
-
-/**
- * pump.fun programs. Both are deployed at the same addresses on mainnet-beta
- * and devnet.
- * https://github.com/pump-fun/pump-public-docs/blob/main/docs/PUMP_PROGRAM_README.md
- */
-export const PUMP_PROGRAM_ID = new PublicKey(
-  "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
-);
-export const PUMP_GLOBAL = new PublicKey(
-  "4wTV1YmiEkRvAtNtsSGPtUrqRYQMe5SKy2uB4Jjaxnjf",
+/** IMAGINE program (mainnet; local forks run the same id). */
+export const IMAGINE_PROGRAM_ID = new PublicKey(
+  "imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa",
 );
 
 export const SEED = {
@@ -36,6 +24,10 @@ export const DAY = 86_400;
  * The economics, in one place. `init-config` writes these on-chain, the e2e
  * and integration suites open pools with them, and the UI previews with them;
  * a number that lives anywhere else is a number that will drift.
+ *
+ * App fee: 1% of the quote leg of every trade routed through imagine.fun,
+ * deposited into that coin's pool in the same transaction (advisory on
+ * chain; the API applies it). The pool-creation fee is charged in SOL.
  *
  * Split: lockers 90%, treasury 10%, creator 0%. The creator's reward is the
  * coin having a reason to be held, not a cut of its lockers.
@@ -68,7 +60,7 @@ export interface Economics {
 }
 
 export const ECONOMICS: Readonly<Economics> = {
-  tradeFeeBps: 200,
+  tradeFeeBps: 100,
   treasuryShareBps: 1_000,
   maxCreatorShareBps: 0,
   minLockSecs: 4 * HOUR,
@@ -101,16 +93,7 @@ export const LOCK_PRESETS = [
 export const FeeKind = {
   Buy: 0,
   Sell: 1,
-  CreatorSweep: 2,
+  CreatorShare: 2,
   Donation: 3,
 } as const;
 export type FeeKind = (typeof FeeKind)[keyof typeof FeeKind];
-
-/** pump.fun bonding-curve constants, from the on-chain `Global` account. */
-export const PUMP_CURVE = {
-  tokenDecimals: 6,
-  totalSupply: 1_000_000_000_000_000n,
-  initialVirtualTokenReserves: 1_073_000_000_000_000n,
-  initialVirtualSolReserves: 30_000_000_000n,
-  initialRealTokenReserves: 793_100_000_000_000n,
-} as const;

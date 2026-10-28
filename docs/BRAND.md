@@ -1,106 +1,147 @@
-# VISE — Brand & Art Direction
+# IMAGINE — brand system
 
-## The name
+The one source for name, voice, colour, type, mark and motion. Values here are
+the shipped ones: `apps/web/app/globals.css` (web) and `video/src/theme.ts`
+(films and cards) carry the same tokens hex for hex. Change them together.
 
-**VISE** /vaɪs/ — a bench vise: two steel jaws, a screw, and a handle. You crank
-it; it holds. The harder you crank, the tighter the grip.
+## Name
 
-It is the product in one object. The lock-duration control *is* a vise handle:
-turn it, the jaws close, the multiplier climbs. Nothing else in the category owns
-a physical mechanism — competitors own gradients.
-
-Chosen over: RIVET (great double meaning, but rivet.gg/rivet.cloud already exist
-in dev-infra), ANVIL (Foundry's local node), CASK, TENURE, GRIP, BALLAST.
-
-- Domains available as of 2026-09-22 (RDAP, verified): **vise.fun**, **vise.money**
-  (vise.com / vise.xyz / vise.app are registered). Primary: `vise.fun` — the
-  `.fun` TLD is native to this ecosystem (pump.fun, letsbonk.fun).
-- Ticker: **$VISE**. Handle: `@visedotfun` (single-word `@vise` is `[UNVERIFIED]`
-  and almost certainly taken).
-- No significant Solana project named VISE found. `$VICE` exists as an unrelated
-  memecoin — different spelling, different category.
+- **IMAGINE** in logos, the wordmark and headings. Wordmark: Sora 800, tracking
+  −0.02em.
+- **Imagine** in running prose ("Imagine pays lockers in the pair asset").
+- **$IMAGINE** for the coin only. It is not launched; every official-coin surface
+  stays hidden until `NEXT_PUBLIC_OFFICIAL_MINT` is set. Never imply a date.
+- Domain **imagine.fun**, API **api.imagine.fun**. Partner name: **StonkFun**
+  (one word, capital F), site stonkfun.xyz.
+- Social handles are not decided. Links come from `NEXT_PUBLIC_X_URL` and
+  `NEXT_PUBLIC_TELEGRAM_URL` and are hidden while unset. Never write a handle.
 
 ## Voice
 
-Blunt, mechanical, declarative. Short sentences. No hype adjectives, no emoji, no
-"revolutionary". The product is about pressure and time, so the language is too.
+Confident, plain, a little dreamy. Short declarative sentences; every claim is a
+mechanism or a fact on the list below. "Imagine …" opens headlines, not every
+line.
 
-- Primary line: **Hold under pressure.**
-- Support: *Clamp your bags. Earn the fees.*
-- Explainer: *Every trade pays the people who didn't sell.*
-- Anti-lines we never use: "to the moon", "gm", "wagmi", "unlock the future of".
+- No hype numbers, no price or yield promises, no "guaranteed", no emoji, no
+  rocket metaphors.
+- Vocabulary: lock, commit, hold, dream, vision, *the stream*.
+  Never force or squeeze metaphors, and never fire imagery.
+- Name the pair asset ("paid in NVDAx") rather than "rewards" in the abstract.
+
+### Key lines
+
+| Use | Line |
+|---|---|
+| Hero | **Imagine everyone locks.** |
+| Hero sub | Launch a coin on StonkFun, paired with any stock. Every trade pays the holders who lock it — in the stock it's paired with. Lock longer, earn a bigger cut. |
+| Tagline | **Lock the meme. Earn the stock.** |
+| Supporting | Imagine the chart if nobody sold. · Paid in NVDAx, not promises. · Selling is free. It just costs you the stream. |
+
+### Facts copy may state (and nothing beyond)
+
+Coins launch on StonkFun (Raydium LaunchLab). StonkFun charges 1% on curve
+trades; Raydium LaunchLab's protocol fee applies. imagine.fun adds a 1% app fee
+on trades it routes, paid into that coin's pool. StonkFun forwards a creator
+share to the coin's creator address, which for IMAGINE coins is the pool's
+vault (never promise an amount). 90% of pool inflow streams to lockers by
+weight, 10% to the treasury. No admin withdraw path. Terms frozen per pool.
+Claims and unlocks can't be paused. The creator locks first. Lockers earn in the
+coin's pair asset.
 
 ## Palette
 
-Dark-first, industrial, almost monochrome — colour is data, not decoration.
+StonkFun-native dark teal for structure, so a coin feels at home next to the
+launchpad it trades on; one signature of IMAGINE's own on top, the `--dream`
+gradient.
 
 | Token | Hex | Use |
 |---|---|---|
-| `--steel-950` | `#08090B` | page ground |
-| `--steel-900` | `#0E1013` | panels |
-| `--steel-800` | `#161A1F` | raised surfaces |
-| `--steel-700` | `#232A32` | borders |
-| `--steel-500` | `#5A6675` | muted text |
-| `--steel-300` | `#A8B3C1` | body text |
-| `--steel-050` | `#ECEFF3` | headings |
-| `--torch` | `#FF5A1F` | the single accent: heat, pressure, the clamp |
-| `--torch-dim` | `#B33A11` | pressed/hover states |
-| `--verdi` | `#3FCF8E` | positive deltas, paid rewards |
-| `--rust` | `#E5484D` | penalties, burns, danger |
+| `--ink` | `#071013` | Page background; text on steel and dream |
+| `--ink-1` | `#0B171B` | Recessed wells |
+| `--ink-2` | `#102127` | Cards |
+| `--ink-3` | `#18262A` | Pills, raised controls |
+| `--ink-4` | `#20363D` | Scrollbars, deepest raise |
+| `--line` | `#20363D` | 1px borders |
+| `--line-strong` | `#2F4F58` | Hover borders |
+| `--fg` | `#F3F8F8` | Headings, primary text |
+| `--fg-soft` | `#A4C5CF` | Body text |
+| `--muted` | `#768A93` | Labels, eyebrows |
+| `--steel` | `#69AAC1` | Primary buttons (StonkFun's), text `#071013` |
+| `--steel-hi` | `#8CC8DC` | Primary hover |
+| `--mint` | `#5EE9B5` | Up, earnings |
+| `--mint-deep` | `#39D6A3` | Mint on light fills |
+| `--rose` | `#FB7185` | Down |
+| `--rose-deep` | `#F23674` | Danger |
+| `--dream` | `linear-gradient(120deg, #8CC8DC 0%, #5EE9B5 55%, #C7F9E5 100%)` | The mark, wordmark highlights (`.dream-text`), hero accents, active states, `.btn-dream`, `.card-dream` (anything that is the viewer's own) |
 
-One accent only. `--torch` is orange because everything else in crypto is
-purple-blue; orange reads as forge heat and survives on a dark ground.
+Numbers: up = `--mint` (`.up`), down = `--rose` (`.down`). In the video the
+same values live in `COLORS`, `DREAM` and `DREAM_STOPS`.
 
 ## Type
 
-- **Display / headings:** `Bricolage Grotesque` (OFL, variable). Slightly
-  condensed, mechanical, with real personality at large sizes — not another Inter
-  headline.
-- **Body / UI:** `Geist Sans` (OFL). Neutral, excellent at 13–16px.
-- **Data / numerals:** `Geist Mono` (OFL), tabular figures everywhere a number
-  can change. Every balance, multiplier, countdown, and address is monospace.
+- **Sora** 400/600/700/800 for display and UI; headings 800 with tight leading
+  and negative tracking: `.t-hero` (fluid 2.9–6.6rem, line-height 0.96,
+  −0.045em), `.t-h1` (2.2–3.75rem, −0.04em), `.t-h2` (1.65–2.5rem, −0.035em),
+  `.t-h3` (1.2rem, 700, −0.02em). Body 15.5px / 1.6.
+- **Geist Mono** for numbers, tickers and addresses: `.num` (tabular, slashed
+  zero) and `.eyebrow` (11px, uppercase, 0.16em tracking).
+- Loaded with `next/font/google` on the web and `@remotion/google-fonts` in the
+  video (`video/src/fonts.ts`).
 
-Rule: if a number updates, it is monospace and tabular. Nothing may reflow when a
-digit changes.
+## Shapes and components
 
-## Motif system
+Radii: 8px buttons and inputs (`--radius-btn`), 14px cards (`--radius-card`),
+999px pills. Cards (`.card`): `--ink-2` fill, 1px `--line` border, inner top
+highlight `inset 0 1px 0 rgba(255,255,255,0.04)`; hover lifts the border to
+`--line-strong`. Buttons: `.btn-primary` (steel), `.btn-dream`, `.btn-ghost`.
+Stock-ticker texture: mono tickers and the pair pill, `.pill-pair` —
+"Paired with ● NVDAx", a mint dot and the ticker in mono.
 
-1. **The jaws.** Two opposing bars that close. Used as the logo, the lock slider,
-   section dividers, and the loading state.
-2. **Knurling.** The diagonal-hatch texture of a vise handle. Used as a repeating
-   4px diagonal pattern on panel edges and progress tracks — a texture, never a
-   gradient.
-3. **Pressure gauge.** Multiplier is rendered as a gauge arc, not a plain number,
-   on the lock screen and in the hero.
-4. **Machined edges.** 2px radii, hairline `--steel-700` borders, no soft shadows.
-   Depth comes from a 1px top highlight (`rgba(255,255,255,0.06)`), the way
-   brushed metal catches light.
+## Mark
+
+A rounded-square tile, 32×32 viewBox, `rx 9`, filled with `--dream`; inside, a
+lowercase "i" in `--ink`:
+
+- stem `rect x 13 y 13 width 6 height 12 rx 3` — a held position;
+- dot `circle cx 16 cy 8.5 r 3.2` — the idea.
+
+The 120° gradient is expressed in the tile's box as `x1 0 y1 0 x2 1 y2 0.58`.
+Files: `apps/web/components/imagine-mark.tsx` (`size` prop) and
+`apps/web/app/icon.svg`; the video redraws the same geometry. Change all three
+together. Never recolour the tile, outline it, or set the "i" in anything but
+`--ink`.
+
+## Hero: "Imagine the chart"
+
+`apps/web/components/imagine-chart.tsx`. A seeded simulation of a
+stock-paired meme with one control, "How many holders lock?" (0–100%). At 0%
+the sell-offs land in full and the line bleeds out; as the share rises the same
+sell orders shrink (locked coins cannot be sold), the line steadies, and a
+sample locker's stream accrues in the pair asset (e.g. "+0.042 NVDAx").
+Deterministic, labelled illustrative, and still under
+`prefers-reduced-motion`.
 
 ## Motion
 
-- Library: **GSAP** + ScrollTrigger for scripted sequences, **Motion** for React
-  component transitions, **Lenis** for scroll smoothing.
-- Signature: *the clamp*. Interactive elements close on themselves before
-  resolving — 180ms in, 90ms settle, `cubic-bezier(0.2, 0.9, 0.1, 1)`.
-- Numbers never crossfade; they roll on a monospace ticker.
-- Hero: a canvas-drawn vise whose jaw position is bound to the duration slider.
-  Deterministic geometry, no particle soup, no floating 3D orbs.
-- Budget: hero interactive < 16ms/frame on an M1 Air; the entire motion layer is
-  skipped under `prefers-reduced-motion`.
+- Easing: `--ease-out` `cubic-bezier(0.16, 1, 0.3, 1)` for everything that
+  settles; `--ease-snap` `cubic-bezier(0.7, 0, 0.2, 1)` for decisive moves.
+- Reveal on scroll: fade + 16px rise, 700ms opacity / 800ms transform.
+- Card borders 180ms; route enter 380ms.
+- Loops are slow and quiet: marquee 48s, flow runner 3.2s, pulse dot 2s.
+- `prefers-reduced-motion: reduce` collapses animations and transitions,
+  shows reveals immediately and stops the marquee.
+- Video (`video/src/theme.ts`): 30 fps; `ease` is a cubic ease-out ("quick
+  start, long gentle landing"), `easeInOut` a cubic in-out.
 
-## Anti-AI-look rules
+## Film and stills
 
-These are the tells that make a site read as generated. All are banned:
+Rendered by Remotion from `video/` (see `docs/RUNBOOK.md` → Media):
 
-1. No purple→blue gradient meshes or glowing blurred blobs.
-2. No centred hero + three identical feature cards with icon circles.
-3. No emoji as bullets or section markers.
-4. No generic glassmorphism (`backdrop-blur` over a gradient).
-5. No stock 3D orbs, crystals, or abstract renders.
-6. No "Powered by AI" language, no em-dash-heavy marketing prose.
-7. No Inter as the display face.
-8. Every screenshot in marketing is a real screenshot of the real app.
-9. Asymmetry is deliberate: the grid is 12 columns and content is allowed to sit
-   in 7 or 5, never always centred.
-10. Copy is specific ("2% of every trade, split by weight") over abstract
-    ("maximise your yield potential").
+| Asset | File |
+|---|---|
+| Promo, 1920×1080, ~58 s | `video/out/imagine-promo.mp4`; web copy `apps/web/public/film/imagine-promo.mp4` + `poster.jpg` |
+| Teaser, 1920×1080, ~15 s | `video/out/imagine-teaser.mp4` |
+| Explainer, 1920×1080, ~30 s | `video/out/imagine-explainer.mp4` |
+| Vertical, 1080×1920, ~15 s | `video/out/imagine-vertical.mp4` |
+| X cards, 1600×900 | `video/out/cards/01-imagine.png` … `07-rules.png` (from `video/src/cards.ts`) |
+| Avatar 400², banner 1500×500, OG card 1200×630 | `video/out/profile/avatar.png`, `banner.png`, `card.png`; OG copy at `apps/web/app/opengraph-image.png` |

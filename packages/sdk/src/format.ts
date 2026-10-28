@@ -1,18 +1,26 @@
-const LAMPORTS_PER_SOL = 1_000_000_000;
-
 /**
  * Formatting shared by the web app, the API, and the video renderer so a number
  * never reads differently in two places.
  */
 
-export function formatSol(lamports: bigint | number, maxFractionDigits = 4): string {
-  const sol = Number(lamports) / LAMPORTS_PER_SOL;
-  if (sol === 0) return "0";
-  if (Math.abs(sol) < 0.0001) return "<0.0001";
-  return sol.toLocaleString("en-US", {
+/** A quote amount in base units (`decimals` per whole unit), for display. */
+export function formatAmount(
+  baseUnits: bigint | number,
+  decimals: number,
+  maxFractionDigits = 4,
+): string {
+  const whole = Number(baseUnits) / 10 ** decimals;
+  if (whole === 0) return "0";
+  const floor = 10 ** -maxFractionDigits;
+  if (Math.abs(whole) < floor) return `<${floor.toFixed(maxFractionDigits)}`;
+  return whole.toLocaleString("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: maxFractionDigits,
   });
+}
+
+export function formatSol(lamports: bigint | number, maxFractionDigits = 4): string {
+  return formatAmount(lamports, 9, maxFractionDigits);
 }
 
 export function formatTokenAmount(amount: bigint, decimals: number): string {

@@ -1,375 +1,352 @@
-import { AbsoluteFill, Audio, Img, Sequence, interpolate, staticFile, useCurrentFrame } from "remotion";
-import { Grain, Knurl, Panel, Rule } from "./chrome";
-import { clampEase, COLORS, FONTS, FPS, multiplierFor } from "./theme";
-import { Vise } from "./Vise";
+import { AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame } from "remotion";
+import { Backdrop, Card, Chart, Dial, Dream, Eyebrow, FeeFlow, FLOW_W, Grain, Mark, PairPill, Wordmark, appear, fadeOut } from "./kit";
+import { COLORS, DAY, FONTS, HOUR, durationLabel, ease, easeInOut, multiplierFor, s } from "./theme";
 
 /**
- * The launch film. Sixty seconds, seven movements, cut to the score's bars:
- *
- *   0–5    hook: everyone sells; the vise closes in three cranks
- *   5–12.5 the problem: a coin's one revenue stream, and who gets it
- *   12.5–20 the mechanism: VISE reroutes it to a vault, 90 / 10 / 0
- *   20–30  the lock: the multiplier ladder, then size tiers
- *   30–40  the product: real screens, in order
- *   40–50  the guarantees: what the program cannot do
- *   50–60  the close
- *
- * Every number comes from the program's own curve; every screen is a capture
- * of the live site.
+ * The film, 58 s at 1920×1080. Cuts sit on the score's bars (96 BPM, 2.5 s):
+ * the dump 0–7.5, "Imagine nobody sold" 7.5–12.5, the dial 12.5–22.5, the fee
+ * path 22.5–30, lockers paid in the pair 30–35, StonkFun pairs 35–42.5, the
+ * rules 42.5–50, the mark 50–58.
  */
-export const PROMO_DURATION = Math.round(60.5 * FPS);
+export const PROMO_DURATION = s(58);
 
-const S = (seconds: number) => Math.round(seconds * FPS);
+const SCENES = {
+  chart: [0, 12.5],
+  dial: [12.5, 22.5],
+  flow: [22.5, 30],
+  lockers: [30, 35],
+  pairs: [35, 42.5],
+  rules: [42.5, 50],
+  close: [50, 58],
+} as const;
 
 export function Promo() {
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.ground }}>
+    <AbsoluteFill style={{ backgroundColor: COLORS.ink, fontFamily: FONTS.sans, color: COLORS.fg }}>
       <Audio src={staticFile("promo.wav")} />
-      <Knurl />
-      <Sequence durationInFrames={S(5)}>
-        <Hook />
-      </Sequence>
-      <Sequence from={S(5)} durationInFrames={S(7.5)}>
-        <Problem />
-      </Sequence>
-      <Sequence from={S(12.5)} durationInFrames={S(7.5)}>
-        <Mechanism />
-      </Sequence>
-      <Sequence from={S(20)} durationInFrames={S(10)}>
-        <Lock />
-      </Sequence>
-      <Sequence from={S(30)} durationInFrames={S(10)}>
-        <Product />
-      </Sequence>
-      <Sequence from={S(40)} durationInFrames={S(10)}>
-        <Guarantees />
-      </Sequence>
-      <Sequence from={S(50)} durationInFrames={S(10.5)}>
-        <Close />
-      </Sequence>
+      <Scene at={SCENES.chart}>
+        <ChartScene />
+      </Scene>
+      <Scene at={SCENES.dial}>
+        <DialScene />
+      </Scene>
+      <Scene at={SCENES.flow}>
+        <FlowScene />
+      </Scene>
+      <Scene at={SCENES.lockers}>
+        <LockersScene />
+      </Scene>
+      <Scene at={SCENES.pairs}>
+        <PairsScene />
+      </Scene>
+      <Scene at={SCENES.rules}>
+        <RulesScene />
+      </Scene>
+      <Scene at={SCENES.close} last>
+        <CloseScene />
+      </Scene>
       <Grain />
     </AbsoluteFill>
   );
 }
 
-// --- shared ---------------------------------------------------------------
-
-/** Frame-driven fade+lift for a block; `at`/`for` in seconds within the scene. */
-function useReveal(at: number, duration = 0.5, outAt?: number) {
-  const frame = useCurrentFrame();
-  const a = clampEase((frame - S(at)) / S(duration));
-  const out = outAt === undefined ? 1 : 1 - clampEase((frame - S(outAt)) / S(0.35));
-  return { opacity: a * out, transform: `translateY(${(1 - a) * 22}px)` };
-}
-
-function Title({ children, at = 0, size = 92 }: { children: React.ReactNode; at?: number; size?: number }) {
-  const style = useReveal(at);
+/** A cut with a short dip: fades in over 10 frames, out over the last 10. */
+export function Scene({ at, last = false, children }: { at: readonly [number, number]; last?: boolean; children: React.ReactNode }) {
+  const length = s(at[1] - at[0]);
   return (
-    <h2
-      style={{
-        fontFamily: FONTS.display,
-        fontWeight: 700,
-        fontSize: size,
-        lineHeight: 0.98,
-        letterSpacing: "-0.035em",
-        color: COLORS.heading,
-        margin: 0,
-        ...style,
-      }}
-    >
-      {children}
-    </h2>
+    <Sequence from={s(at[0])} durationInFrames={length}>
+      <Dip length={length} last={last}>
+        {children}
+      </Dip>
+    </Sequence>
   );
 }
 
-function Body({ children, at = 0.3 }: { children: React.ReactNode; at?: number }) {
-  const style = useReveal(at);
-  return (
-    <p style={{ fontFamily: FONTS.sans, fontSize: 32, lineHeight: 1.45, color: COLORS.body, maxWidth: 1080, margin: "26px 0 0", ...style }}>
-      {children}
-    </p>
-  );
+function Dip({ length, last, children }: { length: number; last: boolean; children: React.ReactNode }) {
+  const frame = useCurrentFrame();
+  const opacity = Math.min(ease(frame / 10), last ? 1 : fadeOut(frame, length - 10, 10));
+  return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
 }
 
-function Scene({ children, index }: { children: React.ReactNode; index: string }) {
-  const frame = useCurrentFrame();
-  const fadeIn = clampEase(frame / S(0.35));
+const headline: React.CSSProperties = { fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.02 };
+
+/** `speed` > 1 plays the same beats faster (the teaser runs it in 10 s). */
+export function ChartScene({ speed = 1 }: { speed?: number }) {
+  const frame = useCurrentFrame() * speed;
+  const reveal = easeInOut(frame / s(6.2));
+  const calm = easeInOut((frame - s(8)) / s(3.6));
+  const firstOut = fadeOut(frame, s(6.6), 12);
   return (
-    <AbsoluteFill style={{ padding: "100px 140px", opacity: fadeIn }}>
-      <div style={{ fontFamily: FONTS.mono, fontSize: 24, letterSpacing: "0.22em", color: COLORS.torch }}>{index}</div>
-      <div style={{ marginTop: 22, flex: 1, display: "flex", flexDirection: "column" }}>{children}</div>
-    </AbsoluteFill>
-  );
-}
-
-// --- 1. hook ----------------------------------------------------------------
-
-function Hook() {
-  const frame = useCurrentFrame();
-  // Three cranks, each a hard step then a hold, timed to the score.
-  const cranks = [1.6, 2.9, 4.2];
-  let grip = 0;
-  for (const at of cranks) grip += clampEase((frame - S(at - 0.35)) / S(0.35)) / 3;
-  const shake = cranks.some((at) => Math.abs(frame - S(at)) < S(0.12)) ? Math.sin(frame * 3.1) * 4 : 0;
-  const line1 = useReveal(0.15, 0.5, 2.3);
-  const line2 = useReveal(2.5, 0.5);
-
-  return (
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>
-      <div style={{ position: "absolute", top: 150, textAlign: "center", fontFamily: FONTS.display, fontWeight: 700, fontSize: 96, letterSpacing: "-0.04em", lineHeight: 1 }}>
-        <div style={{ position: "absolute", left: "50%", whiteSpace: "nowrap", color: COLORS.heading, opacity: line1.opacity, transform: `translateX(-50%) ${line1.transform}` }}>
-          Everyone sells.
-        </div>
-        <div style={{ position: "absolute", left: "50%", whiteSpace: "nowrap", color: COLORS.heading, opacity: line2.opacity, transform: `translateX(-50%) ${line2.transform}` }}>
-          That is the <span style={{ color: COLORS.torch }}>whole problem.</span>
+    <AbsoluteFill>
+      <Backdrop glow={0.15 + calm * 0.85} glowX={72} glowY={45} />
+      <div style={{ position: "absolute", left: 120, top: 0, bottom: 0, width: 680, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div style={{ position: "relative", height: 420 }}>
+          <div style={{ position: "absolute", inset: 0, opacity: firstOut }}>
+            <div style={appear(frame, 6)}>
+              <Eyebrow>A meme, paired with a stock</Eyebrow>
+            </div>
+            <div style={{ ...headline, fontSize: 92, marginTop: 28, ...appear(frame, 14) }}>You know how this chart ends.</div>
+            <div style={{ fontSize: 30, lineHeight: 1.4, color: COLORS.fgSoft, marginTop: 30, ...appear(frame, s(3.6)) }}>
+              Everyone sells. The holders who stayed pay for it.
+            </div>
+          </div>
+          <div style={{ position: "absolute", inset: 0 }}>
+            <div style={appear(frame, s(7.6))}>
+              <Eyebrow>Now</Eyebrow>
+            </div>
+            <div style={{ ...headline, fontSize: 104, marginTop: 28, ...appear(frame, s(7.8)) }}>
+              Imagine <Dream>nobody sold.</Dream>
+            </div>
+            <div style={{ fontSize: 30, lineHeight: 1.4, color: COLORS.fgSoft, marginTop: 30, ...appear(frame, s(9.6)) }}>
+              Same buyers. No rush for the exit.
+            </div>
+          </div>
         </div>
       </div>
-      <div style={{ marginTop: 160, transform: `translateX(${shake}px)` }}>
-        <Vise grip={grip} width={1100} />
+      <div style={{ position: "absolute", left: 880, top: 170, ...appear(frame, 0, 20, 40) }}>
+        <Card style={{ width: 920, padding: "34px 40px 40px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <div style={{ fontFamily: FONTS.mono, fontWeight: 500, fontSize: 30 }}>$MEME</div>
+              <PairPill ticker="NVDAx" size={20} />
+            </div>
+            <div style={{ fontFamily: FONTS.mono, fontSize: 17, letterSpacing: "0.18em", color: COLORS.muted }}>ILLUSTRATIVE</div>
+          </div>
+          <Chart width={840} height={560} calm={calm} reveal={reveal} line={calm} />
+        </Card>
       </div>
     </AbsoluteFill>
   );
 }
 
-// --- 2. problem -------------------------------------------------------------
-
-function Problem() {
+function DialScene() {
   const frame = useCurrentFrame();
-  const travel = clampEase((frame - S(1.6)) / S(2.2));
-  const boxes = [
-    { label: "Launchpad", at: 3.4, tone: COLORS.body },
-    { label: "Dev wallet", at: 3.8, tone: COLORS.body },
-    { label: "Holders", at: 4.4, tone: COLORS.muted, value: "0" },
-  ];
+  const commitment = easeInOut((frame - s(1.4)) / s(5.6));
   return (
-    <Scene index="01 — THE PROBLEM">
-      <Title>A memecoin has exactly one revenue stream.</Title>
-      <Body>The fee people pay to trade it. About 1% of every buy and sell, in SOL, for the life of the coin.</Body>
-      <div style={{ position: "relative", marginTop: 72, height: 300 }}>
-        <Panel style={{ position: "absolute", left: 0, top: 60, width: 360 }}>
-          <Rule>Every trade</Rule>
-          <div style={{ fontFamily: FONTS.mono, fontSize: 56, color: COLORS.heading }}>10.00 SOL</div>
-        </Panel>
-        <div style={{ position: "absolute", left: 400, top: 160, width: 520, height: 4, background: COLORS.border }} />
-        <div style={{ position: "absolute", left: 400, top: 160, width: 520 * travel, height: 4, background: COLORS.torch }} />
-        <div style={{ position: "absolute", left: 560, top: 100, fontFamily: FONTS.mono, fontSize: 30, color: COLORS.torch, opacity: travel > 0.05 ? 1 : 0 }}>
-          0.10 SOL fee
-        </div>
-        {boxes.map((box, i) => (
-          <Box key={box.label} at={box.at} left={980} top={i * 100 - 4} label={box.label} value={box.value} tone={box.tone} />
-        ))}
-        <div style={{ position: "absolute", left: 980, top: 296, fontFamily: FONTS.sans, fontSize: 24, color: COLORS.muted, ...useReveal(5.2) }}>
-          None of it, ever, to the people whose holding is the reason there is a price.
-        </div>
+    <AbsoluteFill>
+      <Backdrop glow={0.4 + commitment * 0.6} glowX={30} glowY={50} />
+      <div style={{ position: "absolute", left: 170, top: 190, ...appear(frame, 0, 20, 30) }}>
+        <Dial size={700} commitment={commitment} />
       </div>
-    </Scene>
-  );
-}
-
-function Box({ at, left, top, label, value, tone }: { at: number; left: number; top: number; label: string; value?: string; tone: string }) {
-  const style = useReveal(at, 0.4);
-  return (
-    <div style={{ position: "absolute", left, top, width: 520, display: "flex", alignItems: "center", gap: 20, ...style }}>
-      <div style={{ width: 54, height: 4, background: value ? COLORS.border : COLORS.torch }} />
-      <div style={{ flex: 1, background: COLORS.panel, border: `2px solid ${COLORS.border}`, padding: "16px 22px", display: "flex", justifyContent: "space-between", fontFamily: FONTS.mono, fontSize: 28, color: tone }}>
-        <span>{label}</span>
-        <span style={{ color: value ? COLORS.muted : COLORS.torch }}>{value ?? "gets paid"}</span>
-      </div>
-    </div>
-  );
-}
-
-// --- 3. mechanism -----------------------------------------------------------
-
-function Mechanism() {
-  const frame = useCurrentFrame();
-  const grow = clampEase((frame - S(2.8)) / S(1.4));
-  const parts = [
-    { label: "Lockers", value: 90, color: COLORS.torch, text: "#190600" },
-    { label: "VISE", value: 10, color: COLORS.muted, text: COLORS.heading },
-  ];
-  return (
-    <Scene index="02 — THE MECHANISM">
-      <Title>VISE points it at the holders.</Title>
-      <Body>
-        2% of every trade routed through vise.fun, plus the coin&apos;s creator fees, land in a vault that belongs to the
-        coin. The routing revokes its own admin: nobody can point it back.
-      </Body>
-      <div style={{ marginTop: 64 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontFamily: FONTS.mono, fontSize: 22, letterSpacing: "0.18em", textTransform: "uppercase", color: COLORS.muted, ...useReveal(2.4) }}>
-          <span>One split. Frozen on the pool at creation.</span>
-          <span>Creator: 0%</span>
+      <div style={{ position: "absolute", left: 1000, right: 120, top: 0, bottom: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <div style={appear(frame, 8)}>
+          <Eyebrow>Commit</Eyebrow>
         </div>
-        <div style={{ display: "flex", height: 110, border: `2px solid ${COLORS.border}`, marginTop: 16, overflow: "hidden", width: `${grow * 100}%` }}>
-          {parts.map((part) => (
-            <div key={part.label} style={{ width: `${part.value}%`, background: part.color, display: "flex", alignItems: "center", justifyContent: "center", gap: 18, fontFamily: FONTS.mono, fontSize: 34, color: part.text }}>
-              <span>{part.value}%</span>
-              {part.value >= 20 ? <span style={{ fontSize: 22, letterSpacing: "0.16em", textTransform: "uppercase" }}>{part.label}</span> : null}
+        <div style={{ ...headline, fontSize: 96, marginTop: 26, ...appear(frame, 14) }}>
+          Imagine <Dream>everyone locks.</Dream>
+        </div>
+        <div style={{ fontSize: 32, lineHeight: 1.4, color: COLORS.fgSoft, marginTop: 34, ...appear(frame, s(2.4)) }}>
+          Lock your coins for four hours or a full year. Lock longer, earn a bigger cut.
+        </div>
+        <div style={{ display: "flex", gap: 16, marginTop: 40, ...appear(frame, s(5)) }}>
+          {[4 * HOUR, 30 * DAY, 365 * DAY].map((secs) => (
+            <div key={secs} style={{ fontFamily: FONTS.mono, fontSize: 24, padding: "12px 22px", borderRadius: 999, border: `1px solid ${COLORS.lineStrong}`, color: COLORS.fgSoft }}>
+              {durationLabel(secs)} <span style={{ color: COLORS.mint }}>{multiplierFor(secs)}×</span>
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 28, fontFamily: FONTS.sans, fontSize: 28, color: COLORS.body, ...useReveal(4.6) }}>
-          Creators take nothing by default. They earn by locking, like everyone else, and their founding lock is public
-          from block one.
-        </div>
       </div>
-    </Scene>
+    </AbsoluteFill>
   );
 }
 
-// --- 4. lock ----------------------------------------------------------------
-
-function Lock() {
+function FlowScene() {
   const frame = useCurrentFrame();
-  const rows = [7, 30, 90, 180, 365];
-  const tiers = [
-    { at: "≥ 0.1% of supply", bonus: "+10%" },
-    { at: "≥ 0.5%", bonus: "+25%" },
-    { at: "≥ 1.0%", bonus: "+50%" },
-  ];
-  const tiersIn = clampEase((frame - S(5.6)) / S(0.5));
-  return (
-    <Scene index="03 — THE LOCK">
-      <Title>Longer locks take more.</Title>
-      <Body>Weight is amount times term, on a square-root curve. A week counts once. A year counts four times.</Body>
-      <div style={{ display: "flex", gap: 90, marginTop: 56 }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 18 }}>
-          {rows.map((days, index) => {
-            const a = clampEase((frame - S(0.6 + index * 0.45)) / S(0.5));
-            const mult = Number(multiplierFor(days));
-            return (
-              <div key={days} style={{ display: "flex", alignItems: "center", gap: 26, opacity: a }}>
-                <span style={{ fontFamily: FONTS.mono, fontSize: 30, width: 96, textAlign: "right", color: COLORS.muted }}>{days}d</span>
-                <div style={{ flex: 1, height: 40, border: `2px solid ${COLORS.border}`, background: COLORS.panel }}>
-                  <div style={{ width: `${(mult / 4) * 100 * a}%`, height: "100%", background: days === 365 ? COLORS.torch : COLORS.torchDim }} />
-                </div>
-                <span style={{ fontFamily: FONTS.mono, fontSize: 36, width: 130, color: days === 365 ? COLORS.torch : COLORS.heading }}>{mult.toFixed(2)}×</span>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ flex: "0 0 560px", opacity: tiersIn, transform: `translateY(${(1 - tiersIn) * 24}px)` }}>
-          <Rule>Size counts too</Rule>
-          <div style={{ display: "grid", gridTemplateRows: "repeat(3, 1fr)", gap: 2, background: COLORS.border, border: `2px solid ${COLORS.border}` }}>
-            {tiers.map((tier) => (
-              <div key={tier.at} style={{ background: COLORS.panel, padding: "18px 26px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontFamily: FONTS.mono, fontSize: 22, letterSpacing: "0.12em", textTransform: "uppercase", color: COLORS.muted }}>{tier.at}</span>
-                <span style={{ fontFamily: FONTS.mono, fontSize: 48, color: COLORS.torch }}>{tier.bonus}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 18, fontFamily: FONTS.sans, fontSize: 24, color: COLORS.body }}>
-            A year-long, one-percent position counts six times over.
-          </div>
-        </div>
-      </div>
-    </Scene>
-  );
-}
-
-// --- 5. product -------------------------------------------------------------
-
-const SCREENS = [
-  { file: "shots/coin.png", crop: 96, caption: "A coin page. Every number realised, none projected.", zoomFrom: 1.0, zoomTo: 1.06, panY: 0 },
-  { file: "shots/launch.png", crop: 120, caption: "Launching takes one form. Image from your disk, dev buy, founding lock.", zoomFrom: 1.04, zoomTo: 1.0, panY: 60 },
-  { file: "shots/wallet.png", crop: 322, caption: "No wallet? Sign in with Google. The key is yours to take.", zoomFrom: 1.0, zoomTo: 1.05, panY: 40 },
-];
-
-function Product() {
-  const frame = useCurrentFrame();
-  const each = 10 / SCREENS.length;
   return (
     <AbsoluteFill>
-      {SCREENS.map((screen, index) => {
-        const start = S(index * each);
-        const local = frame - start;
-        const visible = local >= 0 && local < S(each);
-        if (!visible) return null;
-        const a = clampEase(local / S(0.4));
-        const out = 1 - clampEase((local - S(each - 0.3)) / S(0.3));
-        const zoom = interpolate(local, [0, S(each)], [screen.zoomFrom, screen.zoomTo]);
-        const pan = interpolate(local, [0, S(each)], [0, screen.panY]);
-        return (
-          <AbsoluteFill key={screen.file} style={{ opacity: a * out, padding: "150px 120px 80px" }}>
-            <div style={{ position: "relative", flex: 1, overflow: "hidden", border: `2px solid ${COLORS.border}`, borderRadius: 6, background: COLORS.ground, boxShadow: "0 40px 120px -40px rgba(0,0,0,0.9)" }}>
-              <div style={{ position: "absolute", inset: 0, transform: `scale(${zoom}) translateY(${-pan}px)`, transformOrigin: "50% 20%" }}>
-                <Img src={staticFile(screen.file)} style={{ width: "100%", display: "block", marginTop: -screen.crop }} />
-              </div>
-              <div style={{ position: "absolute", inset: "auto 0 0 0", height: 260, background: "linear-gradient(180deg, transparent, rgba(8,9,11,0.96))" }} />
-              <div style={{ position: "absolute", left: 60, bottom: 52, right: 60, fontFamily: FONTS.display, fontWeight: 700, fontSize: 52, letterSpacing: "-0.03em", color: COLORS.heading, ...useReveal(index * each + 0.35) }}>
-                {screen.caption}
-              </div>
-            </div>
-          </AbsoluteFill>
-        );
-      })}
-      <div style={{ position: "absolute", left: 120, top: 100, fontFamily: FONTS.mono, fontSize: 24, letterSpacing: "0.22em", color: COLORS.torch }}>
-        04 — THE PRODUCT · VISE.FUN
+      <Backdrop glow={0.6} glowX={55} glowY={60} />
+      <div style={{ position: "absolute", left: 120, top: 120, right: 120 }}>
+        <div style={appear(frame, 4)}>
+          <Eyebrow>The stream</Eyebrow>
+        </div>
+        <div style={{ ...headline, fontSize: 78, marginTop: 22, ...appear(frame, 10) }}>Every trade pays the people who lock.</div>
+      </div>
+      <div style={{ position: "absolute", left: (1920 - FLOW_W) / 2, top: 430 }}>
+        <FeeFlow reveal={(frame - s(0.8)) / s(1.1)} flow={frame} />
+      </div>
+      <div style={{ position: "absolute", left: 120, bottom: 70, fontSize: 24, color: COLORS.muted, ...appear(frame, s(5)) }}>
+        StonkFun forwards a creator share to each coin's creator address. For IMAGINE coins, that address is the pool vault.
       </div>
     </AbsoluteFill>
   );
 }
 
-// --- 6. guarantees ----------------------------------------------------------
-
-const GUARANTEES = [
-  ["No admin path to the money.", "No instruction in the program moves a pool's SOL or tokens to an admin. Not disabled. Not timelocked. Absent."],
-  ["Terms frozen at creation.", "Fee split, curve, tiers, penalty, lock bounds: copied onto the pool when it opens and never rewritten."],
-  ["Claims can never be paused.", "The pause switch blocks new pools. That is all it can do."],
+const LOCKERS = [
+  { days: 365, pair: "NVDAx", share: 1 },
+  { days: 90, pair: "NVDAx", share: 0.61 },
+  { days: 30, pair: "SPYx", share: 0.44 },
 ];
 
-function Guarantees() {
+function LockersScene() {
+  const frame = useCurrentFrame();
   return (
-    <Scene index="05 — WHAT THE PROGRAM CANNOT DO">
-      <Title>&ldquo;Trust us&rdquo; is not a security model.</Title>
-      <div style={{ marginTop: 60, display: "flex", flexDirection: "column", gap: 34 }}>
-        {GUARANTEES.map(([head, body], index) => (
-          <Guarantee key={head} head={head} body={body} at={1.2 + index * 2.4} />
-        ))}
+    <AbsoluteFill>
+      <Backdrop glow={0.8} glowX={50} glowY={40} />
+      <div style={{ position: "absolute", left: 0, right: 0, top: 190, textAlign: "center" }}>
+        <div style={{ ...headline, fontSize: 112, ...appear(frame, 4) }}>
+          Lock the meme. <Dream>Earn the stock.</Dream>
+        </div>
+        <div style={{ fontSize: 32, color: COLORS.fgSoft, marginTop: 28, ...appear(frame, 18) }}>Paid in NVDAx, not promises.</div>
       </div>
-    </Scene>
+      <div style={{ position: "absolute", left: 160, right: 160, top: 600, display: "flex", gap: 40 }}>
+        {LOCKERS.map((locker, i) => {
+          const fill = ease((frame - 24 - i * 6) / s(3)) * locker.share;
+          return (
+            <div key={locker.days} style={{ flex: 1, ...appear(frame, 20 + i * 6) }}>
+              <Card style={{ padding: "34px 36px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontFamily: FONTS.mono, fontSize: 22, letterSpacing: "0.16em", color: COLORS.muted }}>LOCKER</div>
+                  <PairPill ticker={locker.pair} size={19} label="Earns" />
+                </div>
+                <div style={{ marginTop: 30, display: "flex", alignItems: "baseline", gap: 18 }}>
+                  <span style={{ fontFamily: FONTS.mono, fontWeight: 500, fontSize: 64 }}>{locker.days}d</span>
+                  <span style={{ fontFamily: FONTS.mono, fontSize: 34, color: COLORS.mint }}>{multiplierFor(locker.days * DAY)}×</span>
+                </div>
+                <div style={{ marginTop: 30, height: 14, borderRadius: 999, background: COLORS.ink4, overflow: "hidden" }}>
+                  <div style={{ width: `${fill * 100}%`, height: "100%", borderRadius: 999, background: "linear-gradient(90deg, #8CC8DC, #5EE9B5)" }} />
+                </div>
+                <div style={{ marginTop: 14, fontSize: 21, color: COLORS.fgSoft }}>Share of the stream, by weight</div>
+              </Card>
+            </div>
+          );
+        })}
+      </div>
+      <Stream frame={frame} />
+    </AbsoluteFill>
   );
 }
 
-function Guarantee({ head, body, at }: { head: string; body: string; at: number }) {
-  const style = useReveal(at, 0.55);
-  const frame = useCurrentFrame();
-  const line = clampEase((frame - S(at)) / S(0.9));
+/** Pair tokens drifting down into the locker cards. */
+function Stream({ frame }: { frame: number }) {
+  const columns = [430, 960, 1490];
   return (
-    <div style={{ display: "flex", gap: 34, alignItems: "flex-start", ...style }}>
-      <div style={{ width: 6, height: 84 * line, background: COLORS.torch, marginTop: 8 }} />
-      <div>
-        <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 52, letterSpacing: "-0.03em", color: COLORS.heading }}>{head}</div>
-        <div style={{ fontFamily: FONTS.sans, fontSize: 28, lineHeight: 1.4, color: COLORS.body, maxWidth: 1240, marginTop: 8 }}>{body}</div>
-      </div>
-    </div>
+    <AbsoluteFill style={{ pointerEvents: "none" }}>
+      {columns.flatMap((x, c) =>
+        [0, 1, 2].map((k) => {
+          const t = ((frame + k * 22 + c * 9) % 66) / 66;
+          const label = c === 2 ? "SPYx" : "NVDAx";
+          return (
+            <div
+              key={`${c}-${k}`}
+              style={{
+                position: "absolute",
+                left: x - 52,
+                top: 440 + t * 120,
+                opacity: Math.sin(Math.PI * t) * ease((frame - 30) / 20),
+                fontFamily: FONTS.mono,
+                fontSize: 20,
+                color: COLORS.ink,
+                background: COLORS.mint,
+                borderRadius: 999,
+                padding: "4px 14px",
+                width: 104,
+                textAlign: "center",
+                boxSizing: "border-box",
+              }}
+            >
+              {label}
+            </div>
+          );
+        }),
+      )}
+    </AbsoluteFill>
   );
 }
 
-// --- 7. close ---------------------------------------------------------------
+const PAIRS = ["NVDAx", "SPYx", "TSLAx", "SOL", "USDC"];
 
-function Close() {
+function PairsScene() {
   const frame = useCurrentFrame();
-  const grip = clampEase((frame - S(0.1)) / S(0.45));
-  const shake = frame > S(0.3) && frame < S(0.55) ? Math.sin(frame * 3.3) * 5 : 0;
-  const mark = useReveal(1.6, 0.6);
-  const line = useReveal(2.4, 0.6);
-  const url = useReveal(4.6, 0.6);
-  const fade = 1 - clampEase((frame - S(9.3)) / S(1.1));
   return (
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", opacity: fade }}>
-      <div style={{ transform: `translateX(${shake}px)` }}>
-        <Vise grip={grip} width={900} />
-      </div>
-      <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 132, letterSpacing: "-0.05em", color: COLORS.heading, marginTop: 40, ...mark }}>
-        VISE
-      </div>
-      <div style={{ fontFamily: FONTS.display, fontWeight: 700, fontSize: 44, letterSpacing: "-0.02em", color: COLORS.torch, marginTop: 4, ...line }}>
-        Hold under pressure.
-      </div>
-      <div style={{ fontFamily: FONTS.mono, fontSize: 28, letterSpacing: "0.24em", color: COLORS.muted, marginTop: 40, ...url }}>
-        VISE.FUN
+    <AbsoluteFill>
+      <Backdrop glow={0.55} glowX={50} glowY={70} />
+      <div style={{ position: "absolute", left: 160, right: 160, top: 250 }}>
+        <div style={appear(frame, 4)}>
+          <Eyebrow>Launch</Eyebrow>
+        </div>
+        <div style={{ ...headline, fontSize: 96, marginTop: 26, ...appear(frame, 10) }}>
+          Coins launch on StonkFun,
+          <br />
+          <Dream>paired with any stock.</Dream>
+        </div>
+        <div style={{ display: "flex", gap: 22, marginTop: 70, flexWrap: "wrap" }}>
+          {PAIRS.map((ticker, i) => (
+            <div key={ticker} style={appear(frame, s(1.4) + i * 7, 16, 18)}>
+              <PairPill ticker={ticker} size={32} label={i === 0 ? "Paired with" : null} />
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 30, lineHeight: 1.45, color: COLORS.fgSoft, marginTop: 64, maxWidth: 1300, ...appear(frame, s(3.4)) }}>
+          Raydium LaunchLab under the hood. A coin paired with NVDAx pays its lockers NVDAx. A SOL pair pays SOL.
+        </div>
       </div>
     </AbsoluteFill>
   );
 }
+
+const RULES = [
+  ["Terms frozen per pool", "Set at launch, never rewritten."],
+  ["No admin withdraw path", "The instruction does not exist."],
+  ["Claims can't be paused", "Unlocks neither."],
+  ["Creator locks first", "The founding lock opens the pool."],
+];
+
+function RulesScene() {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill>
+      <Backdrop glow={0.35} glowX={20} glowY={30} />
+      <div style={{ position: "absolute", left: 160, top: 150, width: 760 }}>
+        <div style={appear(frame, 4)}>
+          <Eyebrow>Built to hold</Eyebrow>
+        </div>
+        <div style={{ ...headline, fontSize: 92, marginTop: 26, ...appear(frame, 10) }}>The rules don't move.</div>
+        <div style={{ fontSize: 30, lineHeight: 1.45, color: COLORS.fgSoft, marginTop: 34, ...appear(frame, 22) }}>
+          Selling is free. It just costs you the stream.
+        </div>
+      </div>
+      <div style={{ position: "absolute", left: 1000, right: 140, top: 170, display: "flex", flexDirection: "column", gap: 22 }}>
+        {RULES.map(([title, sub], i) => (
+          <div key={title} style={appear(frame, 26 + i * 9, 18, 20)}>
+            <Card style={{ padding: "28px 34px", display: "flex", alignItems: "center", gap: 26 }}>
+              <Mark size={46} id={`rule-${i}`} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 34, letterSpacing: "-0.02em" }}>{title}</div>
+                <div style={{ fontSize: 22, color: COLORS.fgSoft, marginTop: 6 }}>{sub}</div>
+              </div>
+            </Card>
+          </div>
+        ))}
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+/** The mark builds (stem, then dot), then the lines. `speed` > 1 for short cuts. */
+export function CloseScene({ scale = 1, speed = 1 }: { scale?: number; speed?: number }) {
+  const frame = useCurrentFrame() * speed;
+  const stem = ease((frame - 6) / 22);
+  const dot = ease((frame - 22) / 16);
+  const word = appear(frame, 36, 22, 16);
+  return (
+    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+      <Backdrop glow={ease(frame / 40)} glowX={50} glowY={42} />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", transform: `scale(${scale})` }}>
+        <div style={{ filter: `drop-shadow(0 0 ${60 * dot}px rgba(94,233,181,0.45))` }}>
+          <Mark size={200} stem={stem} dot={dot} id="close" />
+        </div>
+        <div style={{ marginTop: 56, ...word }}>
+          <Wordmark size={150} />
+        </div>
+        <div style={{ ...headline, fontSize: 56, marginTop: 40, ...appear(frame, 58) }}>
+          Imagine <Dream>everyone locks.</Dream>
+        </div>
+        <div style={{ fontSize: 30, color: COLORS.fgSoft, marginTop: 22, ...appear(frame, 72) }}>Lock the meme. Earn the stock.</div>
+        <div style={{ fontFamily: FONTS.mono, fontWeight: 500, fontSize: 34, letterSpacing: "0.08em", color: COLORS.steelHi, marginTop: 48, ...appear(frame, 88) }}>
+          imagine.fun
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+

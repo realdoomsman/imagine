@@ -1,5 +1,6 @@
-import { AnchorProvider, BN, Program, type Idl } from "@coral-xyz/anchor";
+import { AnchorProvider, BN, Program } from "@coral-xyz/anchor";
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_2022_PROGRAM_ID,
@@ -9,55 +10,92 @@ import {
   Connection,
   PublicKey,
   SystemProgram,
+  type AccountMeta,
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
   decodeConfig,
   decodePool,
   decodePosition,
-  VISE_IDL,
+  IMAGINE_IDL,
   type ConfigAccount,
   type PoolAccount,
   type PositionAccount,
 } from "./accounts.ts";
-import { ECONOMICS, VISE_PROGRAM_ID, type Economics } from "./constants.ts";
-import { projectSync, type PoolTerms } from "./math.ts";
+import { ECONOMICS, IMAGINE_PROGRAM_ID, type Economics } from "./constants.ts";
 import {
-  bondingCurvePda,
+  cpmmPoolPda,
+  cpmmVaultPda,
+  globalConfigPda,
+  launchLabAuthorityPda,
+  launchLabEventAuthorityPda,
+  launchLabPoolPda,
+  launchLabPoolVaultPda,
+  platformAllowConfigPda,
+  platformCurveRulePda,
+  LAUNCHLAB_PROGRAM_ID,
+  STONKFUN_CPMM_CONFIG,
+  STONKFUN_PLATFORM,
+} from "./launchlab.ts";
+import { distributableBalance, projectSync, type PoolTerms } from "./math.ts";
+import {
   configPda,
   poolPda,
   positionPda,
+  rewardTokenAccount,
   rewardVaultPda,
   tokenVaultPda,
 } from "./pda.ts";
+import type { Imagine } from "./idl/imagine-types.ts";
+import { isNativeQuote } from "./quotes.ts";
 
 /** Byte length of a `Position` account, discriminator included. */
-export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 4 + 8 + 16 + 4 + 8 + 8 + 16 + 8 + 1 + 8 + 32;
+export const POSITION_ACCOUNT_SIZE = 8 + 32 + 32 + 4 + 8 + 16 + 4 + 8 + 8 + 16 + 8 + 1 + 8 + 1 + 31;
+
+/** A pool's quote, as stored on the pool (`quoteMint`, `quoteTokenProgram`). */
+export interface QuoteRef {
+  mint: PublicKey;
+  tokenProgram: PublicKey;
+}
 
 /**
- * Remaining accounts that price a lock on a capped pool whose coin has
- * graduated: the canonical pump AMM pool's base and quote vaults
- * (`ammVaultsFor`). Omit while the coin is on its bonding curve.
+ * Remaining accounts that price a lock once the coin has migrated off its
+ * LaunchLab curve: the canonical CPMM pool of (coin, quote) under
+ * `ammConfig` (StonkFun's `cpswap_config` by default) and its coin and quote
+ * vaults, in the order `price::valuation_accounts` reads them. Pass nothing
+ * while the coin is still on its curve.
  */
-function ammRemaining(vaults: [PublicKey, PublicKey] | undefined) {
-  return (vaults ?? []).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
+export function valuationAccounts(
+  mint: PublicKey,
+  quoteMint: PublicKey,
+  ammConfig: PublicKey = STONKFUN_CPMM_CONFIG,
+): [PublicKey, PublicKey, PublicKey] {
+  const pool = cpmmPoolPda(ammConfig, mint, quoteMint);
+  return [pool, cpmmVaultPda(pool, mint), cpmmVaultPda(pool, quoteMint)];
+}
+
+function readonlyMetas(keys: PublicKey[] | undefined): AccountMeta[] {
+  return (keys ?? []).map((pubkey) => ({ pubkey, isSigner: false, isWritable: false }));
 }
 
 export type { ConfigAccount, PoolAccount, PositionAccount };
 
-
 /**
- * Thin instruction-builder around the VISE program.
+ * Thin instruction-builder around the IMAGINE program.
  *
  * Deliberately never signs or sends: the API builds transactions and the user's
  * wallet is the only thing that ever holds a key.
+ *
+ * Every builder that pays quote out takes the pool's `quote` and returns the
+ * instructions to send, including an idempotent create of the recipient's
+ * quote associated token account when the quote is not SOL.
  */
-export class ViseClient {
-  readonly program: Program;
+export class ImagineClient {
+  readonly program: Program<Imagine>;
   readonly connection: Connection;
   readonly programId: PublicKey;
 
-  constructor(connection: Connection, programId: PublicKey = VISE_PROGRAM_ID) {
+  constructor(connection: Connection, programId: PublicKey = IMAGINE_PROGRAM_ID) {
     this.connection = connection;
     this.programId = programId;
     // Read-only provider: no wallet, so any accidental `.rpc()` call throws
@@ -67,15 +105,18 @@ export class ViseClient {
       {
         publicKey: PublicKey.default,
         signTransaction: () => {
-          throw new Error("ViseClient is read-only; sign in the wallet");
+          throw new Error("ImagineClient is read-only; sign in the wallet");
         },
         signAllTransactions: () => {
-          throw new Error("ViseClient is read-only; sign in the wallet");
+          throw new Error("ImagineClient is read-only; sign in the wallet");
         },
       } as never,
       { commitment: "confirmed" },
     );
-    this.program = new Program({ ...VISE_IDL, address: programId.toBase58() } as Idl, provider);
+    this.program = new Program<Imagine>(
+      { ...(IMAGINE_IDL as Imagine), address: programId.toBase58() },
+      provider,
+    );
   }
 
   async fetchConfig(): Promise<ConfigAccount | null> {
@@ -96,22 +137,28 @@ export class ViseClient {
   /**
    * The pool as `sync` would leave it right now.
    *
-   * Reads the account and its vault in one round trip and replays the
-   * program's stream arithmetic against the live balance, so callers quoting
-   * "pending" get the figure a claim would pay rather than the figure at the
-   * last time someone happened to touch the pool.
+   * Reads the account and its reward balance (vault lamports, or the reward
+   * token account for a token quote) and replays the program's stream
+   * arithmetic against it, so callers quoting "pending" get the figure a claim
+   * would pay rather than the figure at the last time someone touched the pool.
    */
   async fetchProjectedPool(
     mint: PublicKey,
     now: number = Math.floor(Date.now() / 1000),
   ): Promise<(PoolAccount & { released: bigint; inflow: bigint }) | null> {
-    const [poolInfo, vaultInfo] = await this.connection.getMultipleAccountsInfo([
-      poolPda(mint, this.programId),
-      rewardVaultPda(mint, this.programId),
-    ]);
+    const poolInfo = await this.connection.getAccountInfo(poolPda(mint, this.programId));
     if (!poolInfo) return null;
     const pool = decodePool(poolInfo.data);
-    return projectSync(pool, BigInt(vaultInfo?.lamports ?? 0), now);
+    let balance: bigint;
+    if (isNativeQuote(pool.quoteMint)) {
+      const lamports = await this.connection.getBalance(pool.rewardVault);
+      balance = distributableBalance(pool, { vaultLamports: BigInt(lamports) });
+    } else {
+      const info = await this.connection.getAccountInfo(pool.rewardTokenAccount);
+      const amount = info && info.data.length >= 72 ? info.data.readBigUInt64LE(64) : 0n;
+      balance = distributableBalance(pool, { rewardTokenAmount: amount });
+    }
+    return projectSync(pool, balance, now);
   }
 
   /** Every position a wallet holds, across all pools. */
@@ -136,7 +183,10 @@ export class ViseClient {
   ): Promise<Array<PositionAccount & { address: PublicKey }>> {
     const pool = poolPda(mint, this.programId);
     const accounts = await this.connection.getProgramAccounts(this.programId, {
-      filters: [{ memcmp: { offset: 8 + 32, bytes: pool.toBase58() } }],
+      filters: [
+        { dataSize: POSITION_ACCOUNT_SIZE },
+        { memcmp: { offset: 8 + 32, bytes: pool.toBase58() } },
+      ],
     });
     return accounts.map(({ pubkey, account }) => ({
       address: pubkey,
@@ -151,12 +201,14 @@ export class ViseClient {
    */
   static configArgs(params: {
     treasury: PublicKey;
+    launchlabPlatform?: PublicKey;
     paused?: boolean;
     overrides?: Partial<Economics>;
   }) {
     const e = { ...ECONOMICS, ...params.overrides };
     return {
       treasury: params.treasury,
+      launchlabPlatform: params.launchlabPlatform ?? STONKFUN_PLATFORM,
       tradeFeeBps: e.tradeFeeBps,
       defaultTreasuryShareBps: e.treasuryShareBps,
       maxCreatorShareBps: e.maxCreatorShareBps,
@@ -191,57 +243,159 @@ export class ViseClient {
     };
   }
 
-  async createPool(params: {
+  /**
+   * The reward-side accounts every pool instruction takes: the vault, and for
+   * a token quote its token account, mint and program. Absent optional
+   * accounts are `null`.
+   */
+  private rewardAccounts(mint: PublicKey, quote: QuoteRef) {
+    const native = isNativeQuote(quote.mint);
+    return {
+      rewardVault: rewardVaultPda(mint, this.programId),
+      rewardTokenAccount: rewardTokenAccount(mint, quote.mint, quote.tokenProgram, this.programId),
+      quoteMint: native ? null : quote.mint,
+      quoteTokenProgram: native ? null : quote.tokenProgram,
+    };
+  }
+
+  /** `recipient`'s quote ATA, or `null` for a SOL quote. */
+  private quoteAccountOf(recipient: PublicKey, quote: QuoteRef): PublicKey | null {
+    if (isNativeQuote(quote.mint)) return null;
+    return getAssociatedTokenAddressSync(quote.mint, recipient, true, quote.tokenProgram);
+  }
+
+  /** Idempotent create of `recipient`'s quote ATA, paid by `payer` (none for SOL). */
+  private quoteAtaIxs(payer: PublicKey, recipient: PublicKey, quote: QuoteRef): TransactionInstruction[] {
+    const ata = this.quoteAccountOf(recipient, quote);
+    if (!ata) return [];
+    return [
+      createAssociatedTokenAccountIdempotentInstruction(
+        payer,
+        ata,
+        recipient,
+        quote.mint,
+        quote.tokenProgram,
+      ),
+    ];
+  }
+
+  /**
+   * Create a coin on StonkFun and its pool in one instruction.
+   *
+   * `mint` is a fresh keypair's public key; it must sign the transaction with
+   * `creator`. The curve shape (`supply`, `totalSell`, `fundRaising`) must be
+   * what StonkFun's pricing API returns for the quote, or LaunchLab rejects
+   * it. Follow with a LaunchLab `buy_exact_in` for the dev buy and `found`.
+   */
+  async launch(params: {
     creator: PublicKey;
     mint: PublicKey;
+    quote: QuoteRef;
     treasury: PublicKey;
-    tokenProgram?: PublicKey;
-    creatorShareBps: number;
-    initialLockAmount: bigint;
-    initialLockDuration: number;
-    ammVaults?: [PublicKey, PublicKey];
+    name: string;
+    symbol: string;
+    uri: string;
+    supply: bigint;
+    totalSell: bigint;
+    fundRaising: bigint;
+    creatorShareBps?: number;
+    /** The quote's LaunchLab GlobalConfig; defaults to curve type 0, index 0. */
+    globalConfig?: PublicKey;
+    platform?: PublicKey;
   }): Promise<TransactionInstruction> {
-    const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
+    const platform = params.platform ?? STONKFUN_PLATFORM;
+    const globalConfig = params.globalConfig ?? globalConfigPda(params.quote.mint);
+    const llPool = launchLabPoolPda(params.mint, params.quote.mint);
+    const native = isNativeQuote(params.quote.mint);
     return this.program.methods
-      .createPool({
-        creatorShareBps: params.creatorShareBps,
-        initialLockAmount: new BN(params.initialLockAmount.toString()),
-        initialLockDuration: params.initialLockDuration,
+      .launch({
+        name: params.name,
+        symbol: params.symbol,
+        uri: params.uri,
+        supply: new BN(params.supply.toString()),
+        totalSell: new BN(params.totalSell.toString()),
+        fundRaising: new BN(params.fundRaising.toString()),
+        creatorShareBps: params.creatorShareBps ?? 0,
       })
       .accountsPartial({
         creator: params.creator,
         config: configPda(this.programId),
         treasury: params.treasury,
         mint: params.mint,
-        // Proves the signer is the coin's creator on pump.fun (the program
-        // reads `BondingCurve::creator`) and prices the founding lock.
-        bondingCurve: bondingCurvePda(params.mint),
-        tokenVault: tokenVaultPda(params.mint, this.programId),
+        quoteMint: params.quote.mint,
+        quoteTokenProgram: params.quote.tokenProgram,
+        pool: poolPda(params.mint, this.programId),
         rewardVault: rewardVaultPda(params.mint, this.programId),
+        rewardTokenAccount: native
+          ? null
+          : rewardTokenAccount(params.mint, params.quote.mint, params.quote.tokenProgram, this.programId),
+        globalConfig,
+        launchlabPlatform: platform,
+        launchlabAuthority: launchLabAuthorityPda(),
+        launchlabPool: llPool,
+        launchlabBaseVault: launchLabPoolVaultPda(llPool, params.mint),
+        launchlabQuoteVault: launchLabPoolVaultPda(llPool, params.quote.mint),
+        launchlabEventAuthority: launchLabEventAuthorityPda(),
+        launchlabProgram: LAUNCHLAB_PROGRAM_ID,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .remainingAccounts(
+        readonlyMetas([
+          platformAllowConfigPda(platform, globalConfig),
+          platformCurveRulePda(platform, globalConfig),
+        ]),
+      )
+      .instruction();
+  }
+
+  /**
+   * Open the pool with the creator's founding lock (once, creator only).
+   * `valuation` only for a coin that has already migrated
+   * (`valuationAccounts`).
+   */
+  async found(params: {
+    creator: PublicKey;
+    mint: PublicKey;
+    quoteMint: PublicKey;
+    initialLockAmount: bigint;
+    initialLockDuration: number;
+    valuation?: PublicKey[];
+  }): Promise<TransactionInstruction> {
+    return this.program.methods
+      .found(new BN(params.initialLockAmount.toString()), params.initialLockDuration)
+      .accountsPartial({
+        creator: params.creator,
+        config: configPda(this.programId),
+        pool: poolPda(params.mint, this.programId),
+        mint: params.mint,
+        tokenVault: tokenVaultPda(params.mint, this.programId),
+        launchlabPool: launchLabPoolPda(params.mint, params.quoteMint),
         position: positionPda(params.mint, params.creator, 0, this.programId),
         creatorTokenAccount: getAssociatedTokenAddressSync(
           params.mint,
           params.creator,
           true,
-          tokenProgram,
+          TOKEN_2022_PROGRAM_ID,
         ),
-        tokenProgram,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .remainingAccounts(ammRemaining(params.ammVaults))
+      .remainingAccounts(readonlyMetas(params.valuation))
       .instruction();
   }
 
   async lock(params: {
     owner: PublicKey;
     mint: PublicKey;
+    quote: QuoteRef;
     index: number;
     amount: bigint;
     durationSecs: number;
-    tokenProgram?: PublicKey;
-    ammVaults?: [PublicKey, PublicKey];
+    valuation?: PublicKey[];
   }): Promise<TransactionInstruction> {
-    const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
+    const reward = this.rewardAccounts(params.mint, params.quote);
     return this.program.methods
       .lock(params.index, new BN(params.amount.toString()), params.durationSecs)
       .accountsPartial({
@@ -249,44 +403,41 @@ export class ViseClient {
         pool: poolPda(params.mint, this.programId),
         mint: params.mint,
         tokenVault: tokenVaultPda(params.mint, this.programId),
-        rewardVault: rewardVaultPda(params.mint, this.programId),
-        bondingCurve: bondingCurvePda(params.mint),
+        rewardVault: reward.rewardVault,
+        rewardTokenAccount: reward.rewardTokenAccount,
+        launchlabPool: launchLabPoolPda(params.mint, params.quote.mint),
         position: positionPda(params.mint, params.owner, params.index, this.programId),
         ownerTokenAccount: getAssociatedTokenAddressSync(
           params.mint,
           params.owner,
           true,
-          tokenProgram,
+          TOKEN_2022_PROGRAM_ID,
         ),
-        tokenProgram,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
-      .remainingAccounts(ammRemaining(params.ammVaults))
+      .remainingAccounts(readonlyMetas(params.valuation))
       .instruction();
   }
 
   /** Accounts shared by `increase` and `extend`. */
-  private modifyAccounts(params: {
-    owner: PublicKey;
-    mint: PublicKey;
-    index: number;
-    tokenProgram: PublicKey;
-  }) {
+  private modifyAccounts(params: { owner: PublicKey; mint: PublicKey; quote: QuoteRef; index: number }) {
     return {
       owner: params.owner,
       pool: poolPda(params.mint, this.programId),
       mint: params.mint,
       tokenVault: tokenVaultPda(params.mint, this.programId),
-      rewardVault: rewardVaultPda(params.mint, this.programId),
-      bondingCurve: bondingCurvePda(params.mint),
+      ...this.rewardAccounts(params.mint, params.quote),
+      ownerQuoteAccount: this.quoteAccountOf(params.owner, params.quote),
+      launchlabPool: launchLabPoolPda(params.mint, params.quote.mint),
       position: positionPda(params.mint, params.owner, params.index, this.programId),
       ownerTokenAccount: getAssociatedTokenAddressSync(
         params.mint,
         params.owner,
         true,
-        params.tokenProgram,
+        TOKEN_2022_PROGRAM_ID,
       ),
-      tokenProgram: params.tokenProgram,
+      tokenProgram: TOKEN_2022_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     };
   }
@@ -295,17 +446,17 @@ export class ViseClient {
   async increase(params: {
     owner: PublicKey;
     mint: PublicKey;
+    quote: QuoteRef;
     index: number;
     amount: bigint;
-    tokenProgram?: PublicKey;
-    ammVaults?: [PublicKey, PublicKey];
-  }): Promise<TransactionInstruction> {
-    const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
-    return this.program.methods
+    valuation?: PublicKey[];
+  }): Promise<TransactionInstruction[]> {
+    const ix = await this.program.methods
       .increase(new BN(params.amount.toString()))
-      .accountsPartial(this.modifyAccounts({ ...params, tokenProgram }))
-      .remainingAccounts(ammRemaining(params.ammVaults))
+      .accountsPartial(this.modifyAccounts(params))
+      .remainingAccounts(readonlyMetas(params.valuation))
       .instruction();
+    return [...this.quoteAtaIxs(params.owner, params.owner, params.quote), ix];
   }
 
   /**
@@ -315,70 +466,64 @@ export class ViseClient {
   async extend(params: {
     owner: PublicKey;
     mint: PublicKey;
+    quote: QuoteRef;
     index: number;
     durationSecs: number;
-    tokenProgram?: PublicKey;
-    ammVaults?: [PublicKey, PublicKey];
-  }): Promise<TransactionInstruction> {
-    const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
-    return this.program.methods
+    valuation?: PublicKey[];
+  }): Promise<TransactionInstruction[]> {
+    const ix = await this.program.methods
       .extend(params.durationSecs)
-      .accountsPartial(this.modifyAccounts({ ...params, tokenProgram }))
-      .remainingAccounts(ammRemaining(params.ammVaults))
+      .accountsPartial(this.modifyAccounts(params))
+      .remainingAccounts(readonlyMetas(params.valuation))
       .instruction();
+    return [...this.quoteAtaIxs(params.owner, params.owner, params.quote), ix];
+  }
+
+  async claim(params: {
+    owner: PublicKey;
+    mint: PublicKey;
+    quote: QuoteRef;
+    index: number;
+  }): Promise<TransactionInstruction[]> {
+    const ix = await this.program.methods
+      .claim()
+      .accountsPartial({
+        owner: params.owner,
+        pool: poolPda(params.mint, this.programId),
+        ...this.rewardAccounts(params.mint, params.quote),
+        ownerQuoteAccount: this.quoteAccountOf(params.owner, params.quote),
+        position: positionPda(params.mint, params.owner, params.index, this.programId),
+        systemProgram: SystemProgram.programId,
+      })
+      .instruction();
+    return [...this.quoteAtaIxs(params.owner, params.owner, params.quote), ix];
   }
 
   /**
-   * `claim` on someone else's behalf: pays the position's owner. On a capped
-   * pool this retires a lock that has reached its cap, sending the excess to
+   * `claim` on someone else's behalf: pays the position's owner. This is how
+   * a keeper retires a lock that has reached its cap, sending the excess to
    * the treasury.
    */
   async harvest(params: {
     payer: PublicKey;
     owner: PublicKey;
     mint: PublicKey;
+    quote: QuoteRef;
     index: number;
-  }): Promise<TransactionInstruction> {
-    return this.program.methods
+  }): Promise<TransactionInstruction[]> {
+    const ix = await this.program.methods
       .harvest()
       .accountsPartial({
         payer: params.payer,
         owner: params.owner,
         pool: poolPda(params.mint, this.programId),
-        rewardVault: rewardVaultPda(params.mint, this.programId),
+        ...this.rewardAccounts(params.mint, params.quote),
+        ownerQuoteAccount: this.quoteAccountOf(params.owner, params.quote),
         position: positionPda(params.mint, params.owner, params.index, this.programId),
         systemProgram: SystemProgram.programId,
       })
       .instruction();
-  }
-
-  /** Grow a pool or position written before earnings limits to the current layout. */
-  async migrate(params: { payer: PublicKey; target: PublicKey }): Promise<TransactionInstruction> {
-    return this.program.methods
-      .migrate()
-      .accountsPartial({
-        payer: params.payer,
-        target: params.target,
-        systemProgram: SystemProgram.programId,
-      })
-      .instruction();
-  }
-
-  async claim(params: {
-    owner: PublicKey;
-    mint: PublicKey;
-    index: number;
-  }): Promise<TransactionInstruction> {
-    return this.program.methods
-      .claim()
-      .accountsPartial({
-        owner: params.owner,
-        pool: poolPda(params.mint, this.programId),
-        rewardVault: rewardVaultPda(params.mint, this.programId),
-        position: positionPda(params.mint, params.owner, params.index, this.programId),
-        systemProgram: SystemProgram.programId,
-      })
-      .instruction();
+    return [...this.quoteAtaIxs(params.payer, params.owner, params.quote), ix];
   }
 
   /**
@@ -388,6 +533,7 @@ export class ViseClient {
   async renounce(params: {
     owner: PublicKey;
     mint: PublicKey;
+    quote: QuoteRef;
     index: number;
   }): Promise<TransactionInstruction> {
     return this.program.methods
@@ -396,141 +542,151 @@ export class ViseClient {
         owner: params.owner,
         pool: poolPda(params.mint, this.programId),
         rewardVault: rewardVaultPda(params.mint, this.programId),
+        rewardTokenAccount: rewardTokenAccount(
+          params.mint,
+          params.quote.mint,
+          params.quote.tokenProgram,
+          this.programId,
+        ),
         position: positionPda(params.mint, params.owner, params.index, this.programId),
-        systemProgram: SystemProgram.programId,
       })
       .instruction();
   }
 
   /**
-   * Close a position.
+   * Close a position, preceded by idempotent creates of the owner's coin ATA
+   * (principal only ever lands there) and, for a token quote, quote ATA,
+   * paid by `payer`.
    *
    * A matured position may be closed by anyone — principal, rewards and rent
    * all go to `owner` regardless — so `payer` defaults to the owner but a
    * keeper can pass its own key. An early exit is owner-only; the program
    * rejects anyone else.
-   *
-   * Principal is only ever paid into the owner's associated token account,
-   * which must already exist. Use `unlockInstructions` unless the caller knows
-   * it does.
    */
   async unlock(params: {
     owner: PublicKey;
     mint: PublicKey;
+    quote: QuoteRef;
     index: number;
     early: boolean;
     payer?: PublicKey;
-    tokenProgram?: PublicKey;
-  }): Promise<TransactionInstruction> {
-    const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
+  }): Promise<TransactionInstruction[]> {
+    const payer = params.payer ?? params.owner;
+    const ownerTokenAccount = getAssociatedTokenAddressSync(
+      params.mint,
+      params.owner,
+      true,
+      TOKEN_2022_PROGRAM_ID,
+    );
     const accounts = {
-      payer: params.payer ?? params.owner,
+      payer,
       owner: params.owner,
       pool: poolPda(params.mint, this.programId),
       mint: params.mint,
       tokenVault: tokenVaultPda(params.mint, this.programId),
-      rewardVault: rewardVaultPda(params.mint, this.programId),
+      ...this.rewardAccounts(params.mint, params.quote),
+      ownerQuoteAccount: this.quoteAccountOf(params.owner, params.quote),
       position: positionPda(params.mint, params.owner, params.index, this.programId),
-      ownerTokenAccount: getAssociatedTokenAddressSync(
-        params.mint,
-        params.owner,
-        true,
-        tokenProgram,
-      ),
-      tokenProgram,
+      ownerTokenAccount,
+      tokenProgram: TOKEN_2022_PROGRAM_ID,
       systemProgram: SystemProgram.programId,
     };
     const builder = params.early
       ? this.program.methods.earlyUnlock()
       : this.program.methods.unlock();
-    return builder.accountsPartial(accounts).instruction();
-  }
-
-  /**
-   * `unlock`, preceded by an idempotent create of the owner's associated token
-   * account paid by `payer`. The owner may have closed that account since
-   * locking; without it the principal has nowhere the program will send it.
-   */
-  async unlockInstructions(params: {
-    owner: PublicKey;
-    mint: PublicKey;
-    index: number;
-    early: boolean;
-    payer?: PublicKey;
-    tokenProgram?: PublicKey;
-  }): Promise<TransactionInstruction[]> {
-    const tokenProgram = params.tokenProgram ?? TOKEN_2022_PROGRAM_ID;
-    const payer = params.payer ?? params.owner;
     return [
       createAssociatedTokenAccountIdempotentInstruction(
         payer,
-        getAssociatedTokenAddressSync(params.mint, params.owner, true, tokenProgram),
+        ownerTokenAccount,
         params.owner,
         params.mint,
-        tokenProgram,
+        TOKEN_2022_PROGRAM_ID,
       ),
-      await this.unlock({ ...params, payer, tokenProgram }),
+      ...this.quoteAtaIxs(payer, params.owner, params.quote),
+      await builder.accountsPartial(accounts).instruction(),
     ];
   }
 
-  /** App-fee leg appended to routed swaps; also usable as a plain donation. */
+  /**
+   * App-fee leg appended to routed trades; also usable as a plain donation.
+   * `amount` is quote base units: lamports for a SOL quote, otherwise taken
+   * from `payerQuoteAccount` (default: the payer's quote ATA).
+   */
   async depositReward(params: {
     payer: PublicKey;
     mint: PublicKey;
-    lamports: bigint;
+    quote: QuoteRef;
+    amount: bigint;
     kind: number;
+    payerQuoteAccount?: PublicKey;
   }): Promise<TransactionInstruction> {
     return this.program.methods
-      .depositReward(new BN(params.lamports.toString()), params.kind)
+      .depositReward(new BN(params.amount.toString()), params.kind)
       .accountsPartial({
         payer: params.payer,
         pool: poolPda(params.mint, this.programId),
-        rewardVault: rewardVaultPda(params.mint, this.programId),
+        ...this.rewardAccounts(params.mint, params.quote),
+        payerQuoteAccount: isNativeQuote(params.quote.mint)
+          ? null
+          : (params.payerQuoteAccount ?? this.quoteAccountOf(params.payer, params.quote)),
         systemProgram: SystemProgram.programId,
       })
       .instruction();
   }
 
-  async sync(mint: PublicKey): Promise<TransactionInstruction> {
+  async sync(params: { mint: PublicKey; quote: QuoteRef }): Promise<TransactionInstruction> {
     return this.program.methods
       .sync()
       .accountsPartial({
-        pool: poolPda(mint, this.programId),
-        rewardVault: rewardVaultPda(mint, this.programId),
+        pool: poolPda(params.mint, this.programId),
+        rewardVault: rewardVaultPda(params.mint, this.programId),
+        rewardTokenAccount: rewardTokenAccount(
+          params.mint,
+          params.quote.mint,
+          params.quote.tokenProgram,
+          this.programId,
+        ),
       })
       .instruction();
   }
 
+  /** Permissionless: push the treasury's share to the pool's treasury. */
   async claimTreasury(params: {
     payer: PublicKey;
     mint: PublicKey;
+    quote: QuoteRef;
     treasury: PublicKey;
-  }): Promise<TransactionInstruction> {
-    return this.program.methods
+  }): Promise<TransactionInstruction[]> {
+    const ix = await this.program.methods
       .claimTreasury()
       .accountsPartial({
         payer: params.payer,
         pool: poolPda(params.mint, this.programId),
         treasury: params.treasury,
-        rewardVault: rewardVaultPda(params.mint, this.programId),
+        ...this.rewardAccounts(params.mint, params.quote),
+        treasuryQuoteAccount: this.quoteAccountOf(params.treasury, params.quote),
         systemProgram: SystemProgram.programId,
       })
       .instruction();
+    return [...this.quoteAtaIxs(params.payer, params.treasury, params.quote), ix];
   }
 
   async claimCreator(params: {
     creator: PublicKey;
     mint: PublicKey;
-  }): Promise<TransactionInstruction> {
-    return this.program.methods
+    quote: QuoteRef;
+  }): Promise<TransactionInstruction[]> {
+    const ix = await this.program.methods
       .claimCreator()
       .accountsPartial({
         creator: params.creator,
         pool: poolPda(params.mint, this.programId),
-        rewardVault: rewardVaultPda(params.mint, this.programId),
+        ...this.rewardAccounts(params.mint, params.quote),
+        creatorQuoteAccount: this.quoteAccountOf(params.creator, params.quote),
         systemProgram: SystemProgram.programId,
       })
       .instruction();
+    return [...this.quoteAtaIxs(params.creator, params.creator, params.quote), ix];
   }
 }
 

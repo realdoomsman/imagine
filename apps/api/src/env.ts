@@ -50,6 +50,14 @@ function secretFromEnv(name: string): string {
   return raw ?? "";
 }
 
+/** An absolute http(s) origin with no trailing slash. */
+function origin(name: string, fallback: string): string {
+  const raw = (process.env[name] ?? fallback).trim().replace(/\/+$/, "");
+  const url = new URL(raw);
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error(`${name} must be an http(s) origin`);
+  return url.origin;
+}
+
 /**
  * Config is read once at boot and validated eagerly: a bad treasury address or
  * fee value should crash the process on deploy, not produce a broken
@@ -61,23 +69,45 @@ export const env = {
   port: Number(process.env.PORT ?? 8080),
   host: process.env.HOST ?? "0.0.0.0",
   databaseUrl: process.env.DATABASE_URL ?? "",
-  rpcUrl: process.env.RPC_URL ?? "https://api.devnet.solana.com",
+  rpcUrl: process.env.RPC_URL ?? "http://127.0.0.1:8999",
   wsUrl: process.env.RPC_WS_URL ?? "",
-  cluster: (process.env.CLUSTER ?? "devnet") as "devnet" | "mainnet-beta",
+  /**
+   * StonkFun is mainnet-only, so IMAGINE runs on mainnet-beta or on a local
+   * mainnet fork (scripts/mainnet-fork.sh), which carries the same programs
+   * and accounts at the same addresses.
+   */
+  cluster: (process.env.CLUSTER ?? "localnet") as "localnet" | "mainnet-beta",
   corsOrigins: (process.env.CORS_ORIGINS ?? "*").split(",").map((s) => s.trim()),
   /**
-   * The keeper signs the permissionless cranks — pump fee distribution and
-   * pool syncs. Optional: without it the indexer runs read-only and someone
-   * else has to crank, which nobody does promptly.
+   * Where this API is reachable from the public internet. Coin metadata and
+   * images are served from here, and their URIs are written on chain into the
+   * mint at launch, so this must be the stable public origin
+   * (https://api.imagine.fun in production).
+   */
+  apiPublicOrigin: origin("API_PUBLIC_ORIGIN", "http://localhost:8080"),
+  /** StonkFun's public API (launchable pairs, curve pricing). */
+  stonkfunApi: origin("STONKFUN_API", "https://www.stonkfun.xyz"),
+  /** Jupiter Swap API v1 (SOL → quote swaps for buyers paying in SOL). */
+  jupiterSwapUrl: (process.env.JUPITER_SWAP_URL ?? "https://lite-api.jup.ag/swap/v1").replace(/\/+$/, ""),
+  /** Jupiter Price API v3 (USD prices of quote assets). */
+  jupiterPriceUrl: (process.env.JUPITER_PRICE_URL ?? "https://lite-api.jup.ag/price/v3").replace(/\/+$/, ""),
+  /** Required only with an api.jup.ag base URL; the lite API is keyless. */
+  jupiterApiKey: process.env.JUPITER_API_KEY ?? "",
+  /**
+   * The keeper signs the permissionless cranks — pool syncs, matured unlocks,
+   * capped-lock harvests, treasury claims. Optional: without it the indexer
+   * runs read-only and someone else has to crank, which nobody does promptly.
    */
   keeperKeypair: process.env.KEEPER_KEYPAIR ?? "",
-  /** Only sweep a coin once its pump vault holds at least this much. */
-  sweepMinLamports: BigInt(process.env.SWEEP_MIN_LAMPORTS ?? 5_000_000),
+  /** Sync a pool once its unsynced reward balance is worth at least this many USD. */
+  syncMinUsd: Number(process.env.SYNC_MIN_USD ?? 1),
   keeperIntervalMs: Number(process.env.KEEPER_INTERVAL_MS ?? 60_000),
   /**
-   * Address lookup table that lets a launch's create_v2 and dev buy share one
-   * transaction (scripts/create-alt.ts). Unset: launches fall back to sending
-   * the dev buy in its own transaction after the create.
+   * Address lookup table holding the static accounts of a launch (programs,
+   * StonkFun platform, per-quote LaunchLab configs; scripts/create-alt.ts).
+   * It lets imagine.launch, the dev buy and imagine.found share one
+   * transaction. Unset: the launch is split in two and the dev buy is exposed
+   * to anyone buying between them.
    */
   launchAlt: process.env.LAUNCH_ALT ? new PublicKey(process.env.LAUNCH_ALT) : null,
 
@@ -112,6 +142,9 @@ export function assertApiEnv() {
   void env.googleClientSecret;
   if (env.cluster === "mainnet-beta" && (!process.env.CORS_ORIGINS?.trim() || env.corsOrigins.includes("*"))) {
     throw new Error("CORS_ORIGINS must list the site's origins on mainnet-beta; unset or * is refused");
+  }
+  if (env.cluster === "mainnet-beta" && !env.apiPublicOrigin.startsWith("https://")) {
+    throw new Error("API_PUBLIC_ORIGIN must be an https origin on mainnet-beta: coin metadata URIs point at it");
   }
 }
 

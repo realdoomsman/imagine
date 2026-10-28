@@ -1,41 +1,30 @@
-import {
-  PUMP_SDK,
-  getBuyTokenAmountFromSolAmount,
-  getSellSolAmountFromTokenAmount,
-} from "@pump-fun/pump-sdk";
-import { BN } from "@coral-xyz/anchor";
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
-import { PublicKey, type TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, type AddressLookupTableAccount, type TransactionInstruction } from "@solana/web3.js";
 import {
   DAY,
   HOUR,
-  VISE_IDL,
-  appFeeLamports,
+  IMAGINE_IDL,
   decodePosition,
   formatDuration,
   positionPda,
+  type PoolAccount,
   type PoolTerms,
+  type QuoteRef,
 } from "@imagine/sdk";
 import { z } from "zod";
-import { env } from "./env.ts";
-import { distributable } from "./keeper.ts";
-import {
-  appFeeInstruction,
-  budgetInstructions,
-  fetchCurve,
-  onlinePump,
-  priceAccounts,
-  sweepCreatorFees,
-} from "./pump.ts";
-import { chainConfig, connection, vise } from "./solana.ts";
+import { ActionError } from "./errors.ts";
+import { imagine, connection } from "./solana.ts";
+import { buildTrade, readMarket, unsyncedRewards, valuationAccounts } from "./stonk.ts";
+import { budgetInstructions } from "./transactions.ts";
+
+export { ActionError };
 
 /**
  * Every user action, as instructions.
  *
  * Two callers: the `/tx/*` routes serialise these for an external wallet to
- * sign, and the account routes sign them with a VISE wallet on the server. One
- * builder per action means the two paths can never drift — a Phantom user and
- * a Google user get byte-identical transactions.
+ * sign, and the account routes sign them with an IMAGINE wallet on the
+ * server. One builder per action means the two paths can never drift — a
+ * Phantom user and a Google user get byte-identical transactions.
  */
 
 export const pubkey = z.string().refine((value) => {
@@ -47,13 +36,15 @@ export const pubkey = z.string().refine((value) => {
   }
 }, "invalid base58 public key");
 
-export const lamports = z
+/** A u64 amount in base units, as a decimal string. */
+export const baseUnits = z
   .string()
   .regex(/^\d+$/, "expected an integer string")
-  .refine((v) => BigInt(v) <= 10_000_000n * 1_000_000_000n, "amount too large");
+  .refine((v) => BigInt(v) <= 18_446_744_073_709_551_615n, "amount too large");
 
 const priority = z.number().int().min(0).max(10_000_000);
 const index = z.number().int().min(0).max(4_294_967_295);
+const slippageBps = z.number().int().min(10).max(5_000).default(300);
 /**
  * A lock term in seconds. The bounds are the program's own hard limits; each
  * pool's frozen window is narrower and is checked against the pool itself.
@@ -65,7 +56,7 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("lock"),
     mint: pubkey,
     index,
-    amount: lamports,
+    amount: baseUnits,
     durationSecs: lockDuration,
     priorityFeeMicroLamports: priority.default(100_000),
   }),
@@ -73,7 +64,7 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("increase"),
     mint: pubkey,
     index,
-    amount: lamports,
+    amount: baseUnits,
     priorityFeeMicroLamports: priority.default(100_000),
   }),
   z.object({
@@ -95,22 +86,17 @@ export const ActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("swap"),
     mint: pubkey,
     side: z.enum(["buy", "sell"]),
-    amount: lamports,
-    slippageBps: z.number().int().min(10).max(5_000).default(300),
+    /** Buy: quote base units (lamports with payWithSol). Sell: coin base units. */
+    amount: baseUnits,
+    slippageBps,
+    /** Buy only: pay in SOL on a coin paired with something else. */
+    payWithSol: z.boolean().default(false),
     priorityFeeMicroLamports: priority.default(150_000),
   }),
-  z.object({ kind: z.literal("sweep"), mint: pubkey }),
+  z.object({ kind: z.literal("sync"), mint: pubkey }),
 ]);
 
 export type Action = z.infer<typeof ActionSchema>;
-
-export class ActionError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
 
 /** Refuse a term outside the pool's frozen window before anything is signed. */
 export function assertInWindow(durationSecs: number, terms: Pick<PoolTerms, "minLockSecs" | "maxLockSecs">): void {
@@ -124,42 +110,61 @@ export function assertInWindow(durationSecs: number, terms: Pick<PoolTerms, "min
 
 export interface BuiltAction {
   instructions: TransactionInstruction[];
+  /** Empty: a legacy transaction. Else compile v0 through these. */
+  lookupTables: AddressLookupTableAccount[];
   /** Figures the caller may want to show: fees, legs, expected output. */
   meta: Record<string, string | number>;
 }
 
+/** A founded pool and the accounts its locks are priced against. */
+async function lockablePool(mint: PublicKey) {
+  const pool = await imagine.fetchPool(mint);
+  if (!pool || !pool.founded) throw new ActionError(404, "this coin has no IMAGINE pool");
+  const valuation = valuationAccounts(await readMarket(mint, pool.quoteMint));
+  return { pool, valuation, quote: quoteOf(pool) };
+}
+
+/** A pool's quote as the SDK builders take it. */
+function quoteOf(pool: PoolAccount): QuoteRef {
+  return { mint: pool.quoteMint, tokenProgram: pool.quoteTokenProgram };
+}
+
+/** Any pool, founded or not, for the payout instructions (never pausable). */
+async function anyPool(mint: PublicKey): Promise<PoolAccount> {
+  const pool = await imagine.fetchPool(mint);
+  if (!pool) throw new ActionError(404, "this coin has no IMAGINE pool");
+  return pool;
+}
+
 export async function buildAction(owner: PublicKey, action: Action): Promise<BuiltAction> {
   const mint = new PublicKey(action.mint);
+  const plain = (instructions: TransactionInstruction[]): BuiltAction => ({ instructions, lookupTables: [], meta: {} });
 
   switch (action.kind) {
     case "lock": {
-      const pool = await vise.fetchPool(mint);
-      if (!pool) throw new ActionError(404, "this coin has no VISE pool");
+      const { pool, valuation, quote } = await lockablePool(mint);
       assertInWindow(action.durationSecs, pool.terms);
-      const ix = await vise.lock({
+      const ix = await imagine.lock({
         owner,
         mint,
+        quote,
         index: action.index,
         amount: BigInt(action.amount),
         durationSecs: action.durationSecs,
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
-        ammVaults: await priceAccounts(mint),
+        valuation,
       });
-      return {
-        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 200_000), ix],
-        meta: {},
-      };
+      return plain([...budgetInstructions(action.priorityFeeMicroLamports, 250_000), ix]);
     }
 
     case "increase": {
       // The program reprices the whole position against the term still to
       // run, and refuses when that is below the pool's minimum lock. Say so
       // before signing rather than after a failed transaction.
-      const [positionInfo, pool] = await Promise.all([
+      const [positionInfo, { pool, valuation, quote }] = await Promise.all([
         connection.getAccountInfo(positionPda(mint, owner, action.index)),
-        vise.fetchPool(mint),
+        lockablePool(mint),
       ]);
-      if (!positionInfo || !pool) throw new ActionError(404, "that lock does not exist");
+      if (!positionInfo) throw new ActionError(404, "that lock does not exist");
       const remaining = decodePosition(positionInfo.data).lockEnd - Math.floor(Date.now() / 1000);
       if (remaining < pool.terms.minLockSecs) {
         throw new ActionError(
@@ -167,194 +172,85 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
           `less than ${formatDuration(pool.terms.minLockSecs)} is left on this lock, so it cannot be added to; extend it first, or open a new lock`,
         );
       }
-      const ix = await vise.increase({
+      const ixs = await imagine.increase({
         owner,
         mint,
+        quote,
         index: action.index,
         amount: BigInt(action.amount),
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
-        ammVaults: await priceAccounts(mint),
+        valuation,
       });
-      return {
-        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 200_000), ix],
-        meta: {},
-      };
+      return plain([...budgetInstructions(action.priorityFeeMicroLamports, 250_000), ...ixs]);
     }
 
     case "extend": {
-      const pool = await vise.fetchPool(mint);
-      if (!pool) throw new ActionError(404, "this coin has no VISE pool");
+      const { pool, valuation, quote } = await lockablePool(mint);
       assertInWindow(action.durationSecs, pool.terms);
-      const ix = await vise.extend({
+      const ixs = await imagine.extend({
         owner,
         mint,
+        quote,
         index: action.index,
         durationSecs: action.durationSecs,
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
-        ammVaults: await priceAccounts(mint),
+        valuation,
       });
-      return {
-        instructions: [...budgetInstructions(action.priorityFeeMicroLamports, 200_000), ix],
-        meta: {},
-      };
+      return plain([...budgetInstructions(action.priorityFeeMicroLamports, 250_000), ...ixs]);
     }
 
     case "claim": {
-      const ix = await vise.claim({ owner, mint, index: action.index });
-      return { instructions: [...budgetInstructions(100_000, 120_000), ix], meta: {} };
+      // Token-paired pools pay into the owner's quote ATA, created idempotently.
+      const pool = await anyPool(mint);
+      const ixs = await imagine.claim({ owner, mint, quote: quoteOf(pool), index: action.index });
+      return plain([...budgetInstructions(100_000, 150_000), ...ixs]);
     }
 
     case "renounce": {
-      const position = await vise.fetchPosition(mint, owner, action.index);
+      const [position, pool] = await Promise.all([imagine.fetchPosition(mint, owner, action.index), anyPool(mint)]);
       if (!position) throw new ActionError(404, "no such lock");
       if (position.renounced) throw new ActionError(409, "this lock already gave up its earnings");
-      const ix = await vise.renounce({ owner, mint, index: action.index });
-      return { instructions: [...budgetInstructions(100_000, 120_000), ix], meta: {} };
+      const ix = await imagine.renounce({ owner, mint, quote: quoteOf(pool), index: action.index });
+      return plain([...budgetInstructions(100_000, 150_000), ix]);
     }
 
     case "unlock": {
-      // The program pays principal only into the owner's canonical ATA, which
-      // the owner may have closed since locking; recreate it idempotently.
-      const ixs = await vise.unlockInstructions({
-        owner,
-        mint,
-        index: action.index,
-        early: action.early,
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
-      });
-      return { instructions: [...budgetInstructions(100_000, 200_000), ...ixs], meta: {} };
+      // Principal goes to the owner's coin ATA and earnings to their quote
+      // ATA; either may have been closed since locking, so both are
+      // recreated idempotently.
+      const pool = await anyPool(mint);
+      const ixs = await imagine.unlock({ owner, mint, quote: quoteOf(pool), index: action.index, early: action.early });
+      return plain([...budgetInstructions(100_000, 250_000), ...ixs]);
     }
 
     case "swap":
-      return buildSwap(owner, mint, action);
+      return buildTrade({
+        user: owner,
+        mint,
+        side: action.side,
+        amount: BigInt(action.amount),
+        slippageBps: action.slippageBps,
+        payWithSol: action.payWithSol,
+        priorityFeeMicroLamports: action.priorityFeeMicroLamports,
+      });
 
-    case "sweep": {
-      const { pump, amm } = await distributable(mint);
-      if (pump + amm === 0n) throw new ActionError(409, "nothing waiting at pump for this coin");
-      const ixs = await sweepCreatorFees({ payer: owner, mint, includeAmm: amm > 0n });
-      if (ixs.length === 0) throw new ActionError(404, "coin has no pump fee-sharing config");
+    case "sync": {
+      const pool = await imagine.fetchPool(mint);
+      if (!pool || !pool.founded) throw new ActionError(404, "this coin has no IMAGINE pool");
+      const unsynced = await unsyncedRewards(pool);
+      if (unsynced === 0n) throw new ActionError(409, "nothing new has arrived in this pool's vault");
+      const ix = await imagine.sync({ mint, quote: quoteOf(pool) });
       return {
-        instructions: [...budgetInstructions(150_000, 400_000), ...ixs],
-        meta: { waitingLamports: (pump + amm).toString() },
+        instructions: [...budgetInstructions(50_000, 150_000), ix],
+        lookupTables: [],
+        meta: { unsynced: unsynced.toString() },
       };
     }
   }
-}
-
-/**
- * Swap through pump with the VISE app fee attached.
- *
- * The fee instruction rides in the same transaction as the trade, so a trader
- * cannot be charged for a swap that did not happen, and lockers are credited
- * the instant the trade confirms.
- */
-async function buildSwap(
-  user: PublicKey,
-  mint: PublicKey,
-  action: Extract<Action, { kind: "swap" }>,
-): Promise<BuiltAction> {
-  const amount = BigInt(action.amount);
-  const curve = await fetchCurve(mint);
-  if (!curve) throw new ActionError(404, "bonding curve not found");
-  if (curve.state.complete) {
-    throw new ActionError(409, "coin has graduated; route this trade through PumpSwap");
-  }
-
-  const global = await onlinePump.fetchGlobal();
-  const feeConfig = await onlinePump.fetchFeeConfig().catch(() => null);
-  const decoded = PUMP_SDK.decodeBondingCurve(curve.accountInfo);
-  const mintSupply = new BN(curve.state.tokenTotalSupply.toString());
-  const slippage = action.slippageBps / 100;
-
-  const userAta = getAssociatedTokenAddressSync(mint, user, true, TOKEN_2022_PROGRAM_ID);
-  const userAtaInfo = await connection.getAccountInfo(userAta);
-
-  let swapIxs: TransactionInstruction[];
-  let solLeg: bigint;
-  let expectedOut: bigint;
-
-  if (action.side === "buy") {
-    // `amount` is SOL in. Net the app fee out first so the user's stated
-    // budget is what actually leaves their wallet.
-    const fee = appFeeLamports(amount, (await chainConfig()).tradeFeeBps);
-    const toCurve = amount - fee;
-    if (toCurve <= 0n) throw new ActionError(400, "amount too small");
-    const tokensOut = getBuyTokenAmountFromSolAmount({
-      global,
-      feeConfig,
-      mintSupply,
-      bondingCurve: decoded,
-      amount: new BN(toCurve.toString()),
-      quoteMint: PublicKey.default,
-    });
-    swapIxs = await PUMP_SDK.buyInstructions({
-      global,
-      bondingCurveAccountInfo: curve.accountInfo,
-      bondingCurve: decoded,
-      associatedUserAccountInfo: userAtaInfo,
-      mint,
-      user,
-      amount: tokensOut,
-      solAmount: new BN(toCurve.toString()),
-      slippage,
-      tokenProgram: TOKEN_2022_PROGRAM_ID,
-    });
-    solLeg = toCurve;
-    expectedOut = BigInt(tokensOut.toString());
-  } else {
-    // `amount` is tokens in; the fee is charged on the SOL that comes back.
-    const solOut = getSellSolAmountFromTokenAmount({
-      global,
-      feeConfig,
-      mintSupply,
-      bondingCurve: decoded,
-      amount: new BN(amount.toString()),
-    });
-    swapIxs = await PUMP_SDK.sellInstructions({
-      global,
-      bondingCurveAccountInfo: curve.accountInfo,
-      bondingCurve: decoded,
-      mint,
-      user,
-      amount: new BN(amount.toString()),
-      solAmount: solOut,
-      slippage,
-      tokenProgram: TOKEN_2022_PROGRAM_ID,
-      mayhemMode: false,
-    });
-    solLeg = BigInt(solOut.toString());
-    expectedOut = solLeg;
-  }
-
-  // A buy's fee was already netted out of the stated budget above, so it is
-  // 2% of that budget; charging it on the smaller curve leg would take 1.96%
-  // and leave the rest of the budget unspent.
-  const fee = await appFeeInstruction({
-    payer: user,
-    mint,
-    solLegLamports: action.side === "buy" ? amount : solLeg,
-    side: action.side,
-  });
-
-  return {
-    instructions: [
-      ...budgetInstructions(action.priorityFeeMicroLamports),
-      ...swapIxs,
-      ...(fee ? [fee.instruction] : []),
-    ],
-    meta: {
-      appFeeLamports: (fee?.lamports ?? 0n).toString(),
-      appFeeBps: fee ? (await chainConfig()).tradeFeeBps : 0,
-      solLegLamports: solLeg.toString(),
-      expectedOut: expectedOut.toString(),
-    },
-  };
 }
 
 /**
  * Turn a raw RPC or program failure into a sentence a person can act on.
  *
- * Program errors arrive as `custom program error: 0x1779`; VISE's own codes
+ * Program errors arrive as `custom program error: 0x1779`; IMAGINE's own codes
  * are named in the IDL, so those become their message. The common Solana
  * failures get plain words. Anything else is passed through, trimmed of the
  * simulation-log noise.
@@ -364,22 +260,25 @@ export function friendlyChainError(raw: string): string {
   // passed simulation but failed on chain reports `{"Custom":6002}`.
   const hex = /custom program error: 0x([0-9a-f]+)/i.exec(raw);
   const dec = /"Custom":(\d+)/.exec(raw);
-  const code = hex ? Number.parseInt(hex[1], 16) : dec ? Number(dec[1]) : null;
+  const code = hex ? Number.parseInt(hex[1]!, 16) : dec ? Number(dec[1]) : null;
+  // LaunchLab and CPMM errors share the 6000+ range; only trust the IDL when
+  // the failing program was IMAGINE itself.
+  const imagineFailed = new RegExp(`Program ${IMAGINE_IDL.address} failed`).test(raw) || !/Program \w+ failed/.test(raw);
   if (code !== null) {
-    const known = (VISE_IDL.errors ?? []).find((e) => e.code === code);
+    const known = imagineFailed ? (IMAGINE_IDL.errors ?? []).find((e) => e.code === code) : undefined;
     if (known) return known.msg ?? known.name;
     // Anchor's own codes: the ones a user can actually run into.
     if (code === 3012) return "that position no longer exists; it was already unlocked. Refresh the page";
     if (code === 3007 || code === 2006) return "the accounts in this transaction do not match; refresh the page and try again";
-    if (code >= 6000) return `the program refused the transaction (error ${code})`;
+    if (code >= 6000) return `the transaction was refused (error ${code})`;
   }
   if (/insufficient lamports|insufficient funds|Attempt to debit an account/i.test(raw)) {
-    return "not enough SOL in the wallet to cover this; the fee and rent come out of the same balance";
+    return "not enough SOL or tokens in the wallet to cover this; fees and rent come out of the same balance";
   }
   if (/block height exceeded|blockhash not found|Blockhash not found/i.test(raw)) {
     return "the network dropped the transaction before it confirmed; nothing was charged, try again";
   }
-  if (/slippage|TooMuchSolRequired|TooLittleSolReceived/i.test(raw)) {
+  if (/slippage|ExceededSlippage|TooLittle|TooMuch/i.test(raw)) {
     return "the price moved more than the slippage allowed; try again";
   }
   return raw.replace(/\s*Logs:[\s\S]*$/i, "").replace(/\s+/g, " ").slice(0, 240);

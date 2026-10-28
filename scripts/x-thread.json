@@ -1,51 +1,41 @@
 [
   {
-    "text": "Every memecoin has exactly one real revenue stream: the fees people pay to trade it.\n\nThat money goes to a launchpad and a dev wallet. Never to the people actually holding the thing.\n\nVISE changes where it lands.\n\nLong version: vise.fun/article",
-    "media": "C:\\tech\\Hold\\video\\out\\vise-teaser.mp4"
+    "text": "Imagine everyone locks.\n\nEvery trade on a memecoin pays a fee. On most launchpads none of it reaches the people holding the coin.\n\nOn IMAGINE, it goes to the holders who lock — paid in the stock the coin is paired with.\n\nimagine.fun",
+    "media": "C:\\tech\\imagine\\video\\out\\imagine-teaser.mp4"
   },
   {
-    "text": "Launch a coin on pump.fun through VISE and its fee stream gets pointed at a vault for its holders.\n\nNot by a promise. By pump's own fee-sharing program, with an instruction that revokes its own admin.\n\nAfter it lands, nobody can redirect it. Not the dev. Not us."
+    "text": "Lock the meme. Earn the stock.\n\nIMAGINE coins launch on StonkFun, where every coin is paired with an asset: an xStock like NVDAx or SPYx, a stablecoin, or SOL.\n\nA coin paired with NVDAx pays its lockers NVDAx. A SOL-paired coin pays SOL.",
+    "media": "C:\\tech\\imagine\\video\\out\\cards\\02-stock.png"
   },
   {
-    "text": "Two streams flow into that vault, both in SOL:\n\n— 2% of the SOL on every trade routed through vise.fun\n— the coin's pump.fun creator fees, in full\n\n90% is paid to lockers. 10% runs VISE. The creator's cut is zero: they earn the way everyone else does, by locking.\n\nNo emissions. No printed tokens. Just fees that were always being paid, going somewhere else.",
-    "media": "C:\\tech\\Hold\\video\\out\\cards\\04-split.png"
+    "text": "Two streams, both in the coin's pair asset:\n\n— 1% of each trade routed through imagine.fun, paid into the coin's pool in the same tx\n— the creator share StonkFun forwards to the coin's creator address: its pool vault\n\n90% streams to lockers by weight. 10% to treasury.",
+    "media": "C:\\tech\\imagine\\video\\out\\cards\\03-flow.png"
   },
   {
-    "text": "To earn from it, you lock.\n\nYour weight is your amount times your term, on a square-root curve so short locks are still worth making:\n\n7d → 1.00×\n30d → 1.76×\n90d → 2.44×\n180d → 3.09×\n365d → 4.00×\n\nLock 0.1% of supply or more and a size tier adds up to 50% on top. Same bag, up to six times the claim.",
-    "media": "C:\\tech\\Hold\\video\\out\\cards\\05-ladder.png"
+    "text": "Your weight is your amount times your term, on a square-root curve so short locks still count:\n\n4h → 1.00×\n1d → 1.14×\n7d → 1.41×\n30d → 1.86×\n90d → 2.49×\n180d → 3.11×\n365d → 4.00×\n\nLock 0.1% of supply or more and a size tier adds up to 50% on top.",
+    "media": "C:\\tech\\imagine\\video\\out\\cards\\04-dial.png"
   },
   {
-    "text": "Claiming never touches your lock. Your lock never blocks a claim.\n\nYou can harvest every day of a one-year position and the position does not move."
+    "text": "Claiming never touches your lock. Your lock never blocks a claim.\n\nFees stream in over an hour instead of landing at once, so a share is earned by holding through time, not by showing up at the right second."
   },
   {
-    "text": "Breaking a lock early costs two things, and both go to the people who stayed:\n\n— unclaimed rewards are forfeited and redistributed\n— a slice of principal is burned, scaled by how much of your term is left\n\nLeave on day 1 of 100, it hurts. Leave on day 99, it barely registers."
+    "text": "Selling is free. It just costs you the stream.\n\nBreak a lock early and your unclaimed rewards go back to the people who stayed, and a slice of your principal is burned, scaled by how much of your term is left.",
+    "media": "C:\\tech\\imagine\\video\\out\\cards\\06-stream.png"
   },
   {
-    "text": "The part that matters is what the program cannot do.\n\nThere is no instruction that moves a pool's SOL or tokens to an admin. Not disabled. Not timelocked. It does not exist in the bytecode.",
-    "media": "C:\\tech\\Hold\\video\\out\\cards\\11-cannot.png"
+    "text": "What the program cannot do:\n\n— no admin withdraw path. No instruction moves a pool's funds to an admin\n— terms are frozen on each pool at launch\n— claims and unlocks cannot be paused\n— the creator locks first, in the launch transaction",
+    "media": "C:\\tech\\imagine\\video\\out\\cards\\07-rules.png"
   },
   {
-    "text": "A pool's terms — fee split, multiplier curve, size tiers, penalty, lock bounds — are copied onto it at creation and are immutable.\n\nWe can change the defaults for future coins. We cannot touch yours."
+    "text": "Launching takes one transaction: the coin is created on StonkFun, the dev buy lands, and the creator's founding lock opens — together.\n\nThe coin trades on StonkFun's curve and shows up where StonkFun coins do."
   },
   {
-    "text": "The pause switch blocks new pools. That is all it can do.\n\nClaiming and unlocking are not pausable. There is no code path that would let them be."
+    "text": "No wallet? Sign in with Google and get a Solana address held for you. Lock, claim, withdraw or export the key whenever you want."
   },
   {
-    "text": "Creators cannot open a pool without locking their own bag in the same instruction.\n\nThey are exposed before anyone else is, and the amount and term are public on the coin's page from block one.",
-    "media": "C:\\tech\\Hold\\video\\out\\shots\\coin.png"
+    "text": "The honest part: a coin nobody trades pays nothing, and a locked bag can't be sold for free into a decline. Every rate on the site is trailing, realised fees. Nothing is projected.\n\nSource, tests and the security review: imagine.fun/docs/security"
   },
   {
-    "text": "Rounding always favours the pool.\n\nA randomised test drives thousands of locks, deposits, claims and exits and asserts, after every single step, that the vault can still pay everyone it owes."
-  },
-  {
-    "text": "No wallet? Sign in with Google. You get an ordinary Solana address, held for you: send coins to it, lock from it, withdraw whenever, export the key any time.\n\nThere is no step where we get to say no.",
-    "media": "C:\\tech\\Hold\\video\\out\\cards\\14-google.png"
-  },
-  {
-    "text": "What this does not do: make a bad coin good.\n\nThe coin can still go to zero, and locking makes that worse because you cannot sell into the decline for free. A coin with no volume pays nothing.\n\nThat is the honest version."
-  },
-  {
-    "text": "vise.fun\n\nHold under pressure.",
-    "media": "C:\\tech\\Hold\\video\\out\\cards\\20-close.png"
+    "text": "Imagine the chart if nobody sold.\n\nimagine.fun"
   }
 ]

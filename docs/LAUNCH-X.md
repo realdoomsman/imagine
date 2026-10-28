@@ -1,348 +1,177 @@
-# VISE — X content
+# IMAGINE — X launch content
 
-Handle: `@ViseDotFun` · Site: `vise.fun`
+Site: imagine.fun · Long read: imagine.fun/article · Security: imagine.fun/docs/security
 
-## Live (2026-09-23)
+Status: not posted. The account's handle is not decided; nothing here names it,
+and the site shows the X and Telegram links only once `NEXT_PUBLIC_X_URL` /
+`NEXT_PUBLIC_TELEGRAM_URL` are set.
 
-- **Pinned**: the 60-second film (`video/out/vise-promo.mp4`, scored) quoting
-  the Article: https://x.com/ViseDotFun/status/2102929605917032625
-- Highlights: the film, the Article, the thread.
-- Scheduled (X native scheduler, account local time): Sep 24 9:21 AM vertical
-  cut · Sep 24 6 PM explainer · Sep 25 10 AM creator card · Sep 25 7 PM
-  penalty card · Sep 26 11 AM flow card · Sep 26 8 PM close card · Sep 27
-  12 PM cannot-do card · Sep 28 10 AM Google card. Manage at
-  x.com/compose/post/unsent/scheduled.
-- The Article cannot be edited once published without unpublishing (which
-  changes its URL and breaks the pinned quote), so it stays as is; the film
-  is on the site at vise.fun (home) instead.
-- Thread (14 posts, teaser on the first; no longer pinned):
-  https://x.com/ViseDotFun/status/2102748079682195471
-- X Article "Selling is free. Holding is not.":
-  https://x.com/ViseDotFun/status/2102756902497071221 (also https://vise.fun/article)
-- 16 standalone posts with the stills from `video/out/cards`, one product
-  screenshot (launch form). Post 12 shipped without the raw program ID:
-  a bare base58 address in a new account's post was silently dropped to
-  drafts; it links the security page instead.
-- Following: pump.fun, Solana, wallets, aggregators, sister products.
-  Replies left on six live fee-routing / holder-reward conversations.
-- Profile: avatar and banner from `scripts/render-profile.sh`; the
-  checkmark shows "Under review" after the name/photo change, per X.
+Posting payloads: `scripts/x-thread.json` (the thread, one object per post:
+`text`, optional `media`) and `scripts/x-article.json` (the X Article: `title`
+and `blocks` of `["h", text]`, `["p", text]`, `["ul", [items]]`). Media paths
+point at the renders in `video/out/`.
 
-Posting tooling: `scripts/x-thread.json` and `scripts/x-article.json` are
-the exact payloads; they were driven through the real composer in the
-logged-in browser (CDP input, `DOM.setFileInputFiles` for media).
+Do not post before the mainnet checklist in `docs/RUNBOOK.md` is complete: the
+copy describes a live product.
 
-Voice rules, applied to everything below: no emoji, no "gm", no "wagmi", no
-rocket metaphors, no "revolutionary". Short declarative sentences. Every claim
-is a number or a mechanism. Attach the real product screenshot, never a mockup.
+## Voice rules
+
+From `docs/BRAND.md`, applied to everything below: confident, plain, a little
+dreamy. "Imagine" opens headlines, not every line. No emoji, no "gm", no rocket
+metaphors, no price or yield promises, no "guaranteed". Every claim is a
+mechanism or one of the allowed facts. Never promise how much StonkFun forwards.
+Attach real product screenshots, never mockups. No raw base58 addresses in posts
+from a new account (they get silently dropped to drafts); link the security page.
+
+## Assets
+
+| Asset | File | Use |
+|---|---|---|
+| Promo film, 1920×1080, ~58 s | `video/out/imagine-promo.mp4` | Pinned post, quoting the Article |
+| Teaser, ~15 s | `video/out/imagine-teaser.mp4` | Thread post 1 |
+| Explainer, ~30 s | `video/out/imagine-explainer.mp4` | Day 2 standalone |
+| Vertical, 1080×1920, ~15 s | `video/out/imagine-vertical.mp4` | Day 1 evening standalone |
+| Card "Imagine the chart if nobody sold." | `video/out/cards/01-imagine.png` | Standalone |
+| Card "Lock the meme. Earn the stock." | `video/out/cards/02-stock.png` | Thread post 2 |
+| Card "Every trade pays the people who lock." | `video/out/cards/03-flow.png` | Thread post 3 |
+| Card "Lock longer, earn a bigger cut." | `video/out/cards/04-dial.png` | Thread post 4 |
+| Card "Paid in NVDAx, not promises." | `video/out/cards/05-promises.png` | Standalone |
+| Card "Selling is free. It just costs you the stream." | `video/out/cards/06-stream.png` | Thread post 6 |
+| Card "No admin withdraw path. Creator locks first." | `video/out/cards/07-rules.png` | Thread post 7 |
+| Avatar / banner | `video/out/profile/avatar.png`, `banner.png` | Profile |
+
+Cards render from `video/src/cards.ts` with `scripts/render-cards.sh`; films with
+`scripts/render-video.sh`; profile images with `scripts/render-profile.sh`.
+
+## Profile
+
+- Name: IMAGINE
+- Bio: Lock the meme. Earn the stock. Lock-to-earn for StonkFun coins: every
+  trade pays the holders who lock, in the asset the coin is paired with.
+- Website: imagine.fun
 
 ---
 
-## 1. Launch thread (pin this)
+## 1. Launch thread (pin until the film post replaces it)
 
-**1/**
-Every memecoin has exactly one real revenue stream: the fees people pay to trade
-it.
+Exact text is in `scripts/x-thread.json`; this is the readable copy.
 
-That money goes to a launchpad and a dev wallet. Never to the people actually
-holding the thing.
+**1/** *[video/out/imagine-teaser.mp4]*
+Imagine everyone locks.
 
-VISE changes where it lands.
+Every trade on a memecoin pays a fee. On most launchpads none of it reaches the
+people holding the coin.
 
-*[attach: video/out/vise-teaser.mp4 — 12s, with score]*
+On IMAGINE, it goes to the holders who lock — paid in the stock the coin is
+paired with.
 
-Long version: vise.fun/article
+imagine.fun
 
-**2/**
-Launch a coin on pump.fun through VISE and its fee stream gets pointed at a vault
-for its holders.
+**2/** *[cards/02-stock.png]*
+Lock the meme. Earn the stock.
 
-Not by a promise. By pump's own fee-sharing program, with an instruction that
-revokes its own admin.
+IMAGINE coins launch on StonkFun, where every coin is paired with an asset: an
+xStock like NVDAx or SPYx, a stablecoin, or SOL.
 
-After it lands, nobody can redirect it. Not the dev. Not us.
+A coin paired with NVDAx pays its lockers NVDAx. A SOL-paired coin pays SOL.
 
-**3/**
-Two streams flow into that vault, both in SOL:
+**3/** *[cards/03-flow.png]*
+Two streams, both in the coin's pair asset:
 
-— 2% of the SOL on every trade routed through vise.fun
-— the coin's pump.fun creator fees, in full
+— 1% of each trade routed through imagine.fun, paid into the coin's pool in
+the same tx
+— the creator share StonkFun forwards to the coin's creator address: its pool
+vault
 
-90% of it is paid to lockers. 10% runs VISE. The creator's cut is zero: they
-earn the way everyone else does, by locking.
+90% streams to lockers by weight. 10% to treasury.
 
-No emissions. No printed tokens. No treasury subsidy. Just the fees that were
-always being paid, going somewhere else.
-
-**4/**
-To earn from it, you lock.
-
+**4/** *[cards/04-dial.png]*
 Your weight is your amount times your term, on a square-root curve so short
-locks are still worth making:
+locks still count:
 
-7d → 1.00×
-30d → 1.76×
-90d → 2.44×
-180d → 3.09×
+4h → 1.00×
+1d → 1.14×
+7d → 1.41×
+30d → 1.86×
+90d → 2.49×
+180d → 3.11×
 365d → 4.00×
 
-Lock 0.1% of supply or more and a size tier adds up to 50% on top. Same bag,
-up to six times the claim on the same stream.
-
-*[attach: multiplier ladder screenshot]*
+Lock 0.1% of supply or more and a size tier adds up to 50% on top.
 
 **5/**
 Claiming never touches your lock. Your lock never blocks a claim.
 
-You can harvest every day of a one-year position and the position does not move.
+Fees stream in over an hour instead of landing at once, so a share is earned by
+holding through time, not by showing up at the right second.
 
-**6/**
-Breaking a lock early costs two things, and both go to the people who stayed:
+**6/** *[cards/06-stream.png]*
+Selling is free. It just costs you the stream.
 
-— unclaimed rewards are forfeited and redistributed
-— a slice of principal is burned, scaled by how much of your term is left
+Break a lock early and your unclaimed rewards go back to the people who stayed,
+and a slice of your principal is burned, scaled by how much of your term is
+left.
 
-Leave on day 1 of 100, it hurts. Leave on day 99, it barely registers.
+**7/** *[cards/07-rules.png]*
+What the program cannot do:
 
-**7/**
-The part that matters is what the program cannot do.
-
-There is no instruction that moves a pool's SOL or tokens to an admin. Not
-disabled. Not timelocked. It does not exist in the bytecode.
+— no admin withdraw path. No instruction moves a pool's funds to an admin
+— terms are frozen on each pool at launch
+— claims and unlocks cannot be paused
+— the creator locks first, in the launch transaction
 
 **8/**
-A pool's terms — fee split, multiplier curve, penalty, lock bounds — are copied
-onto it at creation and are immutable.
+Launching takes one transaction: the coin is created on StonkFun, the dev buy
+lands, and the creator's founding lock opens — together.
 
-We can change the defaults for future coins. We cannot touch yours.
+The coin trades on StonkFun's curve and shows up where StonkFun coins do.
 
 **9/**
-The pause switch blocks new pools. That is all it can do.
-
-Claiming and unlocking are not pausable. There is no code path that would let
-them be.
+No wallet? Sign in with Google and get a Solana address held for you. Lock,
+claim, withdraw or export the key whenever you want.
 
 **10/**
-Creators cannot open a pool without locking their own bag in the same
-instruction.
+The honest part: a coin nobody trades pays nothing, and a locked bag can't be
+sold for free into a decline. Every rate on the site is trailing, realised fees.
+Nothing is projected.
 
-They are exposed before anyone else is, and the amount and term are public on
-the coin's page from block one.
+Source, tests and the security review: imagine.fun/docs/security
 
 **11/**
-Rounding always favours the pool.
+Imagine the chart if nobody sold.
 
-A randomised test drives thousands of locks, deposits, claims and exits and
-asserts, after every single step, that the vault can still pay everyone it owes.
+imagine.fun
 
-**12/**
-What this does not do: make a bad coin good.
+## 2. Pinned film post
 
-The coin can still go to zero, and locking makes that worse because you cannot
-sell into the decline for free. A coin with no volume pays nothing.
+*[video/out/imagine-promo.mp4]*, quoting the Article once it is published:
 
-That is the honest version.
+> Imagine everyone locks.
+>
+> Launch a coin on StonkFun, paired with any stock. Every trade pays the holders
+> who lock it — in the stock it's paired with. Lock longer, earn a bigger cut.
+>
+> imagine.fun
 
-**13/**
-vise.fun
+## 3. Standalone posts (one or two a day after launch)
 
-Hold under pressure.
+1. *[video/out/imagine-vertical.mp4]* — Lock the meme. Earn the stock.
+   imagine.fun
+2. *[video/out/imagine-explainer.mp4]* — Thirty seconds on where the fee goes:
+   from the trade, into the coin's pool, out to the people who locked it, in the
+   asset it's paired with.
+3. *[cards/05-promises.png]* — Paid in NVDAx, not promises. 90% of each pool's
+   inflow streams to its lockers by weight. Terms frozen per pool.
+4. *[cards/01-imagine.png]* — Imagine the chart if nobody sold. The homepage
+   lets you try it: one slider, "How many holders lock?" Illustrative, and
+   labelled that way.
+5. *[launch form screenshot]* — Pick the pair. Name the coin. Set your founding
+   lock. One transaction puts it on StonkFun with its pool already open.
+6. *[portfolio screenshot]* — Claim whenever you like. The lock doesn't move.
+7. Text only — Selling is free. It just costs you the stream.
 
----
+## 4. Article
 
-## 2. Twenty posts, with their visuals
-
-Visuals render from `video/src/cards.ts` via `scripts/render-cards.sh` into
-`video/out/cards/NN-*.png`. Post in this order, roughly two a day, the thread
-pinned above them. Each post stands alone; none needs the one before it.
-
-01 · `01-thesis.png`
-> Selling is free. Holding is not.
-> Every platform in this market pays for the first and charges for the second.
-> That is backwards and it is fixable. vise.fun
-
-02 · `02-revenue.png`
-> A memecoin has exactly one revenue stream: the fee people pay to trade it.
-> On pump.fun that is about 1% of every buy and sell, in SOL, for the life of
-> the coin. Follow where it goes. None of it reaches the people holding.
-
-03 · `03-flow.png`
-> Trade a VISE coin: 2% of the SOL goes into that coin's vault, inside the same
-> transaction as the swap. If the trade fails, the fee is never taken.
-> Lock the coin: you own a slice of the vault. Claim whenever.
-
-04 · `04-split.png`
-> One split, frozen on the pool at creation: 90% to lockers, 10% to VISE, 0% to
-> the creator. A creator earns the way everyone does, by locking, and their
-> founding lock is public from block one.
-
-05 · `05-ladder.png`
-> Longer locks take more. A square-root curve from 1× at seven days to 4× at
-> a year: 30d already counts 1.76×, 90d counts 2.44×. Short locks are still
-> worth making. Long ones are worth more.
-
-06 · `06-tiers.png`
-> Size counts too. Lock 0.1% of supply and your weight gets +10%. Half a
-> percent, +25%. A full percent, +50%. Tiers are a share of total supply, so
-> everyone is measured on the same scale.
-
-07 · `07-vise-30.png`
-> Thirty days. Already 1.76×.
-
-08 · `08-vise-365.png`
-> A year. Four times the claim on the same stream. Six times, if it is a
-> percent of the supply.
-
-09 · `09-claim.png`
-> Claiming never touches the lock. The lock never blocks a claim.
-> Harvest a year-long position every day; the position does not move.
-
-10 · `10-penalty.png`
-> You can always break a lock. Your unclaimed rewards go to the people who
-> stayed. Part of your principal burns, scaled by the time you did not serve.
-> Exits should cost something. Here they pay the people who didn't take one.
-
-11 · `11-cannot.png`
-> What the program cannot do: move a pool's money to an admin, change a pool's
-> terms, pause a claim, or redirect the fee stream. None of those are disabled.
-> None are timelocked. The instructions do not exist.
-
-12 · `12-program.png`
-> "Trust us" is not a security model. Zero admin withdraw instructions in the
-> bytecode. Read it: VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb
-
-13 · `13-creator.png`
-> To creators: launch through VISE and your fee stream pays the people who did
-> not sell your coin. You take 0% by default and earn by locking your own bag.
-> That is the pitch to your holders, and it is true.
-
-14 · `14-google.png`
-> No wallet? Sign in with Google. You get an ordinary Solana address, held for
-> you. Send coins to it, lock from it, withdraw whenever. Export the key any
-> time. There is no step where we get to say no.
-
-15 · `15-apr.png`
-> Every APR on the site is trailing realised fees divided by locked value.
-> Nothing is projected. Nothing is annualised from one good hour. If a coin
-> stops trading its number goes to zero, and it should.
-
-16 · `16-honest.png`
-> This does not make a bad coin good. A coin with no volume pays nothing.
-> A locked bag in a coin going to zero is worse than an unlocked one.
-> If you were not going to hold, do not lock. That is the honest version.
-
-17 · `17-rounding.png`
-> Rounding always favours the pool. A randomised test drives thousands of
-> locks, deposits, claims and exits and asserts, after every single step, that
-> the vault can still pay everyone it owes.
-
-18 · `18-launch.png`
-> Launching takes one form: name, ticker, an image from your disk, a dev buy,
-> and how much of it you lock. Create on pump.fun, open the pool, route the
-> fees. The routing call is the last signature and it revokes its own admin.
-
-19 · `19-staking.png`
-> "So it is staking?" Staking pays you in newly printed tokens and dilutes
-> everyone else. This pays you in SOL that traders already spent. Nothing is
-> minted. The APR is realised fees, trailing.
-
-20 · `20-close.png`
-> Hold under pressure. vise.fun
-
-## 3. Standalone replies and older post drafts
-
-**The thesis**
-> Selling is free. Holding is not.
-> Every platform in this market pays for the first and charges for the second.
-> That is backwards and it is fixable.
-
-**The mechanism, in one post**
-> Trade a VISE coin: 2% of the SOL goes into that coin's vault.
-> Lock the coin: you own a slice of the vault, sized by how long and how much
-> you committed.
-> Claim whenever. The lock never blocks it.
-> That is the entire product.
-
-**No wallet needed**
-> Sign in with Google. You get a Solana wallet held for you: send SOL or a
-> coin to it, lock from it, withdraw whenever, export the key any time.
-> No extension. No seed phrase to lose on day one.
-
-**On trust**
-> "Trust us" is not a security model.
-> The fee routing revokes its own admin. The pool terms are immutable after
-> creation. There is no admin withdraw instruction in the program.
-> Read it: VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb
-
-**On the penalty**
-> You can always break a lock.
-> Your unclaimed rewards go to the people who stayed. Part of your principal
-> burns, scaled by the time you did not serve.
-> Exits should cost something. Here they pay the people who didn't take one.
-
-**On APR**
-> Every APR on this site is trailing realised fees divided by locked value.
-> Nothing is projected. Nothing is annualised from one good hour.
-> If a coin stops trading, its number goes to zero, and it should.
-
-**Creator-facing**
-> Launch through VISE and your fee stream pays the people who did not sell
-> your coin. 90% to lockers, 10% to VISE, 0% to you by default.
-> You earn by locking your own bag, same as everyone. Your founding lock is
-> public from block one. That is the pitch to your holders, and it is true.
-
-**The comparison**
-> pump.fun pays holders a share of creator fees.
-> VISE pays them by time committed, on any coin, with the split frozen at launch
-> and the routing unable to be revoked.
-> Same stream. Different question: who actually stayed?
-
----
-
-## 4. Launch-week sequence
-
-**Day 0 — 14:00 UTC**
-Pin the thread. Post the teaser. Reply to the pin with the program ID and a link
-to the tests.
-
-**Day 1**
-Post the explainer video. One reply with the multiplier table as a screenshot
-from the live app.
-
-**Day 2**
-"First coin clamped" — screenshot of a real coin page showing supply clamped and
-SOL paid out. Numbers only, no adjectives.
-
-**Day 3**
-The security post: what the program cannot do, five bullets, link to the source.
-
-**Day 4**
-Creator thread: how to launch, what you keep, what you give up. Direct link to
-/launch.
-
-**Day 5**
-Leaderboard screenshot. Top earners, real SOL claimed.
-
-**Day 7**
-One-week numbers: total fees routed, SOL paid to lockers, percentage of supply
-clamped across all pools, longest live lock.
-
----
-
-## 5. Replies worth having ready
-
-**"So it's just staking?"**
-> Staking usually pays you in newly printed tokens, which dilutes you. This pays
-> you in SOL that traders already spent. Nothing is minted.
-
-**"What stops you rugging the vault?"**
-> The absence of an instruction that could. There is no admin transfer path in
-> the program. Pause only blocks new pools; it cannot touch claims or unlocks.
-
-**"Why would I lock in a memecoin?"**
-> Mostly you shouldn't. If you were going to hold anyway, this pays you for the
-> holding you were already doing. If you weren't, don't lock.
-
-**"What's the catch?"**
-> Illiquidity. You cannot sell a locked bag without burning part of it. That is
-> the entire cost, and it is the point.
+Title: **Lock the meme. Earn the stock.** Full text in `scripts/x-article.json`
+(also at imagine.fun/article). Once published an X Article cannot be edited
+without changing its URL, so proof it against the live site first.

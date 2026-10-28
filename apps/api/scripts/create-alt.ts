@@ -1,90 +1,115 @@
 /**
- * Create (or top up) the address lookup table that lets a launch's create_v2
- * and dev buy share one transaction. Without it that pair is ~1457 bytes, over
- * the 1232-byte packet limit, and the dev buy has to follow in its own
- * transaction where bots can buy ahead of it.
+ * Create (or top up) the address lookup table that lets a launch —
+ * imagine.launch (LaunchLab initialize CPI), the dev buy and imagine.found —
+ * fit in one transaction. Without it the three overrun the 1232-byte packet
+ * and the launch is split, exposing the dev buy to anyone buying in between.
+ * Trades use it too when they would not fit as a legacy transaction.
  *
  * Usage: RPC_URL=… node scripts/create-alt.ts <payer-keypair.json> [existing-table]
  *
- * The table holds every account of create_v2 + buy_v2 that does not depend on
- * the mint or the creator: pump's programs and globals, the fee program and
- * its config, event authorities, the mayhem accounts, every fee and buyback
- * recipient with its WSOL account, and the token/system programs. They are
- * found by building the launch instructions for two unrelated mint/creator
- * pairs many times over (the fee recipients are picked at random per build)
- * and keeping what the two sets share, so the list follows pump-sdk rather
- * than a hand-kept copy.
+ * The table holds every account of a launch or trade that does not depend on
+ * the coin or the creator:
+ *  - programs and sysvars: IMAGINE, LaunchLab, CPMM, Token, Token-2022,
+ *    associated token, system, compute budget;
+ *  - IMAGINE's config and treasury, StonkFun's platform config, LaunchLab's
+ *    authority and event authority, CPMM's authority and StonkFun's AmmConfig;
+ *  - per launchable quote: its mint, LaunchLab GlobalConfig, StonkFun's
+ *    allow-config and curve-rule PDAs for it, and StonkFun's fee vault for it.
+ * A table holds at most 256 addresses, so quotes are added SOL first, then
+ * stablecoins, funds and stocks, then the rest, until it is full.
  *
  * Idempotent: pass the table (argument or LAUNCH_ALT) and it only appends
  * what is missing; a table is append-only, so existing entries never move.
  * Prints the address to set as LAUNCH_ALT on the API.
  */
 import { readFileSync } from "node:fs";
-import { BN } from "@coral-xyz/anchor";
-import { NATIVE_MINT, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import {
   AddressLookupTableProgram,
+  ComputeBudgetProgram,
+  Connection,
   Keypair,
   PublicKey,
   sendAndConfirmTransaction,
+  SystemProgram,
   Transaction,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { createAndBuyInstructions, onlinePump } from "../src/pump.ts";
-import { connection } from "../src/solana.ts";
+import {
+  configPda,
+  CPMM_PROGRAM_ID,
+  cpmmAuthorityPda,
+  IMAGINE_PROGRAM_ID,
+  ImagineClient,
+  LAUNCHLAB_PROGRAM_ID,
+  launchLabAuthorityPda,
+  launchLabEventAuthorityPda,
+  platformAllowConfigPda,
+  platformCurveRulePda,
+  platformFeeVaultPda,
+  quoteByMint,
+  STONKFUN_CPMM_CONFIG,
+  STONKFUN_PLATFORM,
+} from "@imagine/sdk";
+import { launchableQuotes } from "../src/quotes.ts";
 
 /** Addresses per extend transaction; 20 keeps it well inside a legacy packet. */
 const EXTEND_CHUNK = 20;
-/** Builds per mint/creator pair; enough to draw every randomly chosen recipient. */
-const SAMPLES = 200;
+const TABLE_CAPACITY = 256;
 
 const keypairPath = process.argv[2];
 if (!keypairPath) {
   console.error("usage: node scripts/create-alt.ts <payer-keypair.json> [existing-table]");
   process.exit(1);
 }
-const payer = Keypair.fromSecretKey(
-  Uint8Array.from(JSON.parse(readFileSync(keypairPath, "utf8")) as number[]),
-);
+const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(keypairPath, "utf8")) as number[]));
 const existingArg = process.argv[3] ?? process.env.LAUNCH_ALT;
+const connection = new Connection(process.env.RPC_URL ?? "http://127.0.0.1:8999", "confirmed");
 
-const global = await onlinePump.fetchGlobal();
+const config = await new ImagineClient(connection).fetchConfig();
+if (!config) throw new Error("IMAGINE config is not initialised on this cluster; run scripts/init-config.ts first");
 
-async function launchKeys(): Promise<Set<string>> {
-  const mint = Keypair.generate().publicKey;
-  const creator = Keypair.generate().publicKey;
-  const keys = new Set<string>();
-  for (let i = 0; i < SAMPLES; i += 1) {
-    const instructions = await createAndBuyInstructions({
-      global,
-      mint,
-      creator,
-      name: "x",
-      symbol: "x",
-      uri: "https://x",
-      devBuyLamports: 1_000_000_000n,
-      tokensOut: new BN(1),
-    });
-    for (const ix of instructions) {
-      keys.add(ix.programId.toBase58());
-      for (const meta of ix.keys) if (!meta.isSigner) keys.add(meta.pubkey.toBase58());
-    }
-  }
-  return keys;
-}
+const common = [
+  IMAGINE_PROGRAM_ID,
+  configPda(),
+  config.treasury,
+  LAUNCHLAB_PROGRAM_ID,
+  launchLabAuthorityPda(),
+  launchLabEventAuthorityPda(),
+  STONKFUN_PLATFORM,
+  CPMM_PROGRAM_ID,
+  cpmmAuthorityPda(),
+  STONKFUN_CPMM_CONFIG,
+  TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  SystemProgram.programId,
+  ComputeBudgetProgram.programId,
+];
 
-const [a, b] = await Promise.all([launchKeys(), launchKeys()]);
-const wanted = new Set([...a].filter((key) => b.has(key)));
-// Every fee recipient pump's global lists, drawn or not, with its WSOL account.
-for (const recipient of [global.feeRecipient, ...global.feeRecipients]) {
-  wanted.add(recipient.toBase58());
-  wanted.add(getAssociatedTokenAddressSync(NATIVE_MINT, recipient, true, TOKEN_PROGRAM_ID).toBase58());
+const CATEGORY_ORDER = ["currencies", "etfs", "stocks", "commodities", "crypto"];
+const rank = (mint: string, category: string) =>
+  mint === NATIVE_MINT.toBase58() ? -1 : (CATEGORY_ORDER.indexOf(category) + 1 || 99);
+const quotes = (await launchableQuotes()).sort((a, b) => rank(a.mint, a.category) - rank(b.mint, b.category));
+
+const wanted: PublicKey[] = [...common];
+for (const quote of quotes) {
+  if (wanted.length + 5 > TABLE_CAPACITY) break;
+  const registry = quoteByMint(quote.mint);
+  if (!registry) continue;
+  const globalConfig = new PublicKey(registry.globalConfig);
+  const mint = new PublicKey(quote.mint);
+  wanted.push(
+    mint,
+    globalConfig,
+    platformAllowConfigPda(STONKFUN_PLATFORM, globalConfig),
+    platformCurveRulePda(STONKFUN_PLATFORM, globalConfig),
+    platformFeeVaultPda(STONKFUN_PLATFORM, mint),
+  );
 }
 
 async function send(instructions: TransactionInstruction[]): Promise<string> {
-  return sendAndConfirmTransaction(connection, new Transaction().add(...instructions), [payer], {
-    commitment: "confirmed",
-  });
+  return sendAndConfirmTransaction(connection, new Transaction().add(...instructions), [payer], { commitment: "confirmed" });
 }
 
 let table: PublicKey;
@@ -110,9 +135,17 @@ if (existingArg) {
   console.log(`created ${address.toBase58()} (${signature})`);
 }
 
-const missing = [...wanted].filter((key) => !present.has(key)).map((key) => new PublicKey(key));
-for (let i = 0; i < missing.length; i += EXTEND_CHUNK) {
-  const chunk = missing.slice(i, i + EXTEND_CHUNK);
+const seen = new Set(present);
+const missing = wanted.filter((key) => {
+  const id = key.toBase58();
+  if (seen.has(id)) return false;
+  seen.add(id);
+  return true;
+});
+const room = TABLE_CAPACITY - present.size;
+const toAdd = missing.slice(0, room);
+for (let i = 0; i < toAdd.length; i += EXTEND_CHUNK) {
+  const chunk = toAdd.slice(i, i + EXTEND_CHUNK);
   const signature = await send([
     AddressLookupTableProgram.extendLookupTable({
       lookupTable: table,
@@ -124,9 +157,11 @@ for (let i = 0; i < missing.length; i += EXTEND_CHUNK) {
   console.log(`extended with ${chunk.length} (${signature})`);
 }
 
+const added = Math.min(missing.length, room);
 console.log(
-  missing.length === 0
-    ? `${table.toBase58()} already holds all ${wanted.size} launch addresses`
-    : `${table.toBase58()} now holds ${present.size + missing.length} addresses (${missing.length} added); usable from the next slot`,
+  added === 0
+    ? `${table.toBase58()} already holds every launch address it has room for (${present.size})`
+    : `${table.toBase58()} now holds ${present.size + added} addresses (${added} added); usable from the next slot`,
 );
+if (missing.length > room) console.warn(`${missing.length - room} addresses did not fit; those quotes launch without them`);
 console.log(`LAUNCH_ALT=${table.toBase58()}`);

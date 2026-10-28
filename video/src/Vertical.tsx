@@ -1,157 +1,87 @@
-import { AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame } from "remotion";
-import { COLORS, FONTS, FPS, clampEase, daysFor, multiplierFor } from "./theme";
-import { Grain, Knurl } from "./chrome";
-import { Vise } from "./Vise";
+import { AbsoluteFill, Audio, staticFile, useCurrentFrame } from "remotion";
+import { Backdrop, Card, Chart, Dial, Dream, Eyebrow, Grain, PairPill, appear, fadeOut } from "./kit";
+import { CloseScene, Scene } from "./Promo";
+import { COLORS, FONTS, easeInOut, s } from "./theme";
 
-/**
- * 15-second 9:16 cut for the feed.
- *
- * Built for sound-off viewing at thumbnail size: one line of type per beat,
- * huge numbers, and the mechanism doing the talking.
- */
-export const VERTICAL_DURATION = 15 * FPS;
+/** 15 s at 1080×1920 for X and TikTok: dump, heal, commit, mark. */
+export const VERTICAL_DURATION = s(15);
 
-const BEATS = [
-  { at: 0, lines: ["You held.", "You got nothing."] },
-  { at: 3.2, lines: ["They sold.", "They got paid."] },
-  { at: 6.4, lines: ["VISE flips it."] },
-];
+const headline: React.CSSProperties = { fontWeight: 800, letterSpacing: "-0.035em", lineHeight: 1.04 };
 
 export function Vertical() {
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.ground }}>
+    <AbsoluteFill style={{ backgroundColor: COLORS.ink, fontFamily: FONTS.sans, color: COLORS.fg }}>
       <Audio src={staticFile("vertical.wav")} />
-      <Knurl />
-      {BEATS.map((beat, index) => (
-        <Sequence
-          key={beat.at}
-          from={beat.at * FPS}
-          durationInFrames={(index === BEATS.length - 1 ? 2.6 : 3.2) * FPS}
-        >
-          <Lines lines={beat.lines} />
-        </Sequence>
-      ))}
-      <Sequence from={9 * FPS} durationInFrames={6 * FPS}>
-        <Payoff />
-      </Sequence>
+      <Scene at={[0, 7.5]}>
+        <ChartBeat />
+      </Scene>
+      <Scene at={[7.5, 11.25]}>
+        <DialBeat />
+      </Scene>
+      <Scene at={[11.25, 15]} last>
+        <CloseScene scale={0.9} speed={1.5} />
+      </Scene>
       <Grain />
     </AbsoluteFill>
   );
 }
 
-function Lines({ lines }: { lines: string[] }) {
+function ChartBeat() {
   const frame = useCurrentFrame();
+  const reveal = easeInOut(frame / s(3.2));
+  const calm = easeInOut((frame - s(3.8)) / s(2.6));
   return (
-    <AbsoluteFill style={{ justifyContent: "center", padding: "0 90px" }}>
-      {lines.map((line, index) => {
-        const a = clampEase((frame - index * 0.28 * FPS) / (0.45 * FPS));
-        return (
-          <div
-            key={line}
-            style={{
-              fontFamily: FONTS.display,
-              fontSize: 118,
-              lineHeight: 1.02,
-              letterSpacing: "-0.03em",
-              color: index === 0 ? COLORS.heading : COLORS.torch,
-              opacity: a,
-              transform: `translateY(${(1 - a) * 34}px)`,
-            }}
-          >
-            {line}
+    <AbsoluteFill>
+      <Backdrop glow={0.15 + calm * 0.85} glowX={50} glowY={65} />
+      <div style={{ position: "absolute", left: 90, right: 90, top: 260, height: 420 }}>
+        <div style={{ position: "absolute", inset: 0, opacity: fadeOut(frame, s(3.3), 10) }}>
+          <div style={appear(frame, 4)}>
+            <Eyebrow size={26}>A meme, paired with a stock</Eyebrow>
           </div>
-        );
-      })}
+          <div style={{ ...headline, fontSize: 104, marginTop: 30, ...appear(frame, 10) }}>You know how this chart ends.</div>
+        </div>
+        <div style={{ position: "absolute", inset: 0 }}>
+          <div style={appear(frame, s(3.5))}>
+            <Eyebrow size={26}>Now</Eyebrow>
+          </div>
+          <div style={{ ...headline, fontSize: 116, marginTop: 30, ...appear(frame, s(3.7)) }}>
+            Imagine <Dream>nobody sold.</Dream>
+          </div>
+        </div>
+      </div>
+      <div style={{ position: "absolute", left: 60, right: 60, top: 820, ...appear(frame, 0, 20, 40) }}>
+        <Card style={{ padding: "32px 34px 36px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              <div style={{ fontFamily: FONTS.mono, fontWeight: 500, fontSize: 30 }}>$MEME</div>
+              <PairPill ticker="NVDAx" size={20} />
+            </div>
+            <div style={{ fontFamily: FONTS.mono, fontSize: 17, letterSpacing: "0.18em", color: COLORS.muted }}>ILLUSTRATIVE</div>
+          </div>
+          <Chart width={890} height={760} calm={calm} reveal={reveal} line={calm} count={36} />
+        </Card>
+      </div>
     </AbsoluteFill>
   );
 }
 
-function Payoff() {
+function DialBeat() {
   const frame = useCurrentFrame();
-  const grip = clampEase(Math.min(frame / (2.6 * FPS), 1));
-  const days = daysFor(grip);
-  const multiplier = multiplierFor(days);
-
+  const commitment = easeInOut((frame - 8) / s(2.6));
   return (
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", gap: 70 }}>
-      <div style={{ textAlign: "center" }}>
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 26,
-            letterSpacing: "0.22em",
-            color: COLORS.muted,
-          }}
-        >
-          LOCK FOR
+    <AbsoluteFill>
+      <Backdrop glow={0.4 + commitment * 0.6} glowX={50} glowY={62} />
+      <div style={{ position: "absolute", left: 90, right: 90, top: 250 }}>
+        <div style={{ ...headline, fontSize: 116, ...appear(frame, 4) }}>Lock the meme.</div>
+        <div style={{ ...headline, fontSize: 116, ...appear(frame, 14) }}>
+          <Dream>Earn the stock.</Dream>
         </div>
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 150,
-            color: COLORS.heading,
-            lineHeight: 1,
-          }}
-        >
-          {days}
-          <span style={{ fontSize: 60, color: COLORS.muted }}>d</span>
+        <div style={{ fontSize: 36, lineHeight: 1.4, color: COLORS.fgSoft, marginTop: 36, ...appear(frame, 24) }}>
+          Every trade pays the holders who lock, in the stock it's paired with.
         </div>
       </div>
-
-      <Vise grip={grip} width={900} showScrew={false} />
-
-      <div style={{ textAlign: "center" }}>
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 26,
-            letterSpacing: "0.22em",
-            color: COLORS.muted,
-          }}
-        >
-          EARN
-        </div>
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 150,
-            color: COLORS.torch,
-            lineHeight: 1,
-          }}
-        >
-          {multiplier}×
-        </div>
-      </div>
-
-      <div
-        style={{
-          position: "absolute",
-          bottom: 120,
-          textAlign: "center",
-          width: "100%",
-        }}
-      >
-        <div
-          style={{
-            fontFamily: FONTS.display,
-            fontSize: 92,
-            letterSpacing: "-0.04em",
-            color: COLORS.heading,
-          }}
-        >
-          VISE
-        </div>
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 28,
-            letterSpacing: "0.2em",
-            color: COLORS.torch,
-            marginTop: 10,
-          }}
-        >
-          VISE.FUN
-        </div>
+      <div style={{ position: "absolute", left: 165, top: 900, ...appear(frame, 6, 20, 30) }}>
+        <Dial size={750} commitment={commitment} />
       </div>
     </AbsoluteFill>
   );

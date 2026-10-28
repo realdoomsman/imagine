@@ -1,106 +1,157 @@
 "use client";
 
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { ECONOMICS, appFeeLamports, exactAmount, formatSol, formatTokenAmount } from "@imagine/sdk";
+import { exactAmount, formatPercent, formatTokenAmount } from "@imagine/sdk";
+import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { useCallback, useState } from "react";
+import type { QuoteInfo } from "@/lib/api";
+import { decimalInput, formatAmount, formatNumber, formatQuote, parseAmount, usdSuffix } from "@/lib/format";
 import { useActor } from "@/lib/signer";
 import { useTokenBalance } from "@/lib/use-token-balance";
+import { QuoteLogo } from "./pair-pill";
 import { SignInPrompt } from "./sign-in-prompt";
 
-const PRESETS = [0.1, 0.5, 1, 5];
+/** Lamports a "max" SOL spend leaves behind for fees and token-account rent. */
+const SOL_FEE_RESERVE = 10_000_000n;
+const SLIPPAGE_OPTIONS = [100, 300, 500] as const;
+const SOL: Pick<QuoteInfo, "symbol" | "decimals" | "logoUrl" | "usdPrice"> = {
+  symbol: "SOL",
+  decimals: 9,
+  logoUrl: null,
+  usdPrice: null,
+};
 
 /**
- * Buy and sell through pump's bonding curve with the VISE fee attached.
+ * Buy and sell in the coin's pair asset, with the Imagine fee attached.
  *
- * The fee is shown before the user signs, in SOL and as a percentage, and it is
- * named for what it is: the money that goes to this coin's lockers.
+ * On the bonding curve the trade goes through LaunchLab; after migration
+ * through the Raydium pool. Either way the fee is shown before signing, in
+ * the pair asset, and named for what it is: money for this coin's lockers.
+ * A buyer without the pair asset can pay in SOL, swapped into it first.
  */
 export function SwapPanel({
   mint,
   symbol,
-  priceLamports,
-  graduated,
+  coinDecimals,
+  coinTokenProgram,
+  quote,
+  priceQuote,
+  tradeFeeBps,
+  migrating,
+  stonkfunUrl,
 }: {
   mint: string;
   symbol: string;
-  priceLamports: number;
-  graduated: boolean;
+  coinDecimals: number;
+  coinTokenProgram: string;
+  quote: QuoteInfo;
+  /** Pair units per whole coin at spot; null when unknown. */
+  priceQuote: number | null;
+  tradeFeeBps: number;
+  /** Between curve and Raydium pool: nothing can trade for a moment. */
+  migrating: boolean;
+  stonkfunUrl: string;
 }) {
   const actor = useActor();
-  const held = useTokenBalance(mint, actor.publicKey);
+  const nativeQuote = quote.mint === NATIVE_MINT.toBase58();
   const [side, setSide] = useState<"buy" | "sell">("buy");
+  const [payWithSol, setPayWithSol] = useState(false);
   const [input, setInput] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
+  const [slippageBps, setSlippageBps] = useState<number>(300);
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const amount = (() => {
-    const parsed = Number(input);
-    if (!Number.isFinite(parsed) || parsed <= 0) return 0n;
-    return side === "buy"
-      ? BigInt(Math.floor(parsed * LAMPORTS_PER_SOL))
-      : BigInt(Math.floor(parsed * 1_000_000));
-  })();
+  const coinHeld = useTokenBalance(mint, coinTokenProgram, actor.publicKey);
+  const quoteHeld = useTokenBalance(quote.mint, quote.tokenProgram, actor.publicKey);
+  const solHeld = useTokenBalance(NATIVE_MINT.toBase58(), TOKEN_PROGRAM_ID.toBase58(), actor.publicKey);
+
+  const solPays = side === "buy" && payWithSol && !nativeQuote;
+  const payAsset = side === "sell" ? null : solPays ? SOL : quote;
+  const inputDecimals = side === "sell" ? coinDecimals : solPays ? 9 : quote.decimals;
+  const held = side === "sell" ? coinHeld : solPays ? solHeld : quoteHeld;
+  const amount = parseAmount(input, inputDecimals);
+
+  // The fee is a share of the pair-asset leg: what is spent on a buy, what
+  // comes back on a sell (estimated at spot; the chain settles the exact figure).
+  const quoteLeg =
+    side === "buy"
+      ? solPays
+        ? null
+        : amount
+      : priceQuote !== null
+        ? BigInt(Math.floor((Number(amount) / 10 ** coinDecimals) * priceQuote * 10 ** quote.decimals))
+        : null;
+  const fee = quoteLeg !== null ? (quoteLeg * BigInt(tradeFeeBps)) / 10_000n : null;
+  const expectedOut =
+    priceQuote === null || priceQuote <= 0 || quoteLeg === null || fee === null
+      ? null
+      : side === "buy"
+        ? Number(quoteLeg - fee) / 10 ** quote.decimals / priceQuote
+        : Number(quoteLeg - fee) / 10 ** quote.decimals;
 
   const submit = useCallback(async () => {
     if (!actor.publicKey) return;
     setBusy(true);
     setStatus(null);
     try {
-      const signature = await actor.act({ kind: "swap", mint, side, amount: amount.toString() });
-      const fee = side === "buy" ? appFeeLamports(amount, ECONOMICS.tradeFeeBps) : null;
-      setStatus(
-        fee !== null
-          ? `Done. ${formatSol(fee)} SOL went to this coin's lockers. ${signature.slice(0, 12)}…`
-          : `Done. 2% of the SOL went to this coin's lockers. ${signature.slice(0, 12)}…`,
-      );
+      const signature = await actor.act({
+        kind: "swap",
+        mint,
+        side,
+        amount: amount.toString(),
+        slippageBps,
+        ...(solPays ? { payWithSol: true } : {}),
+      });
+      setStatus({
+        ok: true,
+        text:
+          fee !== null && fee > 0n
+            ? `Done. ${formatQuote(fee, quote)} went to this coin's lockers. ${signature.slice(0, 12)}…`
+            : `Done. ${formatPercent(tradeFeeBps / 10_000, 0)} of the ${quote.symbol} leg went to this coin's lockers. ${signature.slice(0, 12)}…`,
+      });
       setInput("");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "swap failed");
+      setStatus({ ok: false, text: error instanceof Error ? error.message : "swap failed" });
     } finally {
       setBusy(false);
     }
-  }, [actor, amount, mint, side]);
+  }, [actor, amount, fee, mint, quote, side, slippageBps, solPays, tradeFeeBps]);
 
-  if (graduated) {
+  if (migrating) {
     return (
-      <section className="panel p-6">
-        <h2 className="text-[17px]">Graduated</h2>
-        <p className="mt-2 text-[13px] text-steel-500">
-          This coin has left the bonding curve and trades on PumpSwap. Its lock
-          pool keeps earning: creator fees from the AMM are swept into the same
-          vault.
+      <section className="card p-6">
+        <h2 className="t-h3">Migrating to Raydium</h2>
+        <p className="mt-2 text-[13.5px] leading-relaxed text-fg-soft">
+          The curve has filled and the coin is moving to its Raydium pool. Trading reopens here as soon as the pool is
+          live; locks and claims keep working throughout.
         </p>
-        <a
-          href={`https://pump.fun/coin/${mint}`}
-          target="_blank"
-          rel="noreferrer"
-          className="btn btn-ghost mt-4 w-full"
-        >
-          Trade on pump.fun
+        <a href={stonkfunUrl} target="_blank" rel="noreferrer" className="btn btn-ghost mt-4 w-full">
+          Follow it on StonkFun ↗
         </a>
       </section>
     );
   }
 
-  // The fee is 2% of the SOL leg: what is spent on a buy, what comes back on
-  // a sell (estimated from the spot price; the chain settles the exact figure).
-  const solLeg = side === "buy" ? amount : BigInt(Math.round((Number(amount) / 1_000_000) * priceLamports));
-  const estimatedFee = appFeeLamports(solLeg, ECONOMICS.tradeFeeBps);
+  const insufficient = held !== null && amount > held;
 
   return (
-    <section className="panel p-6">
-      <div className="grid grid-cols-2 gap-px border border-steel-700 bg-steel-700">
+    <section className="card p-6">
+      <div className="grid grid-cols-2 gap-1 rounded-[10px] border border-line bg-ink-1 p-1">
         {(["buy", "sell"] as const).map((option) => (
           <button
             key={option}
             type="button"
-            onClick={() => setSide(option)}
-            className={`py-2 text-[13px] font-semibold uppercase tracking-wide transition-colors ${
+            onClick={() => {
+              setSide(option);
+              setInput("");
+              setStatus(null);
+            }}
+            aria-pressed={side === option}
+            className={`h-9 rounded-[7px] text-[13.5px] font-semibold capitalize transition-colors ${
               side === option
                 ? option === "buy"
-                  ? "bg-verdi/15 text-verdi"
-                  : "bg-rust/15 text-rust"
-                : "bg-steel-900 text-steel-500 hover:text-steel-300"
+                  ? "bg-mint text-ink"
+                  : "bg-rose text-ink"
+                : "text-muted hover:text-fg"
             }`}
           >
             {option}
@@ -108,70 +159,133 @@ export function SwapPanel({
         ))}
       </div>
 
-      <input
-        inputMode="decimal"
-        value={input}
-        onChange={(event) => setInput(event.target.value.replace(/[^\d.]/g, ""))}
-        placeholder="0"
-        aria-label={side === "buy" ? "SOL to spend" : `${symbol} to sell`}
-        className="input num mt-4 text-[18px]"
-      />
-      <p className="mt-1.5 text-[12px] text-steel-600">
-        {side === "buy" ? "SOL" : symbol}
-        {priceLamports > 0 && side === "buy"
-          ? ` · ~${formatSol(BigInt(Math.round(priceLamports)))} SOL per ${symbol}`
-          : ""}
-      </p>
-
-      {side === "buy" ? (
-        <div className="mt-3 flex gap-1.5">
-          {PRESETS.map((preset) => (
+      {side === "buy" && !nativeQuote ? (
+        <div className="mt-4 flex items-center gap-1.5 text-[12px]">
+          <span className="text-muted">Pay with</span>
+          {[false, true].map((sol) => (
             <button
-              key={preset}
+              key={String(sol)}
               type="button"
-              onClick={() => setInput(String(preset))}
-              className="num flex-1 rounded-machined border border-steel-700 py-1 text-[12px] text-steel-400 hover:border-steel-600/50 hover:text-steel-200"
+              onClick={() => {
+                setPayWithSol(sol);
+                setInput("");
+              }}
+              aria-pressed={payWithSol === sol}
+              className={`pill num cursor-pointer ${payWithSol === sol ? "pill-steel" : "hover:border-line-strong hover:text-fg"}`}
             >
-              {preset}
+              {sol ? "SOL" : quote.symbol}
             </button>
           ))}
-        </div>
-      ) : held !== null ? (
-        <div className="mt-3 flex items-center gap-1.5">
-          {[25, 50, 100].map((pct) => (
-            <button
-              key={pct}
-              type="button"
-              disabled={held === 0n}
-              onClick={() => setInput(exactAmount((held * BigInt(pct)) / 100n, 6))}
-              className="num flex-1 rounded-machined border border-steel-700 py-1 text-[12px] text-steel-400 hover:border-steel-600/50 hover:text-steel-200 disabled:opacity-40"
-            >
-              {pct === 100 ? "MAX" : `${pct}%`}
-            </button>
-          ))}
-          <span className="num ml-2 text-[11.5px] text-steel-500">{formatTokenAmount(held, 6)} held</span>
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-center justify-between border-t border-steel-860 pt-3 text-[12px]">
-        <span className="text-steel-500">VISE fee (2%)</span>
-        <span className="num text-torch">
-          {amount > 0n ? `${formatSol(estimatedFee)} SOL` : "—"}
-        </span>
+      <div className="mt-4">
+        <div className="flex items-baseline justify-between">
+          <label htmlFor="swap-amount" className="eyebrow">
+            {side === "buy" ? "You pay" : "You sell"}
+          </label>
+          <span className="num text-[12px] text-muted">
+            {held === null
+              ? ""
+              : side === "sell"
+                ? `${formatTokenAmount(held, coinDecimals)} $${symbol} held`
+                : `${formatAmount(held, inputDecimals)} ${payAsset!.symbol} held`}
+          </span>
+        </div>
+        <div className="relative mt-2">
+          <input
+            id="swap-amount"
+            inputMode="decimal"
+            value={input}
+            onChange={(event) => setInput(decimalInput(event.target.value))}
+            placeholder="0"
+            className="input num pr-28 text-[18px]"
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1.5 text-[13px] text-fg-soft">
+            {payAsset ? <QuoteLogo quote={payAsset} size={16} /> : null}
+            <span className="num">{payAsset ? payAsset.symbol : `$${symbol}`}</span>
+          </span>
+        </div>
+        {held !== null ? (
+          <div className="mt-2 flex gap-1.5">
+            {[25, 50, 100].map((pct) => (
+              <button
+                key={pct}
+                type="button"
+                disabled={held === 0n}
+                onClick={() => {
+                  // Spending SOL keeps a little back for network fees and new token accounts.
+                  const reserve = side === "buy" && (solPays || nativeQuote) ? SOL_FEE_RESERVE : 0n;
+                  const spendable = held > reserve ? held - reserve : 0n;
+                  setInput(exactAmount((spendable * BigInt(pct)) / 100n, inputDecimals));
+                }}
+                className="pill num flex-1 cursor-pointer justify-center hover:border-line-strong hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {pct === 100 ? "Max" : `${pct}%`}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
-      <p className="mt-1 text-[11px] leading-relaxed text-steel-600">
-        Goes straight into this coin&apos;s lock pool, in the same transaction.
-        If the trade fails, the fee is never taken.
+
+      <dl className="well mt-4 space-y-2 px-4 py-3 text-[12.5px]">
+        <Row label="You get (at spot)">
+          {amount <= 0n
+            ? "—"
+            : expectedOut === null
+              ? side === "buy" && solPays
+                ? `$${symbol} for the ${quote.symbol} your SOL buys`
+                : "—"
+              : side === "buy"
+                ? `≈ ${formatNumber(expectedOut)} $${symbol}`
+                : `≈ ${formatNumber(expectedOut)} ${quote.symbol}`}
+        </Row>
+        <Row label={`Imagine fee (${formatPercent(tradeFeeBps / 10_000, 0)})`} accent>
+          {amount <= 0n
+            ? "—"
+            : fee !== null
+              ? `${formatQuote(fee, quote)}${usdSuffix(fee, quote) ? ` · ${usdSuffix(fee, quote)}` : ""}`
+              : `${formatPercent(tradeFeeBps / 10_000, 0)} of the ${quote.symbol} leg`}
+        </Row>
+        <Row label="Max slippage">
+          <span className="flex gap-1">
+            {SLIPPAGE_OPTIONS.map((bps) => (
+              <button
+                key={bps}
+                type="button"
+                onClick={() => setSlippageBps(bps)}
+                aria-pressed={slippageBps === bps}
+                className={`num rounded-[6px] px-1.5 py-0.5 text-[11.5px] transition-colors ${
+                  slippageBps === bps ? "bg-steel text-ink" : "text-muted hover:text-fg"
+                }`}
+              >
+                {bps / 100}%
+              </button>
+            ))}
+          </span>
+        </Row>
+      </dl>
+      <p className="mt-2 text-[11.5px] leading-relaxed text-muted">
+        The Imagine fee goes straight into this coin&apos;s pool, paid in {quote.symbol}, in the same transaction — if
+        the trade fails, it&apos;s never taken. StonkFun&apos;s 1% curve fee and the Raydium LaunchLab protocol fee
+        apply on the curve.
+        {solPays ? ` Your SOL is swapped to ${quote.symbol} through Jupiter first.` : ""}
       </p>
 
       {actor.publicKey ? (
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={busy || amount <= 0n || (side === "sell" && held !== null && amount > held)}
-          className="btn btn-primary mt-4 w-full"
+          disabled={busy || amount <= 0n || insufficient}
+          className={`btn mt-4 w-full ${side === "buy" ? "btn-primary" : "btn-danger"}`}
         >
-          {busy ? "Submitting…" : side === "buy" ? `Buy ${symbol}` : `Sell ${symbol}`}
+          {busy
+            ? "Submitting…"
+            : insufficient
+              ? `Not enough ${side === "sell" ? `$${symbol}` : payAsset!.symbol}`
+              : side === "buy"
+                ? `Buy $${symbol}`
+                : `Sell $${symbol}`}
         </button>
       ) : (
         <div className="mt-4">
@@ -180,8 +294,17 @@ export function SwapPanel({
       )}
 
       {status ? (
-        <p className="mt-3 break-all text-[12px] text-steel-400">{status}</p>
+        <p className={`mt-3 break-all text-[12px] ${status.ok ? "text-mint" : "text-rose"}`}>{status.text}</p>
       ) : null}
     </section>
+  );
+}
+
+function Row({ label, accent = false, children }: { label: string; accent?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-muted">{label}</dt>
+      <dd className={`num min-w-0 truncate text-right ${accent ? "text-mint" : "text-fg"}`}>{children}</dd>
+    </div>
   );
 }

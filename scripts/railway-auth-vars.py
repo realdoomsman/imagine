@@ -1,4 +1,4 @@
-"""Set the auth/account variables on the Railway api + indexer services.
+"""Set the auth/account variables on the Railway api service.
 
 Reads the Google client secret from apps/api/.google-oauth.tmp and the wallet
 master key + session secret from apps/api/.railway-secrets.tmp (both
@@ -21,12 +21,13 @@ secrets = dict(
 common = {
     "GOOGLE_CLIENT_ID": oauth["clientId"],
     "GOOGLE_CLIENT_SECRET": oauth["clientSecret"],
-    "GOOGLE_REDIRECT_URI": "https://api.vise.fun/api/auth/google/callback",
-    "SITE_ORIGIN": "https://vise.fun",
+    "GOOGLE_REDIRECT_URI": "https://api.imagine.fun/api/auth/google/callback",
+    "SITE_ORIGIN": "https://imagine.fun",
+    "API_PUBLIC_ORIGIN": "https://api.imagine.fun",
     "WALLET_MASTER_KEY": secrets["WALLET_MASTER_KEY"],
     "SESSION_SECRET": secrets["SESSION_SECRET"],
     "COOKIE_SECURE": "1",
-    "CORS_ORIGINS": "https://vise.fun,https://www.vise.fun,https://web-production-3100c.up.railway.app",
+    "CORS_ORIGINS": "https://imagine.fun,https://www.imagine.fun",
 }
 
 railway = pathlib.Path.home() / "AppData/Roaming/npm/node_modules/@railway/cli/bin/railway.exe"

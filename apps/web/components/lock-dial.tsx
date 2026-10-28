@@ -1,6 +1,6 @@
 "use client";
 
-import { DAY, HOUR, LOCK_PRESETS } from "@imagine/sdk";
+import { DAY, formatMultiplier, HOUR, LOCK_PRESETS } from "@imagine/sdk";
 import { useCallback, useId, useMemo } from "react";
 
 /**
@@ -32,22 +32,25 @@ export function durationLabel(seconds: number): string {
 }
 
 /**
- * The lock-duration control, styled as the vise's crank track.
+ * The lock-duration control: how long you commit, and what that commitment
+ * is worth as a multiplier on your share of the stream.
  *
  * A real `<input type="range">` underneath so keyboard and screen-reader users
- * get the native behaviour; the visible track is painted on top. Values are
- * seconds throughout.
+ * get the native behaviour. Values are seconds throughout.
  */
 export function LockDial({
   seconds,
   onChange,
   min,
   max,
+  multiplierBps,
 }: {
   seconds: number;
   onChange: (seconds: number) => void;
   min: number;
   max: number;
+  /** The weight this term earns, shown beside the term when given. */
+  multiplierBps?: number;
 }) {
   const id = useId();
   const stops = useMemo(() => durationStops(min, max), [min, max]);
@@ -67,17 +70,20 @@ export function LockDial({
   );
 
   // Custom properties are legal in a style object but absent from CSSProperties.
-  const fill: React.CSSProperties & Record<"--fill", string> = {
-    "--fill": `${pct}%`,
-  };
+  const fill: React.CSSProperties & Record<"--fill", string> = { "--fill": `${pct}%` };
 
   return (
     <div>
-      <div className="flex items-baseline justify-between">
-        <label htmlFor={id} className="rule-label">
-          Lock duration
+      <div className="flex items-baseline justify-between gap-3">
+        <label htmlFor={id} className="eyebrow">
+          Lock for
         </label>
-        <span className="num text-[13px] text-steel-200">{durationLabel(seconds)}</span>
+        <span className="num text-[13.5px] text-fg">
+          {durationLabel(seconds)}
+          {multiplierBps !== undefined ? (
+            <span className="dream-text ml-2 font-semibold">{formatMultiplier(multiplierBps)}</span>
+          ) : null}
+        </span>
       </div>
 
       <input
@@ -89,20 +95,19 @@ export function LockDial({
         value={index}
         onChange={handle}
         aria-valuetext={durationLabel(seconds)}
-        className="vise-range mt-3 w-full"
+        className="range mt-2"
         style={fill}
       />
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
         {presets.map((preset) => (
           <button
             key={preset.seconds}
             type="button"
             onClick={() => onChange(preset.seconds)}
-            className={`num rounded-machined border px-2.5 py-1 text-[12px] transition-colors ${
-              seconds === preset.seconds
-                ? "border-torch bg-torch/10 text-torch"
-                : "border-steel-700 text-steel-400 hover:border-steel-600/50 hover:text-steel-200"
+            aria-pressed={seconds === preset.seconds}
+            className={`pill num cursor-pointer transition-colors ${
+              seconds === preset.seconds ? "pill-steel" : "hover:border-line-strong hover:text-fg"
             }`}
           >
             {preset.label}

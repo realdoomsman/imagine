@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { api, type AccountInfo } from "@/lib/api";
 
 /**
- * The signed-in VISE account, if any.
+ * The signed-in Imagine wallet account (Google sign-in), if any.
  *
  * Session state lives in an HttpOnly cookie on the API's origin; this context
  * only mirrors it. `refresh` re-asks the API, which is the sole authority on

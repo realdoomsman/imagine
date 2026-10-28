@@ -12,7 +12,7 @@ import { GoogleSignIn } from "./google-signin";
  * The identity control in the header.
  *
  * Signed out: one button opening a small sheet with both ways in. Signed in
- * with a VISE account: the avatar, linking to the account page. Connected
+ * with an Imagine wallet: the avatar, linking to the account page. Connected
  * with an extension: the address, with disconnect. Deliberately not the
  * wallet-adapter default button — that component ships its own purple styling
  * and is one of the clearest "template site" tells.
@@ -37,14 +37,17 @@ export function ConnectButton() {
     return (
       <Link
         href="/account"
-        className="btn btn-ghost h-[38px] gap-2.5 rounded-full pl-1.5 pr-4 text-[12.5px]"
+        className="btn btn-ghost btn-sm gap-2.5 rounded-full pl-1.5 pr-4 text-[12.5px]"
         title={account.email}
       >
         {account.picture ? (
           // eslint-disable-next-line @next/next/no-img-element -- Google-hosted avatar
           <img src={account.picture} alt="" className="size-7 rounded-full" referrerPolicy="no-referrer" />
         ) : (
-          <span className="flex size-7 items-center justify-center rounded-full bg-torch text-[12px] font-bold text-[#190600]">
+          <span
+            className="flex size-7 items-center justify-center rounded-full text-[12px] font-extrabold text-ink"
+            style={{ background: "var(--dream)" }}
+          >
             {(account.name ?? account.email).slice(0, 1).toUpperCase()}
           </span>
         )}
@@ -58,10 +61,10 @@ export function ConnectButton() {
       <button
         type="button"
         onClick={() => void disconnect()}
-        className="btn btn-ghost num h-[38px] rounded-full px-4 text-[12.5px]"
+        className="btn btn-ghost btn-sm num rounded-full px-4 text-[12.5px]"
         title="Disconnect"
       >
-        <span className="size-1.5 rounded-full bg-verdi" />
+        <span className="size-1.5 rounded-full bg-mint" />
         {shortAddress(publicKey.toBase58())}
       </button>
     );
@@ -73,16 +76,16 @@ export function ConnectButton() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={!ready || connecting}
-        className="btn btn-primary h-[38px] rounded-full px-5 text-[13.5px]"
+        className="btn btn-primary btn-sm rounded-full px-5"
         aria-expanded={open}
       >
         {connecting ? "Connecting" : "Sign in"}
       </button>
       {open ? (
-        <div className="surface-raised absolute right-0 top-[calc(100%+10px)] z-50 w-[300px] rounded-[6px] p-3 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.9)]">
-          <p className="px-1 pb-2 text-[12px] leading-relaxed text-steel-400">
-            A Google account gets a VISE wallet you can deposit to, lock from
-            and withdraw from. Or connect the wallet you already have.
+        <div className="card absolute right-0 top-[calc(100%+10px)] z-50 w-[300px] p-3 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.9)]">
+          <p className="px-1 pb-2 text-[12px] leading-relaxed text-fg-soft">
+            A Google account gets an Imagine wallet you can deposit to, trade and lock from, and withdraw from. Or
+            connect the wallet you already have.
           </p>
           <GoogleSignIn />
           <button
@@ -91,7 +94,7 @@ export function ConnectButton() {
               setOpen(false);
               setVisible(true);
             }}
-            className="btn btn-ghost mt-2 h-[46px] w-full"
+            className="btn btn-ghost mt-2 w-full"
           >
             Connect a wallet
           </button>

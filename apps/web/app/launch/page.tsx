@@ -3,51 +3,48 @@ import { LaunchForm } from "@/components/launch-form";
 export const metadata = {
   title: "Launch a coin",
   description:
-    "Launch on pump.fun through VISE. Your coin's creator fees are locked to its holders from the first block.",
+    "Launch a coin on StonkFun, paired with any stock, currency or SOL. Every trade through Imagine pays the holders who lock it — in the asset it's paired with.",
 };
 
 export default function LaunchPage() {
   return (
-    <div className="mx-auto max-w-[1440px] px-5 py-16 sm:px-8 lg:py-20">
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <div>
-          <p className="rule-label">Launch</p>
-          <h1 className="t-section mt-5">
-            An ordinary pump.fun coin.
-            <br />
-            With a vise on it.
+    <div className="container-x py-14 lg:py-20">
+      <div className="grid gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
+        <div className="min-w-0">
+          <p className="eyebrow">Launch</p>
+          <h1 className="t-h1 mt-4">
+            Imagine a coin people <span className="dream-text">hold.</span>
           </h1>
-          <p className="mt-5 max-w-lg text-[16px] text-steel-400">
-            The coin is created on pump.fun exactly as any other. What changes is
-            where its fees go: they are routed to a lock pool for its holders, and
-            that routing is made permanent in the same session.
+          <p className="t-lede mt-5">
+            Your coin launches on StonkFun like any other, paired with the asset you pick. What changes is where its
+            fees go: into a pool that pays whoever locks it, in that asset.
           </p>
           <LaunchForm />
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <Explainer
             step="What you sign"
             items={[
-              "Create the coin on pump.fun and buy the first bag.",
-              "Point the coin's creator-fee stream at its lock pool — this call revokes its own admin, so it can never be redirected. Not by you, not by us.",
-              "Open the pool with your founding lock.",
+              "Create the coin on StonkFun (Raydium LaunchLab), paired with your pick, with the pool's vault as its creator address.",
+              "Your first buy, in the same transaction, so nobody buys between creation and you.",
+              "Open the Imagine pool with your founding lock.",
             ]}
           />
           <Explainer
             step="What you give up"
             items={[
-              "Your dev buy is partly locked for the term you choose. You cannot take it out early without burning some of it.",
-              "You take no cut of the fee stream. 90% belongs to whoever locks — including you, through your founding lock.",
-              "You cannot change the terms afterwards. Nobody can.",
+              "Part of your first buy stays locked for the term you choose. Leaving early burns some of it.",
+              "You take no cut of the stream. Lockers get 90% — including you, through your founding lock.",
+              "You can't change the terms afterwards. Nobody can.",
             ]}
           />
           <Explainer
             step="What you get"
             items={[
-              "A reason for holders not to sell that is not a promise — it is a payment.",
-              "A public number on your coin's page: what percentage of supply is clamped, and for how long.",
-              "A fee stream that keeps paying your holders even if you disappear.",
+              "A reason for holders not to sell that isn't a promise — it's a payment, in the asset your coin is paired with.",
+              "A public number on your coin's page: how much of the supply is locked, and for how long.",
+              "A stream that keeps paying your holders even if you disappear.",
             ]}
           />
         </aside>
@@ -58,12 +55,12 @@ export default function LaunchPage() {
 
 function Explainer({ step, items }: { step: string; items: string[] }) {
   return (
-    <section className="panel p-6">
-      <h2 className="rule-label">{step}</h2>
+    <section className="card p-6">
+      <h2 className="eyebrow">{step}</h2>
       <ul className="mt-4 space-y-3">
         {items.map((item) => (
-          <li key={item} className="flex gap-3 text-[13px] leading-relaxed text-steel-400">
-            <span className="mt-1.5 size-1 shrink-0 bg-torch" />
+          <li key={item} className="flex gap-3 text-[13.5px] leading-relaxed text-fg-soft">
+            <span className="mt-[9px] size-1.5 shrink-0 rounded-full" style={{ background: "var(--dream)" }} />
             {item}
           </li>
         ))}

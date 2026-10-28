@@ -1,81 +1,73 @@
 import Link from "next/link";
+import { IMAGINE_PROGRAM_ID, STONKFUN_URL } from "@imagine/sdk";
+import { IMAGINE_MINT } from "@/lib/official";
 import { OfficialCa } from "./official-coin";
-import { ViseMark } from "./vise-mark";
+import { ImagineLogo } from "./imagine-mark";
+import { NAV, TELEGRAM_URL, X_URL } from "./site-header-links";
 
 export function SiteFooter() {
+  const elsewhere = [
+    { href: STONKFUN_URL, label: "StonkFun" },
+    ...(X_URL ? [{ href: X_URL, label: "X" }] : []),
+    ...(TELEGRAM_URL ? [{ href: TELEGRAM_URL, label: "Telegram" }] : []),
+  ];
+
   return (
-    <footer className="relative overflow-hidden border-t border-steel-780 pb-16 md:pb-0">
-      <div className="grid-lines pointer-events-none absolute inset-0 opacity-40" />
-      <div className="relative mx-auto grid max-w-[1440px] gap-12 px-5 py-16 sm:px-8 md:grid-cols-[2fr_1fr_1fr_1fr]">
+    <footer className="relative border-t border-line bg-ink-1 pb-16 lg:pb-0">
+      <div className="container-x grid gap-12 py-14 md:grid-cols-[2fr_1fr_1fr_1fr]">
         <div>
-          <div className="flex items-center gap-2.5 text-steel-50">
-            <span className="text-torch">
-              <ViseMark size={20} grip={0.6} />
-            </span>
-            <span className="font-display text-[16px] font-bold tracking-[-0.04em]">
-              VISE
-            </span>
-          </div>
-          <p className="mt-4 max-w-[34ch] text-[13.5px] leading-relaxed text-steel-500">
-            Lock pump.fun coins. Earn the fees they generate. Longer locks take a
-            larger share.
+          <ImagineLogo size={28} />
+          <p className="mt-4 max-w-[36ch] text-[14px] leading-relaxed text-fg-soft">
+            Lock the meme. Earn the stock. Every trade on an IMAGINE coin pays the holders who
+            locked it, in the asset it&apos;s paired with.
           </p>
-          <p className="rule-label mt-6">Hold under pressure</p>
-          <p className="rule-label mt-6">Official $VISE contract</p>
-          <OfficialCa className="mt-2" />
+          <a
+            href={STONKFUN_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="pill pill-pair mt-6 h-8 px-3 transition-colors hover:border-line-strong"
+          >
+            <i className="pill-dot" aria-hidden="true" />
+            <span className="pill-label">Coins launch on</span>
+            <b className="font-sans">StonkFun</b>
+            <span aria-hidden="true" className="text-muted">
+              ↗
+            </span>
+          </a>
+          {IMAGINE_MINT ? (
+            <div className="mt-6">
+              <p className="eyebrow">Official $IMAGINE contract</p>
+              <OfficialCa className="mt-2" />
+            </div>
+          ) : null}
         </div>
 
-        <FooterColumn
-          title="Product"
-          links={[
-            { href: "/coins", label: "Coins" },
-            { href: "/launch", label: "Launch" },
-            { href: "/account", label: "Wallet" },
-            { href: "/leaderboard", label: "Leaderboard" },
-          ]}
-        />
+        <FooterColumn title="Product" links={NAV.slice(0, 3)} />
         <FooterColumn
           title="Learn"
           links={[
             { href: "/how-it-works", label: "How it works" },
+            { href: "/docs", label: "Docs" },
             { href: "/docs/fees", label: "Fees" },
             { href: "/docs/security", label: "Security" },
-            { href: "/privacy", label: "Privacy" },
-            { href: "/terms", label: "Terms" },
+            { href: "/article", label: "The idea" },
           ]}
         />
         <FooterColumn
           title="Elsewhere"
           links={[
-            { href: "https://x.com/visedotfun", label: "X", external: true },
-            {
-              href: "https://github.com/pump-fun/pump-public-docs",
-              label: "pump.fun docs",
-              external: true,
-            },
+            ...elsewhere.map((link) => ({ ...link, external: true })),
+            { href: "/terms", label: "Terms" },
+            { href: "/privacy", label: "Privacy" },
           ]}
         />
       </div>
 
-      {/*
-        A wordmark at the very bottom, cropped by the viewport. Gives the page
-        an ending instead of trailing off into legal text.
-      */}
-      <div className="relative select-none overflow-hidden" aria-hidden="true">
-        <div className="font-display text-[clamp(5rem,21vw,17rem)] font-bold leading-[0.78] tracking-[-0.06em] text-steel-900">
-          VISE
-        </div>
-        <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-steel-990 to-transparent" />
-      </div>
-
-      <div className="relative border-t border-steel-860">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-5 py-5 text-[11px] text-steel-600 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span className="num">
-            Program VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb
-          </span>
+      <div className="border-t border-line">
+        <div className="container-x flex flex-col gap-2 py-5 text-[11.5px] text-muted sm:flex-row sm:items-center sm:justify-between">
+          <span className="num break-all">Program {IMAGINE_PROGRAM_ID.toBase58()}</span>
           <span>
-            Locked tokens are at risk. Memecoins can go to zero. Nothing here is
-            financial advice.
+            Locked tokens are at risk. Memecoins can go to zero. Nothing here is financial advice.
           </span>
         </div>
       </div>
@@ -90,26 +82,19 @@ function FooterColumn({
   title: string;
   links: Array<{ href: string; label: string; external?: boolean }>;
 }) {
+  const linkClass = "text-[13.5px] text-fg-soft transition-colors hover:text-fg";
   return (
     <div>
-      <h3 className="rule-label">{title}</h3>
-      <ul className="mt-3 space-y-2">
+      <h3 className="eyebrow">{title}</h3>
+      <ul className="mt-4 space-y-2.5">
         {links.map((link) => (
           <li key={link.href}>
             {link.external ? (
-              <a
-                href={link.href}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[13px] text-steel-400 transition-colors hover:text-steel-100"
-              >
+              <a href={link.href} target="_blank" rel="noreferrer" className={linkClass}>
                 {link.label}
               </a>
             ) : (
-              <Link
-                href={link.href}
-                className="text-[13px] text-steel-400 transition-colors hover:text-steel-100"
-              >
+              <Link href={link.href} className={linkClass}>
                 {link.label}
               </Link>
             )}

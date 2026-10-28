@@ -7,14 +7,14 @@ import { ZodError } from "zod";
 import { sql } from "./db.ts";
 import { assertApiEnv, env } from "./env.ts";
 import { accountRoutes } from "./routes/account.ts";
-import { metadataRoutes } from "./routes/metadata.ts";
+import { fileRoutes, metadataRoutes } from "./routes/metadata.ts";
 import { poolRoutes } from "./routes/pools.ts";
 import { portfolioRoutes } from "./routes/portfolio.ts";
 import { txRoutes } from "./routes/tx.ts";
 import { chainConfig, connection } from "./solana.ts";
 import { timingSafeEqual } from "node:crypto";
 
-const INTERNAL_KEY = process.env.VISE_INTERNAL_KEY ? Buffer.from(process.env.VISE_INTERNAL_KEY) : null;
+const INTERNAL_KEY = process.env.IMAGINE_INTERNAL_KEY ? Buffer.from(process.env.IMAGINE_INTERNAL_KEY) : null;
 function isInternal(header: string | string[] | undefined): boolean {
   if (!INTERNAL_KEY || typeof header !== "string") return false;
   const given = Buffer.from(header);
@@ -57,7 +57,7 @@ await app.register(rateLimit, {
   },
   // The web server's own renders: every visitor's page load reaches us from
   // its single address, so it proves itself with a shared key instead.
-  allowList: (request) => isInternal(request.headers["x-vise-internal"]),
+  allowList: (request) => isInternal(request.headers["x-imagine-internal"]),
 });
 
 app.setErrorHandler((error: unknown, request, reply) => {
@@ -95,12 +95,15 @@ app.get("/config", async () => {
     cluster: env.cluster,
     treasury: config.treasury.toBase58(),
     tradeFeeBps: config.tradeFeeBps,
+    platform: config.launchlabPlatform.toBase58(),
+    launchAlt: env.launchAlt?.toBase58() ?? null,
     googleClientId: env.googleClientId,
   };
 });
 
 await app.register(poolRoutes, { prefix: "/api" });
 await app.register(metadataRoutes, { prefix: "/api" });
+await app.register(fileRoutes);
 await app.register(portfolioRoutes, { prefix: "/api" });
 await app.register(txRoutes, { prefix: "/api" });
 await app.register(accountRoutes, { prefix: "/api" });

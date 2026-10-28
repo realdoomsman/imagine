@@ -5,7 +5,7 @@
 # tree used for tests has to be the Linux one.
 set -eu
 export PATH="/opt/node/bin:$PATH"
-cd /mnt/c/tech/Hold
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # pnpm refuses to reuse a modules dir created with a different
 # virtual-store-dir-max-length (Windows vs Linux defaults differ), and the
 # prompt cannot be answered non-interactively.

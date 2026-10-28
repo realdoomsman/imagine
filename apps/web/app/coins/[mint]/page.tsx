@@ -1,22 +1,25 @@
-import {
-  formatDuration,
-  formatMultiplier,
-  formatPercent,
-  formatSol,
-  formatTokenAmount,
-  shortAddress,
-} from "@imagine/sdk";
+import { ECONOMICS, formatDuration, formatMultiplier, formatPercent, formatTokenAmount, shortAddress } from "@imagine/sdk";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { api, type PoolDetail } from "@/lib/api";
-import { VISE_MINT } from "@/lib/official";
+import { api, ApiError, type PoolDetail, type RewardHistory } from "@/lib/api";
+import { formatPrice, formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
+import { IMAGINE_MINT } from "@/lib/official";
+import { CopyButton } from "@/components/copy-button";
+import { ImagineMark } from "@/components/imagine-mark";
 import { LockPanel } from "@/components/lock-panel";
-import { SwapPanel } from "@/components/swap-panel";
 import { LockerTable } from "@/components/locker-table";
+import { PairPill } from "@/components/pair-pill";
 import { RewardChart } from "@/components/reward-chart";
-import { ShareButton } from "@/components/share-button";
+import { coinShare, ShareButton } from "@/components/share-button";
+import { SwapPanel } from "@/components/swap-panel";
 
 export const dynamic = "force-dynamic";
+
+function lockedFraction(detail: PoolDetail): number {
+  const supply = detail.tokenSupply ? BigInt(detail.tokenSupply) : 0n;
+  return supply > 0n ? Number(BigInt(detail.pool.totalLocked)) / Number(supply) : 0;
+}
 
 /** Coin pages get shared; the card should carry the coin, not the site. */
 export async function generateMetadata({ params }: { params: Promise<{ mint: string }> }): Promise<Metadata> {
@@ -25,23 +28,18 @@ export async function generateMetadata({ params }: { params: Promise<{ mint: str
   try {
     detail = await api.pool(mint);
   } catch {
-    return { title: "Coin not found" };
+    return { title: "Coin" };
   }
   const symbol = detail.metadata?.symbol ?? shortAddress(mint);
-  const name = detail.metadata?.name ?? "a coin";
-  const locked = formatPercent(
-    detail.tokenSupply && BigInt(detail.tokenSupply) > 0n
-      ? Number(BigInt(detail.pool.totalLocked)) / Number(BigInt(detail.tokenSupply))
-      : 0,
-    1,
-  );
-  const description = `${name}: ${locked} of supply clamped, ${formatSol(BigInt(detail.pool.lifetimeRewards))} SOL paid to lockers so far. Lock it and earn its fee stream.`;
+  const name = detail.metadata?.name ?? symbol;
+  const description = `${name} is live on StonkFun, paired with ${detail.quote.symbol}. ${formatPercent(lockedFraction(detail), 1)} of supply locked, ${formatQuote(detail.pool.lifetimeRewards, detail.quote)} paid to lockers so far. Lock it, earn ${detail.quote.symbol}.`;
   return {
-    title: `${symbol} · ${name}`,
+    title: `$${symbol} · ${name}`,
     description,
     openGraph: {
-      title: `${symbol} on VISE`,
+      title: `$${symbol} on Imagine`,
       description,
+      url: `https://imagine.fun/coins/${mint}`,
       ...(detail.metadata?.imageUrl ? { images: [{ url: detail.metadata.imageUrl, width: 512, height: 512 }] } : {}),
     },
     twitter: { card: detail.metadata?.imageUrl ? "summary" : "summary_large_image" },
@@ -62,211 +60,242 @@ export default async function CoinPage({
   let detail: PoolDetail;
   try {
     detail = await api.pool(mint);
-  } catch {
-    notFound();
+  } catch (cause) {
+    if (cause instanceof ApiError && (cause.status === 404 || cause.status === 400)) notFound();
+    return <Unavailable mint={mint} reason={cause instanceof Error ? cause.message : "unknown error"} />;
   }
 
-  const [lockers, rewards] = await Promise.all([
-    api.lockers(mint).catch(() => ({ lockers: [], totalWeight: "0" })),
-    api.rewards(mint).catch(() => ({ since: Math.floor(Date.now() / 1000) - 21_600, bucketSecs: 900, createdAt: null, buckets: [] })),
+  const emptyHistory: RewardHistory = {
+    since: Math.floor(Date.now() / 1000) - 21_600,
+    bucketSecs: 900,
+    createdAt: null,
+    buckets: [],
+  };
+  const [lockers, rewards, tradeFeeBps] = await Promise.all([
+    api.lockers(mint).catch(() => null),
+    api.rewards(mint).catch(() => emptyHistory),
+    api.config().then((config) => config.tradeFeeBps, () => ECONOMICS.tradeFeeBps),
   ]);
 
-  const { pool, metadata, curve, rewardRate } = detail;
-  const supplyLocked = BigInt(pool.totalLocked);
+  const { pool, metadata, curve, rewardRate, quote, links } = detail;
   const decimals = detail.tokenDecimals;
   const tokenSupply = detail.tokenSupply ?? "0";
+  const symbol = metadata?.symbol ?? shortAddress(mint);
+  const name = metadata?.name ?? symbol;
+  const share = coinShare(mint, name, quote.symbol);
+  const priceQuote = curve?.priceQuote ?? null;
+  const priceUsd = curve?.priceUsd ?? (priceQuote !== null && quote.usdPrice !== null ? priceQuote * quote.usdPrice : null);
+  const marketCapQuote = detail.marketCapQuote;
+  const marketCapUsd = detail.marketCapUsd;
+  const paidUsd = quoteToUsd(pool.lifetimeRewards, quote);
+  const now = Math.floor(Date.now() / 1000);
+  const streaming = BigInt(pool.undistributed) > 0n && pool.streamEnd > now;
   const tiers = pool.terms.sizeTierBps
     .map((tier, index) => ({ tier, bonus: pool.terms.sizeBonusBps[index] }))
     .filter((entry) => entry.tier > 0);
+  const lockersShare =
+    ((10_000 - pool.terms.treasuryShareBps) / 10_000) * ((10_000 - pool.terms.creatorShareBps) / 10_000);
 
   return (
-    <div className="mx-auto max-w-[1440px] px-5 py-14 sm:px-8">
+    <div className="container-x py-10 lg:py-14">
       {launched.launched === "1" ? (
-        <section className="panel mb-8 flex flex-wrap items-center justify-between gap-4 p-5">
+        <section className="card card-dream mb-8 flex flex-wrap items-center justify-between gap-4 p-5">
           <div>
-            <h2 className="text-[17px]">Clamped and live.</h2>
-            <p className="mt-1 text-[13px] text-steel-400">
-              Your coin is trading on pump.fun, your founding lock is in, and its
-              fee stream is permanently pointed at this pool.
+            <h2 className="t-h3">Live on StonkFun. Your lock is in.</h2>
+            <p className="mt-1 text-[13.5px] text-fg-soft">
+              {launched.pct && launched.term
+                ? `You locked ${launched.pct}% of your first buy for ${launched.term}. `
+                : ""}
+              Every trade through Imagine now pays this pool in {quote.symbol}.
             </p>
           </div>
-          <ShareButton
-            text={`${metadata?.symbol ?? "My coin"} is live on pump.fun with a vise on it: every trade pays the people who lock it${launched.pct && launched.term ? `, and I locked ${launched.pct}% of my dev buy for ${launched.term}` : ""}.`}
-            url={`https://vise.fun/coins/${mint}`}
-            label="Tell X"
-            className="h-10 px-4 text-[13.5px]"
-          />
+          <ShareButton text={share.text} url={share.url} label="Tell X" />
         </section>
       ) : null}
-      <header className="flex flex-wrap items-start gap-5">
-        {metadata?.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- arbitrary IPFS hosts
-          <img
-            src={metadata.imageUrl}
-            alt=""
-            className="size-16 rounded-machined border border-steel-700 object-cover"
-          />
-        ) : (
-          <div className="size-16 rounded-machined border border-steel-700 bg-steel-860" />
-        )}
 
-        <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-3 text-[30px] leading-none">
-            {metadata?.symbol ?? shortAddress(mint)}
-            {mint === VISE_MINT ? (
-              <span className="rule-label rounded-full border border-torch/50 px-2 py-1 text-torch">Official</span>
-            ) : null}
-          </h1>
-          <p className="mt-1.5 text-[14px] text-steel-500">
-            {metadata?.name ?? "unnamed coin"}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <p className="num text-[11px] text-steel-600">{mint}</p>
-            <ShareButton
-              text={`${metadata?.symbol ?? "This coin"} has a vise on it: ${formatPercent(BigInt(tokenSupply) > 0n ? Number(supplyLocked) / Number(BigInt(tokenSupply)) : 0, 1)} of supply is locked and every trade pays the lockers.`}
-              url={`https://vise.fun/coins/${mint}`}
-              className="h-7 px-2.5 text-[11.5px]"
+      <header className="flex flex-col gap-6">
+        <div className="flex min-w-0 flex-1 items-start gap-4 sm:gap-5">
+          {metadata?.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- coin images live on the API's file host
+            <img
+              src={metadata.imageUrl}
+              alt=""
+              className="size-16 shrink-0 rounded-[14px] border border-line bg-ink-3 object-cover sm:size-20"
             />
+          ) : (
+            <div className="flex size-16 shrink-0 items-center justify-center rounded-[14px] border border-line bg-ink-3 text-[24px] font-extrabold text-muted sm:size-20">
+              {symbol.slice(0, 1)}
+            </div>
+          )}
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <h1 className="t-h2 break-words">{name}</h1>
+              {mint === IMAGINE_MINT ? <span className="pill pill-steel">Official</span> : null}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="num text-[15px] text-fg-soft">${symbol}</span>
+              <PairPill quote={quote} />
+              <StatusPill status={curve?.status ?? null} />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <code className="num max-w-full truncate text-[11.5px] text-muted">{mint}</code>
+              <CopyButton value={mint} label="Copy CA" className="h-7 px-2.5 text-[11.5px]" />
+            </div>
+            {metadata?.description ? (
+              <p className="mt-3 max-w-[64ch] break-words text-[14px] leading-relaxed text-fg-soft">
+                {metadata.description}
+              </p>
+            ) : null}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <a href={links.stonkfun} target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+                StonkFun ↗
+              </a>
+              {links.raydium ? (
+                <a href={links.raydium} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+                  Raydium ↗
+                </a>
+              ) : null}
+              {metadata?.website ? <Social href={metadata.website} label="Website" /> : null}
+              {metadata?.twitter ? <Social href={metadata.twitter} label="X" /> : null}
+              {metadata?.telegram ? <Social href={metadata.telegram} label="Telegram" /> : null}
+              <ShareButton text={share.text} url={share.url} label="Share" />
+              <CopyButton value={share.url} label="Copy link" />
+            </div>
           </div>
-          {metadata?.description ? (
-            <p className="mt-3 max-w-[64ch] text-[13.5px] leading-relaxed text-steel-400">{metadata.description}</p>
-          ) : null}
-          {metadata?.twitter || metadata?.telegram || metadata?.website ? (
-            <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px]">
-              {metadata.website ? <Social href={metadata.website} label="Website" /> : null}
-              {metadata.twitter ? <Social href={metadata.twitter} label="X" /> : null}
-              {metadata.telegram ? <Social href={metadata.telegram} label="Telegram" /> : null}
-            </p>
-          ) : null}
         </div>
 
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
-          <Metric label="Clamped" value={formatTokenAmount(supplyLocked, decimals)} />
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[14px] border border-line bg-line sm:grid-cols-4">
           <Metric
-            label="Paid to lockers"
-            value={`${formatSol(BigInt(pool.lifetimeRewards))} SOL`}
+            label="Price"
+            value={priceUsd !== null ? formatUsdPrice(priceUsd) : formatPrice(priceQuote, quote.symbol)}
+            sub={priceUsd !== null ? formatPrice(priceQuote, quote.symbol) : null}
           />
-          <Metric label="Lockers" value={String(pool.openPositions)} />
           <Metric
-            label="Curve"
+            label="Market cap"
             value={
-              curve?.complete
-                ? "Graduated"
-                : curve
-                  ? formatPercent(curve.progress, 0)
+              marketCapUsd !== null
+                ? formatUsd(marketCapUsd)
+                : marketCapQuote !== null
+                  ? formatQuote(marketCapQuote, quote)
                   : "—"
             }
+            sub={marketCapUsd !== null && marketCapQuote !== null ? formatQuote(marketCapQuote, quote) : null}
+          />
+          <Metric
+            label="Supply locked"
+            value={formatPercent(lockedFraction(detail), 1)}
+            sub={`${formatTokenAmount(BigInt(pool.totalLocked), decimals)} · ${pool.openPositions} lock${pool.openPositions === 1 ? "" : "s"}`}
+          />
+          <Metric
+            label="Paid to lockers"
+            value={formatQuote(pool.lifetimeRewards, quote)}
+            sub={paidUsd !== null ? `≈ ${formatUsd(paidUsd)}` : null}
+            accent
           />
         </dl>
       </header>
 
-      <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="space-y-5">
-          <section className="panel p-6">
-            <h2 className="text-[17px]">Rewards run on this coin&apos;s volume</h2>
-            <p className="mt-2 text-[13px] text-steel-500">
-              Every trade pays a fee into this pool, so what lockers earn rises
-              and falls with how much {metadata?.symbol ?? "the coin"} trades.
-              Realised over the last 24 hours, not projected.
+      <div className="mt-8 grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="min-w-0 space-y-5">
+          {curve ? <CurveCard detail={detail} /> : null}
+
+          <RewardChart history={rewards} quote={quote} />
+
+          <section className="card p-6">
+            <h2 className="t-h3">The stream runs on this coin&apos;s volume</h2>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-fg-soft">
+              Every trade routed through Imagine pays a {formatPercent(tradeFeeBps / 10_000, 0)} fee into this pool,
+              and StonkFun forwards a creator share to the pool&apos;s vault. What lockers earn rises and falls with
+              how much ${symbol} trades — realised over the last 24 hours, not projected.
             </p>
-            <dl className="mt-5 grid grid-cols-2 gap-px border border-steel-700 bg-steel-700 sm:grid-cols-3">
-              <Term label="Fees, 24h" value={`${formatSol(BigInt(rewardRate.feesPerDay))} SOL`} />
-              <Term label="To lockers, 24h" value={`${formatSol(BigInt(rewardRate.lockersPerDay))} SOL`} />
-              <Term label="Waiting at pump" value={`${formatSol(BigInt(rewardRate.waitingAtPump))} SOL`} />
+            <dl className="mt-5 grid grid-cols-1 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-3">
+              <Term label="Fees, 24h" value={formatQuote(rewardRate.feesPerDay, quote)} />
+              <Term label="To lockers, 24h" value={formatQuote(rewardRate.lockersPerDay, quote)} accent />
+              <Term label="In the vault, unsynced" value={formatQuote(rewardRate.unsynced, quote)} />
             </dl>
-            <p className="mt-4 text-[12px] leading-relaxed text-steel-600">
-              {BigInt(pool.undistributed) > 0n && pool.streamEnd > Math.floor(Date.now() / 1000)
-                ? `${formatSol(BigInt(pool.undistributed))} SOL is streaming to lockers over the next ${formatDuration(pool.streamEnd - Math.floor(Date.now() / 1000))}. `
+            <p className="mt-4 text-[12.5px] leading-relaxed text-muted">
+              {streaming
+                ? `${formatQuote(pool.undistributed, quote)} is streaming to lockers over the next ${formatDuration(pool.streamEnd - now)}. `
                 : "Nothing is streaming right now; the next fee starts a new stream. "}
-              Claim any time from your portfolio. Creator fees waiting at
-              pump.fun are swept into the pool automatically.{" "}
+              Anything that lands in the vault is booked by the next sync and streamed the same way.{" "}
               {rewardRate.trades > 0
-                ? `${rewardRate.trades} trades (${formatSol(BigInt(rewardRate.siteVolume))} SOL) went through VISE in this window.`
+                ? `${rewardRate.trades} trade${rewardRate.trades === 1 ? "" : "s"} (${formatQuote(rewardRate.siteVolume, quote)}) went through Imagine in this window.`
                 : null}
             </p>
           </section>
 
-          <RewardChart history={rewards} />
-
-          <section className="panel p-6">
-            <h2 className="text-[17px]">Terms, frozen at launch</h2>
-            <p className="mt-2 text-[13px] text-steel-500">
-              These were written onto the pool when it was created. No one can
-              change them — not the creator, not VISE.
+          <section className="card p-6">
+            <h2 className="t-h3">Terms, frozen at launch</h2>
+            <p className="mt-2 text-[13.5px] text-fg-soft">
+              Written onto the pool when it opened. Nobody can change them — not the creator, not Imagine. Claims and
+              unlocks can&apos;t be paused.
             </p>
-            <dl className="mt-5 grid grid-cols-2 gap-px border border-steel-700 bg-steel-700 sm:grid-cols-5">
-              <Term
-                label="To lockers"
-                value={formatPercent(
-                  ((10_000 - pool.terms.treasuryShareBps) / 10_000) *
-                    ((10_000 - pool.terms.creatorShareBps) / 10_000),
-                  0,
-                )}
-              />
-              <Term
-                label="To treasury"
-                value={formatPercent(pool.terms.treasuryShareBps / 10_000, 0)}
-              />
-              <Term
-                label="Max multiplier"
-                value={formatMultiplier(pool.terms.maxMultiplierBps)}
-              />
-              <Term
-                label="Fee release"
-                value={formatDuration(pool.terms.rewardStreamSecs)}
-              />
-              <Term
-                label="Early exit burn"
-                value={formatPercent(pool.terms.earlyUnlockPenaltyBps / 10_000, 0)}
-              />
+            <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-5">
+              <Term label="To lockers" value={formatPercent(lockersShare, 0)} accent />
+              <Term label="To treasury" value={formatPercent(pool.terms.treasuryShareBps / 10_000, 0)} />
+              <Term label="Max multiplier" value={formatMultiplier(pool.terms.maxMultiplierBps)} />
+              <Term label="Stream window" value={formatDuration(pool.terms.rewardStreamSecs)} />
+              <Term label="Early exit burn" value={formatPercent(pool.terms.earlyUnlockPenaltyBps / 10_000, 0)} />
             </dl>
-            <p className="mt-4 text-[12px] leading-relaxed text-steel-600">
-              Lock window {formatDuration(pool.terms.minLockSecs)}–
-              {formatDuration(pool.terms.maxLockSecs)} on a{" "}
+            <p className="mt-4 break-words text-[12.5px] leading-relaxed text-muted">
+              Lock window {formatDuration(pool.terms.minLockSecs)}–{formatDuration(pool.terms.maxLockSecs)} on a{" "}
               {pool.terms.durationCurve === 1 ? "square-root" : "linear"} curve.
               {tiers.length > 0 ? (
                 <>
                   {" "}Size tiers:{" "}
                   {tiers.map((entry, index) => (
                     <span key={entry.tier} className="num">
-                      {index > 0 ? ", " : ""}
-                      ≥{entry.tier / 100}% of supply +{entry.bonus / 100}%
+                      {index > 0 ? ", " : ""}≥{entry.tier / 100}% of supply +{entry.bonus / 100}%
                     </span>
                   ))}
                   .
                 </>
               ) : null}{" "}
-              Creator{" "}
-              <span className="num">{shortAddress(pool.creator)}</span>. Vault{" "}
-              <span className="num">{shortAddress(pool.rewardVault)}</span>.
+              Rewards are paid in {quote.symbol}. Creator <span className="num">{shortAddress(pool.creator)}</span>,
+              vault <span className="num">{shortAddress(pool.rewardVault)}</span>
+              {pool.rewardTokenAccount ? (
+                <>
+                  , {quote.symbol} account <span className="num">{shortAddress(pool.rewardTokenAccount)}</span>
+                </>
+              ) : null}
+              .
             </p>
           </section>
 
-          <LockerTable
-            lockers={lockers.lockers}
-            totalWeight={lockers.totalWeight}
-            decimals={decimals}
-          />
+          {lockers ? (
+            <LockerTable lockers={lockers.lockers} totalWeight={lockers.totalWeight} decimals={decimals} quote={quote} />
+          ) : (
+            <section className="card p-6">
+              <h2 className="t-h3">Who&apos;s locked in</h2>
+              <p className="mt-3 text-[13.5px] text-muted">The lockers list couldn&apos;t be loaded. Refresh to try again.</p>
+            </section>
+          )}
         </div>
 
-        <aside className="space-y-5">
+        <aside className="min-w-0 space-y-5 lg:sticky lg:top-24 lg:self-start">
           <SwapPanel
             mint={mint}
-            symbol={metadata?.symbol ?? "coin"}
-            priceLamports={curve?.priceLamports ?? 0}
-            graduated={curve?.complete ?? false}
+            symbol={symbol}
+            coinDecimals={decimals}
+            coinTokenProgram={pool.tokenProgram}
+            quote={quote}
+            priceQuote={priceQuote}
+            tradeFeeBps={tradeFeeBps}
+            migrating={curve?.status === "migrating"}
+            stonkfunUrl={links.stonkfun}
           />
           <LockPanel
             mint={mint}
-            symbol={metadata?.symbol ?? "coin"}
+            symbol={symbol}
             decimals={decimals}
+            tokenProgram={pool.tokenProgram}
+            quote={quote}
             terms={pool.terms}
             totalWeight={pool.totalWeight}
-            accRewardPerWeight={pool.accRewardPerWeight}
             supply={tokenSupply}
-            lockersPerDay={detail.rewardRate.lockersPerDay}
-            capped={pool.capped}
-            priceLamports={curve?.priceLamports ?? 0}
+            lockersPerDay={rewardRate.lockersPerDay}
+            priceQuote={priceQuote}
           />
         </aside>
       </div>
@@ -274,34 +303,109 @@ export default async function CoinPage({
   );
 }
 
-function Social({ href, label }: { href: string; label: string }) {
-  let host: string;
-  try {
-    host = new URL(href).host.replace(/^www\./, "");
-  } catch {
-    return null;
-  }
+/** USD per coin: memes trade far below a cent, so keep significant digits. */
+function formatUsdPrice(value: number): string {
+  return value >= 1 ? formatUsd(value) : `$${value.toLocaleString("en-US", { maximumSignificantDigits: 4 })}`;
+}
+
+function StatusPill({ status }: { status: "curve" | "migrating" | "graduated" | null }) {
+  if (status === "graduated") return <span className="pill pill-up">On Raydium</span>;
+  if (status === "migrating") return <span className="pill pill-steel">Migrating</span>;
+  if (status === "curve") return <span className="pill">Bonding curve</span>;
+  return null;
+}
+
+/** Where the coin is on its LaunchLab curve, in the pair asset. */
+function CurveCard({ detail }: { detail: PoolDetail }) {
+  const curve = detail.curve!;
+  const progress = Math.min(Math.max(curve.progress, 0), 1);
   return (
-    <a href={href} target="_blank" rel="noreferrer nofollow" className="text-steel-500 hover:text-torch">
-      {label} <span className="num text-steel-600">{host}</span>
-    </a>
+    <section className="card p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="t-h3">
+          {curve.status === "graduated"
+            ? "Graduated to Raydium"
+            : curve.status === "migrating"
+              ? "Migrating to Raydium"
+              : "Bonding curve"}
+        </h2>
+        <span className="num text-[13px] text-fg-soft">{formatPercent(progress, 1)}</span>
+      </div>
+      <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-ink-4" aria-hidden="true">
+        <div className="h-full rounded-full" style={{ width: `${progress * 100}%`, background: "var(--dream)" }} />
+      </div>
+      <p className="mt-3 text-[12.5px] leading-relaxed text-muted">
+        {curve.status === "graduated" ? (
+          <>The curve filled and the coin trades on a Raydium pool. Its Imagine pool keeps earning the same way.</>
+        ) : (
+          <>
+            <span className="num text-fg-soft">{formatQuote(curve.realQuote, detail.quote)}</span> raised of{" "}
+            <span className="num text-fg-soft">{formatQuote(curve.fundRaising, detail.quote)}</span>. When the curve
+            fills, the coin migrates to Raydium and keeps trading there.
+          </>
+        )}
+      </p>
+    </section>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Unavailable({ mint, reason }: { mint: string; reason: string }) {
   return (
-    <div>
-      <dt className="rule-label">{label}</dt>
-      <dd className="num mt-1 text-[18px] text-steel-50">{value}</dd>
+    <div className="container-x py-16 lg:py-24">
+      <div className="card mx-auto flex max-w-[640px] flex-col items-center gap-4 px-8 py-16 text-center">
+        <ImagineMark size={44} className="opacity-40" />
+        <h1 className="t-h3">This coin can&apos;t be loaded right now</h1>
+        <p className="max-w-[48ch] text-[14px] leading-relaxed text-muted">
+          The Imagine indexer isn&apos;t answering, so there&apos;s nothing reliable to show. Your locks are on chain
+          and unaffected.
+        </p>
+        <code className="num max-w-full break-all text-[11.5px] text-muted">{mint}</code>
+        <p className="max-w-full break-words text-[11.5px] text-muted">{reason}</p>
+        <div className="mt-2 flex flex-wrap justify-center gap-2">
+          <Link href={`/coins/${mint}`} className="btn btn-primary btn-sm">
+            Try again
+          </Link>
+          <Link href="/coins" className="btn btn-ghost btn-sm">
+            All coins
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
 
-function Term({ label, value }: { label: string; value: string }) {
+function Social({ href, label }: { href: string; label: string }) {
+  try {
+    if (!/^https?:$/.test(new URL(href).protocol)) return null;
+  } catch {
+    return null;
+  }
   return (
-    <div className="bg-steel-900 px-4 py-3 last:col-span-2 sm:last:col-span-1">
-      <dt className="rule-label">{label}</dt>
-      <dd className="num mt-1 text-[17px] text-steel-50">{value}</dd>
+    <a href={href} target="_blank" rel="noreferrer nofollow" className="btn btn-ghost btn-sm">
+      {label} ↗
+    </a>
+  );
+}
+
+function Metric({ label, value, sub, accent = false }: { label: string; value: string; sub: string | null; accent?: boolean }) {
+  return (
+    <div className="min-w-0 bg-ink-2 px-4 py-3.5">
+      <dt className="eyebrow">{label}</dt>
+      <dd className={`num mt-1.5 truncate text-[17px] leading-tight ${accent ? "text-mint" : "text-fg"}`} title={value}>
+        {value}
+      </dd>
+      {sub ? <dd className="num mt-1 truncate text-[11.5px] text-muted">{sub}</dd> : null}
+    </div>
+  );
+}
+
+function Term({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="min-w-0 bg-ink-1 px-4 py-3">
+      <dt className="eyebrow">{label}</dt>
+      <dd className={`num mt-1 truncate text-[15px] ${accent ? "text-mint" : "text-fg"}`} title={value}>
+        {value}
+      </dd>
     </div>
   );
 }

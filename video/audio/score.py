@@ -1,16 +1,16 @@
 """
-Score and sound design for the VISE videos, synthesised from scratch.
+Score and sound design for the IMAGINE films, synthesised from scratch.
 
 Nothing here is sampled or licensed; every sound is oscillators, noise and
 envelopes, so the output is ours outright and every render is bit-identical.
 
-The music is a real arrangement rather than a bed: D minor at 96 BPM, an
-i–VI–III–VII progression, a sub bass on eighths, saw pads under a moving
-filter, a plucked sixteenth-note arpeggio with delay, and a drum kit (kick,
-clap, hats) with the whole mix ducking under the kick. Sections are cut to
-the films' beats: drums enter where the mechanism appears, drop out for the
-guarantees, and return for the close. On top sit the sound effects: ratchet
-cranks where the vise steps, risers into cuts, sub impacts on them.
+D major at 96 BPM, a I–V–vi–IV progression with added sevenths for a dreamy
+lift, a sub bass on eighths, saw pads under a moving filter, a plucked
+arpeggio with delay, and a soft drum kit with the mix ducking under the kick.
+Sections are cut to the films' bars (2.5 s): a heartbeat under the sell-off,
+the pads opening when nobody sells, drums when the stream starts, and the
+motif over the mark. Effects: soft latch clicks where a lock commits, risers
+into cuts, sub impacts on them.
 
 Output: 48 kHz stereo WAV into video/public, one per composition.
 
@@ -131,14 +131,14 @@ def place(mix: np.ndarray, sound: np.ndarray, at: float, gain: float = 1.0) -> N
 
 # --- instruments ------------------------------------------------------------
 
-# D minor: i–VI–III–VII, one chord per bar, voiced low-mid.
+# D major: I–V–vi–IV, one chord per bar, voiced low-mid with colour tones.
 PROGRESSION = [
-    ("Dm", [50, 57, 62, 65]),  # D3 A3 D4 F4
-    ("Bb", [46, 53, 58, 62]),  # Bb2 F3 Bb3 D4
-    ("F", [53, 60, 65, 69]),  # F3 C4 F4 A4
-    ("C", [48, 55, 60, 64]),  # C3 G3 C4 E4
+    ("Dmaj7", [50, 57, 61, 66]),  # D3 A3 C#4 F#4
+    ("A", [45, 52, 57, 64]),  # A2 E3 A3 E4
+    ("Bm7", [47, 54, 57, 62]),  # B2 F#3 A3 D4
+    ("Gmaj7", [43, 50, 54, 59]),  # G2 D3 F#3 B3
 ]
-ROOTS = [38, 34, 41, 36]  # D2 Bb1 F2 C2
+ROOTS = [38, 33, 35, 31]  # D2 A1 B1 G1
 
 
 def kick() -> np.ndarray:
@@ -202,8 +202,8 @@ def lead(midi: int, length: int) -> np.ndarray:
     return x * adsr(length, 0.09, 0.2, 0.8, 0.35) * 0.4
 
 
-# The motif: eight notes over two bars, D minor, rising then settling.
-MOTIF = [(74, 1.0), (77, 1.0), (81, 1.5), (79, 0.5), (77, 1.0), (74, 1.0), (72, 1.0), (74, 1.0)]
+# The motif: eight notes over two bars, D major, rising to the fifth and settling home.
+MOTIF = [(74, 1.0), (76, 1.0), (78, 1.5), (81, 0.5), (78, 1.0), (76, 1.0), (73, 1.0), (74, 1.0)]
 
 
 # --- arrangement -------------------------------------------------------------
@@ -292,7 +292,7 @@ class Arrangement:
         """`intensity` is a per-sample gain over the music (not the effects):
         the arrangement's dynamics, so a quiet passage is actually quiet."""
         sc = self.sidechain()
-        duck = 0.55 + 0.45 * sc  # a gentle pump, not a gasp
+        duck = 0.55 + 0.45 * sc  # a gentle breath, not a gasp
         pads = sweep_lowpass(self.pads, pad_cutoff)
         pads = reverb(pads, 2.4, 0.3, 2600) * duck
         bass = self.bass * np.maximum(sc, 0.5)
@@ -307,7 +307,8 @@ class Arrangement:
 # --- sound design ------------------------------------------------------------
 
 
-def crank(strength: float = 1.0) -> np.ndarray:
+def latch(strength: float = 1.0) -> np.ndarray:
+    """A lock committing: a short ratcheting tick train over a soft low thump."""
     L = n(0.55)
     t = t_axis(L)
     out = np.zeros(L)
@@ -341,11 +342,6 @@ def riser(seconds: float) -> np.ndarray:
     x = rng.standard_normal(L)
     cutoff = 200 + 5_000 * (t / seconds) ** 2.4
     return sweep_lowpass(x, cutoff, 24) * (t / seconds) ** 2 * 0.5
-
-
-def tick() -> np.ndarray:
-    L = n(0.04)
-    return highpass(lowpass(rng.standard_normal(L), 6000), 1800) * np.exp(-t_axis(L) / 0.012) * 0.9
 
 
 # --- master ------------------------------------------------------------------
@@ -386,114 +382,114 @@ def fade(x: np.ndarray, out_seconds: float) -> np.ndarray:
 
 
 def promo() -> None:
-    """60s, 24 bars. Sections in bars: hook 0–2, problem 2–5, mechanism 5–8,
-    ladder 8–12, product 12–16, guarantees 16–20, close 20–24.
+    """58 s. Sections in bars (2.5 s): the sell-off 0–3, nobody sold 3–5,
+    the dial 5–9, the fee path 9–12, lockers 12–14, StonkFun pairs 14–17,
+    the rules 17–20, the mark 20–23.
 
-    Restraint is the brief: a heartbeat under the problem, a light groove
-    under the numbers, nothing but the pad under the guarantees, and the
-    motif twice, so the hour of loops the film will be watched in does not
-    wear."""
-    a = Arrangement(60.5)
+    A heartbeat under the sell-off, the pads opening when nobody sells, a
+    light groove under the dial, the full kit for the stream, only pads under
+    the rules, and the motif three times."""
+    a = Arrangement(58.0)
     a.pads_bars(0, 24)
     a.bass_bars(0, 5, eighths=False)
-    a.bass_bars(5, 8)
-    a.bass_bars(8, 16)
-    a.bass_bars(16, 20, eighths=False)
+    a.bass_bars(5, 17)
+    a.bass_bars(17, 20, eighths=False)
     a.bass_bars(20, 24)
-    a.pulse_bars(2, 5)
-    a.drums_bars(5, 8, full=False)
-    a.drums_bars(8, 16, full=True)
-    a.drums_bars(20, 23, full=True)
-    a.arp_bars(8, 16, 0.35)
-    a.motif_bars(5, 0.7)
+    a.pulse_bars(1, 3)
+    a.drums_bars(5, 9, full=False)
+    a.drums_bars(9, 17, full=True)
+    a.drums_bars(20, 22, full=True)
+    a.arp_bars(9, 17, 0.35)
+    a.motif_bars(3, 0.6)
     a.motif_bars(12, 0.6)
     a.motif_bars(20, 0.75)
     cutoff = np.interp(
         t_axis(a.len),
-        [0, 5, 12.5, 20, 30, 40, 42, 50, 52, 60],
-        [240, 380, 700, 1200, 1500, 1500, 520, 520, 1600, 700],
+        [0, 6, 7.5, 12.5, 22.5, 35, 42.5, 50, 52, 58],
+        [260, 240, 700, 1100, 1500, 1700, 600, 600, 1800, 800],
     )
-    for i, at in enumerate((1.6, 2.9, 4.2)):
-        place(a.fx, crank(0.9 + i * 0.1), at, 0.8)
-    for at in (12.5, 20.0, 30.0, 40.0):
+    for i, at in enumerate((14.5, 16.0, 17.5, 19.0)):
+        place(a.fx, latch(0.8 + i * 0.08), at, 0.7)
+    for at in (7.5, 12.5, 22.5, 30.0, 35.0, 42.5):
         place(a.fx, riser(1.1), at - 1.1, 0.4)
-        place(a.fx, impact(0.7, 1.4), at, 0.8)
+        place(a.fx, impact(0.7, 1.4), at, 0.75)
     place(a.fx, riser(1.6), 48.4, 0.55)
     place(a.fx, impact(1.0, 2.4), 50.0, 1.0)
-    place(a.fx, crank(1.0), 50.35, 0.85)
-    place(a.fx, impact(1.0, 3.0), 57.5, 1.0)
+    place(a.fx, latch(1.0), 50.9, 0.8)
+    place(a.fx, impact(0.6, 2.4), 51.5, 0.7)
     intensity = np.interp(
         t_axis(a.len),
-        [0, 5, 12.5, 20, 30, 40, 41, 49, 50, 57.5, 60.5],
-        [0.55, 0.7, 0.85, 1.0, 0.95, 0.9, 0.5, 0.5, 1.0, 0.9, 0.6],
+        [0, 7.5, 12.5, 22.5, 35, 42.5, 43, 49.5, 50, 55, 58],
+        [0.55, 0.6, 0.8, 1.0, 0.95, 0.9, 0.55, 0.55, 1.0, 0.9, 0.6],
     )
-    mixed = a.mix(cutoff, {"pads": 0.36, "bass": 0.6, "arp": 0.45, "drums": 0.62, "fx": 0.9}, intensity)
-    write("promo.wav", fade(master(stereo(mixed)), 1.2))
+    mixed = a.mix(cutoff, {"pads": 0.36, "bass": 0.6, "arp": 0.45, "drums": 0.6, "fx": 0.9}, intensity)
+    write("promo.wav", fade(master(stereo(mixed)), 1.5))
 
 
 def teaser() -> None:
-    """12s. 0–3 title, 3–8 clamp with three cranks, 8–12 logo."""
-    a = Arrangement(12.2)
-    a.pads_bars(0, 5)
-    a.bass_bars(0, 5, eighths=False)
-    a.pulse_bars(1, 3)
-    a.drums_bars(3, 5, full=False)
-    a.motif_bars(3, 0.6)
-    cutoff = np.interp(t_axis(a.len), [0, 3, 8, 12], [300, 700, 2200, 1200])
-    for i, at in enumerate((3.83, 5.5, 7.17)):
-        place(a.fx, crank(1.0 + i * 0.12), at, 0.95)
-    place(a.fx, riser(1.0), 7.0, 0.7)
-    place(a.fx, impact(1.0, 2.2), 8.0, 1.0)
-    place(a.fx, impact(0.45, 1.6), 9.4, 0.6)
-    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.62, "fx": 0.9})
-    write("teaser.wav", fade(master(stereo(mixed)), 0.8))
+    """15 s. The sell-off 0–5, nobody sold 5–10, the mark 10–15."""
+    a = Arrangement(15.0)
+    a.pads_bars(0, 6)
+    a.bass_bars(0, 2, eighths=False)
+    a.bass_bars(2, 6)
+    a.pulse_bars(0, 2)
+    a.drums_bars(4, 6, full=False)
+    a.motif_bars(2, 0.6)
+    cutoff = np.interp(t_axis(a.len), [0, 5, 10, 15], [280, 900, 2000, 1100])
+    place(a.fx, riser(1.0), 4.0, 0.5)
+    place(a.fx, impact(0.7, 1.6), 5.0, 0.8)
+    place(a.fx, riser(1.0), 9.0, 0.7)
+    place(a.fx, impact(1.0, 2.2), 10.0, 1.0)
+    place(a.fx, latch(1.0), 10.9, 0.8)
+    place(a.fx, impact(0.5, 1.8), 11.5, 0.6)
+    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.6, "fx": 0.9})
+    write("teaser.wav", fade(master(stereo(mixed)), 1.0))
 
 
 def explainer() -> None:
-    """30s. Beats at 0, 6, 13, 21; closing from 21."""
-    a = Arrangement(30.2)
+    """30 s. Steps at 2.5, 7.5, 12.5, 17.5; the mark from 22.5."""
+    a = Arrangement(30.0)
     a.pads_bars(0, 12)
-    a.bass_bars(0, 5, eighths=False)
-    a.bass_bars(5, 12)
-    a.pulse_bars(2, 5)
-    a.drums_bars(5, 8, full=False)
-    a.drums_bars(8, 12, full=True)
-    a.arp_bars(5, 12, 0.35)
-    a.motif_bars(2, 0.6)
-    a.motif_bars(8, 0.7)
-    cutoff = np.interp(t_axis(a.len), [0, 6, 13, 21, 30], [350, 800, 1600, 2200, 1200])
-    for at in (6.0, 13.0):
-        place(a.fx, riser(0.8), at - 0.8, 0.5)
-        place(a.fx, impact(0.75, 1.4), at, 0.8)
-    for i in range(5):
-        place(a.fx, tick(), 13.2 + i * 0.45, 0.9)
-    place(a.fx, riser(1.2), 19.8, 0.75)
-    place(a.fx, impact(1.0, 2.4), 21.0, 1.0)
-    place(a.fx, crank(0.9), 22.6, 0.8)
-    place(a.fx, impact(0.4, 2.0), 26.0, 0.5)
-    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.62, "fx": 0.9})
+    a.bass_bars(0, 3, eighths=False)
+    a.bass_bars(3, 12)
+    a.pulse_bars(1, 3)
+    a.drums_bars(3, 5, full=False)
+    a.drums_bars(5, 9, full=True)
+    a.arp_bars(3, 9, 0.35)
+    a.motif_bars(1, 0.55)
+    a.motif_bars(9, 0.7)
+    cutoff = np.interp(t_axis(a.len), [0, 7.5, 12.5, 17.5, 22.5, 30], [350, 800, 1300, 1800, 2000, 1100])
+    for at in (2.5, 7.5, 12.5, 17.5):
+        place(a.fx, riser(0.8), at - 0.8, 0.4)
+        place(a.fx, impact(0.6, 1.4), at, 0.7)
+    place(a.fx, riser(1.2), 21.3, 0.7)
+    place(a.fx, impact(1.0, 2.4), 22.5, 1.0)
+    place(a.fx, latch(0.9), 23.4, 0.8)
+    place(a.fx, impact(0.5, 2.0), 24.0, 0.6)
+    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.6, "fx": 0.9})
     write("explainer.wav", fade(master(stereo(mixed)), 1.0))
 
 
 def vertical() -> None:
-    """15s. Lines at 0, 3.2, 6.4; payoff 9–15."""
-    a = Arrangement(15.2)
+    """15 s. Sell-off 0–3.8, nobody sold 3.8–7.5, the dial 7.5–11.25, the mark 11.25–15."""
+    a = Arrangement(15.0)
     a.pads_bars(0, 6)
-    a.bass_bars(0, 3, eighths=False)
-    a.bass_bars(3, 6)
-    a.pulse_bars(1, 3)
-    a.drums_bars(3, 6, full=True)
-    a.arp_bars(3, 6, 0.35)
+    a.bass_bars(0, 2, eighths=False)
+    a.bass_bars(2, 6)
+    a.pulse_bars(0, 2)
+    a.drums_bars(3, 5, full=True)
+    a.arp_bars(3, 5, 0.35)
     a.motif_bars(3, 0.65)
-    cutoff = np.interp(t_axis(a.len), [0, 3.2, 6.4, 9, 15], [400, 900, 1600, 2200, 1200])
-    for at in (3.2, 6.4):
-        place(a.fx, impact(0.6, 1.2), at, 0.8)
-    place(a.fx, riser(0.9), 8.1, 0.7)
-    place(a.fx, impact(1.0, 2.2), 9.0, 1.0)
-    for i, at in enumerate((9.5, 10.3, 11.2)):
-        place(a.fx, crank(0.9 + i * 0.1), at, 0.9)
-    place(a.fx, impact(0.5, 1.8), 12.4, 0.6)
-    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.62, "fx": 0.9})
+    cutoff = np.interp(t_axis(a.len), [0, 3.8, 7.5, 11.25, 15], [300, 900, 1600, 2100, 1100])
+    place(a.fx, impact(0.6, 1.2), 3.8, 0.7)
+    place(a.fx, riser(0.9), 6.6, 0.5)
+    place(a.fx, impact(0.7, 1.4), 7.5, 0.8)
+    for i, at in enumerate((8.3, 9.0, 9.7)):
+        place(a.fx, latch(0.8 + i * 0.1), at, 0.7)
+    place(a.fx, riser(0.9), 10.35, 0.6)
+    place(a.fx, impact(1.0, 2.2), 11.25, 1.0)
+    place(a.fx, latch(1.0), 12.15, 0.8)
+    mixed = a.mix(cutoff, {"pads": 0.42, "bass": 0.6, "arp": 0.45, "drums": 0.6, "fx": 0.9})
     write("vertical.wav", fade(master(stereo(mixed)), 0.8))
 
 

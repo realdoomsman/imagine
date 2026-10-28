@@ -3,23 +3,26 @@ import type { NextConfig } from "next";
 /**
  * Content-Security-Policy. The site shows creator-chosen coin metadata and,
  * for signed-in accounts, can reveal a wallet's secret key, so the policy's
- * job is containment: no script from anywhere but this origin, no network
- * request to anywhere but the API and the RPC, no image from a host we do not
- * pin metadata to. Inline scripts stay allowed because the App Router
- * hydrates through them on statically prerendered pages; exfiltration is
- * what connect-src/img-src/form-action close off.
+ * job is containment: no script from anywhere but this origin and no network
+ * request to anywhere but the API and the RPC. Images may come from any https
+ * host: coin art lives wherever its creator pinned it and StonkFun pair logos
+ * span dozens of issuer CDNs, and an image cannot run code. Inline scripts
+ * stay allowed because the App Router hydrates through them; `'unsafe-eval'`
+ * is added in development only, where React's dev runtime needs it.
  */
+const DEV = process.env.NODE_ENV === "development";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-const RPC = process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.solana.com";
+const RPC = process.env.NEXT_PUBLIC_RPC_URL ?? "http://127.0.0.1:8899";
 const RPC_WS = RPC.replace(/^http/, "ws");
+
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${DEV ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://pump.mypinata.cloud https://*.pinata.cloud https://ipfs.io https://*.arweave.net https://lh3.googleusercontent.com",
+  `img-src 'self' data: blob: https: ${API}`,
   "media-src 'self'",
   "font-src 'self' data:",
-  `connect-src 'self' ${API} ${RPC} ${RPC_WS}`,
+  `connect-src 'self' ${API} ${RPC} ${RPC_WS}${DEV ? " ws://localhost:* ws://127.0.0.1:*" : ""}`,
   `form-action 'self' ${API}`,
   "frame-ancestors 'none'",
   "base-uri 'none'",
@@ -34,26 +37,25 @@ const config: NextConfig = {
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
   images: {
     remotePatterns: [
+      { protocol: "https", hostname: "www.stonkfun.xyz" },
+      { protocol: "https", hostname: "stonkfun.xyz" },
       { protocol: "https", hostname: "ipfs.io" },
+      { protocol: "https", hostname: "**.ipfs.io" },
       { protocol: "https", hostname: "**.pinata.cloud" },
-      { protocol: "https", hostname: "pump.mypinata.cloud" },
+      { protocol: "https", hostname: "**.mypinata.cloud" },
+      { protocol: "https", hostname: "arweave.net" },
       { protocol: "https", hostname: "**.arweave.net" },
+      { protocol: "https", hostname: "gateway.irys.xyz" },
     ],
   },
   async redirects() {
-    // The Railway hostname keeps working as an origin but is not a site:
-    // sessions are same-site with api.vise.fun only under vise.fun.
+    // One canonical host: sessions are same-site with api.imagine.fun only
+    // under imagine.fun.
     return [
       {
         source: "/:path*",
-        has: [{ type: "host", value: "web-production-3100c.up.railway.app" }],
-        destination: "https://vise.fun/:path*",
-        permanent: true,
-      },
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.vise.fun" }],
-        destination: "https://vise.fun/:path*",
+        has: [{ type: "host", value: "www.imagine.fun" }],
+        destination: "https://imagine.fun/:path*",
         permanent: true,
       },
     ];
@@ -68,7 +70,7 @@ const config: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
-          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+          ...(DEV ? [] : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" }]),
         ],
       },
     ];

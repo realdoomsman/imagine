@@ -1,10 +1,6 @@
-/**
- * Shared shell for the written pages.
- *
- * The prose styling lives here rather than in a global stylesheet so the
- * editorial pages can have a measure and rhythm of their own without leaking
- * into the app surfaces, which are dense and tabular.
- */
+import Link from "next/link";
+
+/** Shared shell for the written pages: docs, mechanics, legal, the article. */
 export function DocPage({
   eyebrow,
   title,
@@ -17,37 +13,36 @@ export function DocPage({
   children: React.ReactNode;
 }) {
   return (
-    <article className="mx-auto max-w-[760px] px-5 py-20 sm:px-8 lg:py-28">
-      <p className="rule-label">{eyebrow}</p>
-      <h1 className="t-section mt-5">{title}</h1>
-      <p className="t-lede mt-7 max-w-none">{lede}</p>
-      <div
-        className="mt-14 h-px"
-        style={{
-          background:
-            "linear-gradient(90deg, var(--color-torch), var(--color-steel-780) 32%, transparent)",
-        }}
-      />
+    <article className="mx-auto max-w-[800px] px-5 pb-24 pt-14 sm:px-8 lg:pb-32 lg:pt-20">
+      <p className="eyebrow">{eyebrow}</p>
+      <h1 className="t-h1 mt-4">{title}</h1>
+      <p className="t-lede mt-6 max-w-none">{lede}</p>
+      <div className="mt-12 h-px" style={{ background: "linear-gradient(90deg, #5EE9B5, var(--line) 30%, transparent)" }} />
       {children}
     </article>
   );
 }
 
-export function DocSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+export function DocSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-14">
-      <h2 className="text-[clamp(1.4rem,2.6vw,1.9rem)] leading-[1.1] tracking-[-0.03em]">
-        {title}
-      </h2>
-      <div className="mt-5 space-y-4 text-[15.5px] leading-[1.7] text-steel-400 [&_code]:rounded-machined [&_code]:border [&_code]:border-steel-700 [&_code]:bg-steel-950 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[13px] [&_code]:text-steel-200 [&_em]:not-italic [&_em]:text-steel-100 [&_li]:ml-5 [&_li]:list-disc [&_li]:marker:text-steel-600 [&_ol_li]:list-decimal [&_ol]:space-y-2 [&_pre]:overflow-x-auto [&_pre]:rounded-machined [&_pre]:border [&_pre]:border-steel-700 [&_pre]:bg-steel-950 [&_pre]:p-4 [&_pre]:text-[13px] [&_pre]:text-steel-300 [&_strong]:font-semibold [&_strong]:text-steel-100 [&_ul]:space-y-2">
+      <h2 className="t-h2 text-[clamp(1.4rem,2.6vw,1.85rem)]">{title}</h2>
+      <div className="prose-imagine mt-5 text-[15.5px] [&_pre]:overflow-x-auto [&_pre]:rounded-[10px] [&_pre]:border [&_pre]:border-line [&_pre]:bg-ink-1 [&_pre]:p-4 [&_pre]:text-[13px] [&_pre]:leading-relaxed [&_pre]:text-fg">
         {children}
       </div>
     </section>
+  );
+}
+
+/** Closing links at the foot of a written page. */
+export function DocLinks({ links }: { links: Array<{ href: string; label: string }> }) {
+  return (
+    <div className="hairline mt-14 flex flex-wrap gap-3 pt-8">
+      {links.map((link, index) => (
+        <Link key={link.href} href={link.href} className={`btn ${index === 0 ? "btn-primary" : "btn-ghost"}`}>
+          {link.label}
+        </Link>
+      ))}
+    </div>
   );
 }

@@ -1,15 +1,15 @@
 import { BorshCoder, type Idl } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import idlJson from "./idl/vise.json" with { type: "json" };
+import idlJson from "./idl/imagine.json" with { type: "json" };
 
-export const VISE_IDL = idlJson as Idl;
+export const IMAGINE_IDL = idlJson as Idl;
 
 /**
  * Anchor's Borsh coder emits the IDL's own field names, which are snake_case.
  * Decoding lives here, once, so the API, the indexer, the web app, and the
  * tests can never drift apart on field naming.
  */
-export const coder = new BorshCoder(VISE_IDL);
+export const coder = new BorshCoder(IMAGINE_IDL);
 
 
 /**
@@ -17,7 +17,7 @@ export const coder = new BorshCoder(VISE_IDL);
  * they cannot drift from the deployed program.
  */
 function discriminatorOf(name: string): Buffer {
-  const account = (VISE_IDL.accounts ?? []).find((a) => a.name === name);
+  const account = (IMAGINE_IDL.accounts ?? []).find((a) => a.name === name);
   if (!account?.discriminator) throw new Error(`no discriminator for ${name}`);
   return Buffer.from(account.discriminator);
 }
@@ -92,6 +92,13 @@ export interface PoolAccount {
   tokenVault: PublicKey;
   rewardVault: PublicKey;
   tokenProgram: PublicKey;
+  /** The coin's LaunchLab quote: what lockers are paid in. */
+  quoteMint: PublicKey;
+  quoteTokenProgram: PublicKey;
+  /** Reward vault's quote ATA; the default pubkey for a WSOL quote. */
+  rewardTokenAccount: PublicKey;
+  /** The coin's LaunchLab `PoolState`. */
+  launchlabPool: PublicKey;
   terms: PoolTermsAccount;
   totalLocked: bigint;
   totalWeight: bigint;
@@ -115,9 +122,9 @@ export interface PoolAccount {
   createdAt: number;
   bump: number;
   vaultBump: number;
-  /** Each lock may earn at most its `rewardCap`; false on pools made before limits. */
-  capped: boolean;
-  /** Lamports the open locks can still earn in total. */
+  /** The creator's founding lock is in; locks and deposits are open. */
+  founded: boolean;
+  /** Quote base units the open locks can still earn in total. */
   rewardCapacity: bigint;
 }
 
@@ -133,7 +140,7 @@ export interface PositionAccount {
   rewardDebt: bigint;
   claimed: bigint;
   bump: number;
-  /** Capped pools: the most this lock may ever be paid, in lamports. */
+  /** The most this lock may ever be paid, in quote base units. */
   rewardCap: bigint;
   /** The owner gave up this lock's earnings for good; it holds no weight. */
   renounced: boolean;
@@ -143,6 +150,8 @@ export interface ConfigAccount {
   admin: PublicKey;
   pendingAdmin: PublicKey;
   treasury: PublicKey;
+  /** StonkFun's LaunchLab PlatformConfig every launch is created under. */
+  launchlabPlatform: PublicKey;
   tradeFeeBps: number;
   defaultTreasuryShareBps: number;
   maxCreatorShareBps: number;
@@ -171,6 +180,10 @@ export function decodePool(data: Buffer | Uint8Array): PoolAccount {
     tokenVault: raw.token_vault as PublicKey,
     rewardVault: raw.reward_vault as PublicKey,
     tokenProgram: raw.token_program as PublicKey,
+    quoteMint: raw.quote_mint as PublicKey,
+    quoteTokenProgram: raw.quote_token_program as PublicKey,
+    rewardTokenAccount: raw.reward_token_account as PublicKey,
+    launchlabPool: raw.launchlab_pool as PublicKey,
     terms: {
       treasuryShareBps: num(terms.treasury_share_bps),
       creatorShareBps: num(terms.creator_share_bps),
@@ -206,7 +219,7 @@ export function decodePool(data: Buffer | Uint8Array): PoolAccount {
     createdAt: num(raw.created_at),
     bump: num(raw.bump),
     vaultBump: num(raw.vault_bump),
-    capped: Boolean(raw.capped),
+    founded: Boolean(raw.founded),
     rewardCapacity: big(raw.reward_capacity),
   };
 }
@@ -242,6 +255,7 @@ export function decodeConfig(data: Buffer | Uint8Array): ConfigAccount {
     admin: raw.admin as PublicKey,
     pendingAdmin: raw.pending_admin as PublicKey,
     treasury: raw.treasury as PublicKey,
+    launchlabPlatform: raw.launchlab_platform as PublicKey,
     tradeFeeBps: num(raw.trade_fee_bps),
     defaultTreasuryShareBps: num(raw.default_treasury_share_bps),
     maxCreatorShareBps: num(raw.max_creator_share_bps),

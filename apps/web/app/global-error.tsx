@@ -21,50 +21,47 @@ export default function GlobalError({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#06070a",
-          color: "#ccd2dc",
+          background: "#071013",
+          color: "#A4C5CF",
           fontFamily: "ui-sans-serif, system-ui, sans-serif",
           padding: "24px",
         }}
       >
         <main style={{ maxWidth: "36rem" }}>
-          <div style={{ display: "flex", gap: "5px", marginBottom: "28px" }}>
-            <span style={{ width: 14, height: 34, background: "#ff5a1f" }} />
-            <span style={{ width: 14, height: 34, background: "#ff5a1f" }} />
-          </div>
-          <h1
-            style={{
-              fontSize: "34px",
-              lineHeight: 1.05,
-              letterSpacing: "-0.035em",
-              color: "#eef1f5",
-              margin: 0,
-            }}
-          >
-            VISE could not start.
+          <svg viewBox="0 0 32 32" width="44" height="44" aria-hidden="true" style={{ marginBottom: "28px" }}>
+            <defs>
+              <linearGradient id="global-error-dream" x1="0" y1="0" x2="1" y2="0.58">
+                <stop offset="0" stopColor="#8CC8DC" />
+                <stop offset="0.55" stopColor="#5EE9B5" />
+                <stop offset="1" stopColor="#C7F9E5" />
+              </linearGradient>
+            </defs>
+            <rect width="32" height="32" rx="9" fill="url(#global-error-dream)" />
+            <rect x="13" y="13" width="6" height="12" rx="3" fill="#071013" />
+            <circle cx="16" cy="8.5" r="3.2" fill="#071013" />
+          </svg>
+          <h1 style={{ fontSize: "34px", lineHeight: 1.05, letterSpacing: "-0.035em", color: "#F3F8F8", margin: 0 }}>
+            IMAGINE couldn&apos;t start.
           </h1>
-          <p style={{ marginTop: "18px", lineHeight: 1.6, color: "#7d8798" }}>
-            This is a failure of the website, not of the program. Locked tokens
-            and unclaimed rewards are held on-chain and can always be claimed
-            directly, with or without this front end.
+          <p style={{ marginTop: "18px", lineHeight: 1.6 }}>
+            This is a failure of the website, not of the program. Locked coins and unclaimed rewards
+            are held on-chain and can always be claimed directly, with or without this front end.
           </p>
           {error.digest ? (
-            <p style={{ marginTop: "18px", fontSize: "12px", color: "#5a6578" }}>
-              Reference {error.digest}
-            </p>
+            <p style={{ marginTop: "18px", fontSize: "12px", color: "#768A93" }}>Reference {error.digest}</p>
           ) : null}
           <button
             type="button"
             onClick={reset}
             style={{
               marginTop: "30px",
-              height: "46px",
-              padding: "0 22px",
+              height: "44px",
+              padding: "0 20px",
               border: "none",
-              borderRadius: "3px",
-              background: "#ff5a1f",
-              color: "#190600",
-              fontWeight: 600,
+              borderRadius: "8px",
+              background: "#69AAC1",
+              color: "#071013",
+              fontWeight: 700,
               fontSize: "14.5px",
               cursor: "pointer",
             }}

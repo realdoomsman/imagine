@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Render one still by id: scripts/render-card.sh 08-vise-365
+# Render one X card by id to video/out/cards: scripts/render-card.sh 02-stock
 set -euo pipefail
-export PATH="/opt/node/bin:$PATH"
-cd /mnt/c/tech/Hold/video
-SHELL_BIN=$(ls "$HOME/.cache/vise-browser"/chrome-headless-shell/*/chrome-headless-shell-linux64/chrome-headless-shell | head -1)
-PROPS=$(node --input-type=module -e "import { CARDS } from './src/cards.ts'; console.log(JSON.stringify(CARDS.find((c) => c.id === '$1').props));")
-corepack pnpm exec remotion still src/index.ts Card "out/cards/$1.png" --props="$PROPS" --browser-executable="$SHELL_BIN" --log=error
+cd "$(dirname "$0")/../video"
+mkdir -p out/cards
+PROPS=$(node --input-type=module -e "import { CARDS } from './src/cards.ts'; const card = CARDS.find((c) => c.id === '$1'); if (!card) { console.error('no card $1'); process.exit(1); } console.log(JSON.stringify(card.props));")
+npx remotion still src/index.ts XCard "out/cards/$1.png" --props="$PROPS" --log=error
 echo "rendered $1"

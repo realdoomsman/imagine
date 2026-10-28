@@ -1,19 +1,23 @@
 "use client";
 
 import { useConnection } from "@solana/wallet-adapter-react";
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import { getAssociatedTokenAddressSync, NATIVE_MINT } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { useEffect, useState } from "react";
 import { CHAIN_CHANGED } from "./signer.ts";
 
 /**
- * What `owner` holds of `mint`, kept current across actions.
+ * What `owner` holds of `mint` (base units), kept current across actions.
  *
- * Every panel on a coin page reads the same balance, and any of them can
- * change it, so each re-reads when `act` announces a landed transaction. The
- * second read covers an RPC node that answers before it has seen that slot.
+ * `tokenProgram` is the mint's program: Token-2022 for a StonkFun coin, either
+ * one for a pair asset. For the wrapped-SOL mint the wallet's native SOL is
+ * read instead, since that is what a SOL-paired trade spends.
+ *
+ * Every panel on a coin page reads the same balances, and any of them can
+ * change them, so each re-reads when `act` announces a landed transaction.
+ * The second read covers an RPC node that answers before it has seen that slot.
  */
-export function useTokenBalance(mint: string, owner: PublicKey | null): bigint | null {
+export function useTokenBalance(mint: string, tokenProgram: string, owner: PublicKey | null): bigint | null {
   const { connection } = useConnection();
   const [balance, setBalance] = useState<bigint | null>(null);
 
@@ -22,13 +26,18 @@ export function useTokenBalance(mint: string, owner: PublicKey | null): bigint |
       setBalance(null);
       return;
     }
-    const ata = getAssociatedTokenAddressSync(new PublicKey(mint), owner, true, TOKEN_2022_PROGRAM_ID);
+    const native = mint === NATIVE_MINT.toBase58();
+    const ata = native
+      ? null
+      : getAssociatedTokenAddressSync(new PublicKey(mint), owner, true, new PublicKey(tokenProgram));
     let cancelled = false;
     const read = () => {
-      void connection
-        .getTokenAccountBalance(ata)
-        .then((result) => {
-          if (!cancelled) setBalance(BigInt(result.value.amount));
+      const pending = ata
+        ? connection.getTokenAccountBalance(ata).then((result) => BigInt(result.value.amount))
+        : connection.getBalance(owner).then((lamports) => BigInt(lamports));
+      void pending
+        .then((amount) => {
+          if (!cancelled) setBalance(amount);
         })
         .catch(() => {
           if (!cancelled) setBalance(0n);
@@ -46,7 +55,7 @@ export function useTokenBalance(mint: string, owner: PublicKey | null): bigint |
       window.removeEventListener(CHAIN_CHANGED, onChange);
       for (const timer of timers) window.clearTimeout(timer);
     };
-  }, [connection, mint, owner]);
+  }, [connection, mint, owner, tokenProgram]);
 
   return balance;
 }

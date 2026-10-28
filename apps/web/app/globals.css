@@ -1,78 +1,93 @@
 @import "tailwindcss";
 
 /*
- * VISE design tokens.
+ * IMAGINE design tokens.
  *
- * Two temperatures, not one accent on grey: cold steel for structure, torch
- * heat for anything under pressure. Depth comes from light — a top highlight, a
- * body gradient, a floor shadow — never from a blurred drop shadow, because
- * machined metal does not have one.
+ * StonkFun-native dark teal for structure, so a coin feels at home next to the
+ * launchpad it trades on; one signature of our own on top — the `--dream`
+ * gradient — reserved for the mark, the hero, and anything that is "yours"
+ * (active state, earnings, the primary dream call to action).
  */
-@theme {
-  /* Cold side. Slightly blue-shifted so it reads as steel, not neutral grey. */
-  --color-steel-990: #06070a;
-  --color-steel-950: #0a0c10;
-  --color-steel-900: #0f1117;
-  --color-steel-860: #14171f;
-  --color-steel-820: #191d26;
-  --color-steel-780: #1f2530;
-  /*
-   * 700 and below are structure: borders, hairlines, fills. 600 and above are
-   * text, and every one of them clears WCAG AA against the page at small
-   * sizes — the first pass had the eyebrow labels at 3.4:1, which is a label
-   * nobody can read pretending to be restraint.
-   */
-  --color-steel-700: #2a3140;
-  --color-steel-600: #747d90; /* 4.9:1 — quietest text */
-  --color-steel-500: #8d96a8; /* 6.8:1 — labels, captions */
-  --color-steel-400: #a5adba; /* 8.9:1 — secondary body */
-  --color-steel-300: #c2c9d4; /* 12.1:1 — body */
-  --color-steel-200: #d7dce4; /* 14.6:1 */
-  --color-steel-50: #f1f3f7;
+:root {
+  --ink: #071013;
+  --ink-1: #0b171b;
+  --ink-2: #102127;
+  --ink-3: #18262a;
+  --ink-4: #20363d;
+  --line: #20363d;
+  --line-strong: #2f4f58;
+  --fg: #f3f8f8;
+  --fg-soft: #a4c5cf;
+  --muted: #768a93;
+  --steel: #69aac1;
+  --steel-hi: #8cc8dc;
+  --mint: #5ee9b5;
+  --mint-deep: #39d6a3;
+  --rose: #fb7185;
+  --rose-deep: #f23674;
+  --dream: linear-gradient(120deg, #8cc8dc 0%, #5ee9b5 55%, #c7f9e5 100%);
 
-  /* Hot side. */
-  --color-torch: #ff5a1f;
-  --color-torch-bright: #ff7a45;
-  --color-torch-pale: #ffc79e;
-  --color-torch-dim: #a8360f;
+  --radius-btn: 8px;
+  --radius-card: 14px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-snap: cubic-bezier(0.7, 0, 0.2, 1);
+}
 
-  --color-verdi: #3ddc97;
-  --color-rust: #ff5a5f;
+/*
+ * Tailwind utilities mirror the tokens: `bg-ink-2`, `text-fg-soft`,
+ * `border-line`, `text-mint`, `bg-steel` … all resolve to the same variables.
+ */
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-soft: var(--fg-soft);
+  --color-muted: var(--muted);
+  --color-steel: var(--steel);
+  --color-steel-hi: var(--steel-hi);
+  --color-mint: var(--mint);
+  --color-mint-deep: var(--mint-deep);
+  --color-rose: var(--rose);
+  --color-rose-deep: var(--rose-deep);
 
-  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
-  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", monospace;
 
-  --radius-machined: 3px;
-  --ease-clamp: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-snap: cubic-bezier(0.7, 0, 0.2, 1);
+  --radius-btn: 8px;
+  --radius-card: 14px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
   html {
-    background: var(--color-steel-990);
-    color: var(--color-steel-300);
+    background: var(--ink);
+    color: var(--fg-soft);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    scrollbar-color: var(--color-steel-700) transparent;
+    scrollbar-color: var(--ink-4) transparent;
   }
 
   body {
     font-family: var(--font-sans);
-    font-size: 16px;
+    font-size: 15.5px;
     line-height: 1.6;
     overflow-x: clip;
   }
 
   h1,
   h2,
-  h3 {
-    font-family: var(--font-display);
-    color: var(--color-steel-50);
-    font-weight: 700;
-    /* Display type earns its drama from tight tracking at large sizes. */
-    letter-spacing: -0.035em;
-    line-height: 0.95;
+  h3,
+  h4 {
+    color: var(--fg);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.02;
     text-wrap: balance;
   }
 
@@ -80,50 +95,35 @@
     text-wrap: pretty;
   }
 
-  /* Anything that can change value is tabular, so nothing reflows mid-update. */
-  .num {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1, "zero" 1;
-    letter-spacing: -0.01em;
-  }
-
   ::selection {
-    background: var(--color-torch);
-    color: #140600;
+    background: var(--mint);
+    color: var(--ink);
   }
 
   *:focus-visible {
-    outline: 2px solid var(--color-torch);
+    outline: 2px solid var(--steel-hi);
     outline-offset: 3px;
-    border-radius: 2px;
+    border-radius: 4px;
   }
 
-  /*
-   * Scrollbar. The OS default is a bright slab on a dark page and the first
-   * thing that breaks the illusion of a designed surface.
-   */
   ::-webkit-scrollbar {
     width: 11px;
     height: 11px;
   }
 
-  ::-webkit-scrollbar-track {
-    background: var(--color-steel-990);
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: var(--ink);
   }
 
   ::-webkit-scrollbar-thumb {
-    background: var(--color-steel-780);
-    border: 3px solid var(--color-steel-990);
+    background: var(--ink-4);
+    border: 3px solid var(--ink);
     border-radius: 6px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-steel-700);
-  }
-
-  ::-webkit-scrollbar-corner {
-    background: var(--color-steel-990);
+    background: var(--line-strong);
   }
 
   /* Keyboard users land here first and can jump the nav. */
@@ -134,12 +134,12 @@
     z-index: 100;
     translate: -50% -200%;
     padding: 11px 20px;
-    border-radius: var(--radius-machined);
-    background: var(--color-torch);
-    color: #190600;
+    border-radius: var(--radius-btn);
+    background: var(--steel);
+    color: var(--ink);
     font-size: 14px;
-    font-weight: 600;
-    transition: translate 220ms var(--ease-clamp);
+    font-weight: 700;
+    transition: translate 220ms var(--ease-out);
   }
 
   .skip-link:focus {
@@ -148,297 +148,394 @@
 }
 
 @layer components {
-  /*
-   * The type scale. Hero type is enormous and tight; everything else steps down
-   * hard. Timid scale contrast is what made the first pass look unfinished.
-   */
+  /* ---------- Type ---------- */
+
   .t-hero {
-    font-size: clamp(3.4rem, 9.5vw, 8.5rem);
-    line-height: 0.88;
+    font-size: clamp(2.9rem, 7.6vw, 6.6rem);
+    font-weight: 800;
+    line-height: 0.96;
     letter-spacing: -0.045em;
+    color: var(--fg);
   }
-  .t-section {
-    font-size: clamp(2.1rem, 5.2vw, 4rem);
-    line-height: 0.94;
+
+  .t-h1 {
+    font-size: clamp(2.2rem, 4.8vw, 3.75rem);
+    font-weight: 800;
+    line-height: 1;
     letter-spacing: -0.04em;
+    color: var(--fg);
   }
-  .t-sub {
-    font-size: clamp(1.25rem, 2vw, 1.6rem);
-    line-height: 1.18;
-    letter-spacing: -0.025em;
+
+  .t-h2 {
+    font-size: clamp(1.65rem, 3.2vw, 2.5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+    color: var(--fg);
   }
+
+  .t-h3 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+  }
+
   .t-lede {
-    font-size: clamp(1.05rem, 1.5vw, 1.35rem);
-    line-height: 1.55;
-    color: var(--color-steel-300);
-    max-width: 46ch;
+    font-size: clamp(1.02rem, 1.4vw, 1.2rem);
+    line-height: 1.6;
+    color: var(--fg-soft);
+    max-width: 52ch;
   }
 
-  .rule-label {
+  /* Small all-caps label above a heading or a figure. */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.2em;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: var(--color-steel-500);
+    color: var(--muted);
   }
 
-  /*
-   * Machined surface. Three light cues stacked: a hairline catching the key
-   * light on top, a body gradient, and a darker floor. No blur anywhere.
-   */
-  .surface,
-  .panel {
-    position: relative;
-    isolation: isolate;
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in oklab, var(--color-steel-860) 96%, white) 0%,
-        var(--color-steel-900) 42%,
-        var(--color-steel-950) 100%
-      );
-    border: 1px solid var(--color-steel-700);
-    border-radius: var(--radius-machined);
+  /* Gradient text in the brand signature. */
+  .dream-text {
+    background: var(--dream);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
-  .surface::before,
-  .panel::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.14) 18%,
-      rgba(255, 255, 255, 0.14) 82%,
-      transparent
-    );
-    pointer-events: none;
-    z-index: 1;
+  /* Anything that can change value is tabular, so nothing reflows mid-update. */
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "zero" 1;
+    letter-spacing: -0.01em;
   }
 
-  /* Raised variant for the things a user acts on. */
-  .surface-raised {
-    background:
-      linear-gradient(
-        180deg,
-        var(--color-steel-820) 0%,
-        var(--color-steel-860) 55%,
-        var(--color-steel-900) 100%
-      );
-    border-color: #39414f;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.07),
-      inset 0 -1px 0 rgba(0, 0, 0, 0.55);
+  .up {
+    color: var(--mint);
   }
 
-  /* Knurling: the diagonal hatch of a vise handle. Texture, never a gradient. */
-  .knurl {
-    background-image: repeating-linear-gradient(
-      -45deg,
-      rgba(255, 255, 255, 0.05) 0px,
-      rgba(255, 255, 255, 0.05) 1px,
-      transparent 1px,
-      transparent 5px
-    );
+  .down {
+    color: var(--rose);
   }
 
-  /* Hairline grid, for sections that want structure without boxes. */
-  .grid-lines {
-    background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-    background-size: 88px 88px;
-  }
+  /* ---------- Buttons ---------- */
 
   .btn {
     position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    height: 46px;
-    padding: 0 22px;
-    border-radius: var(--radius-machined);
-    font-weight: 600;
-    font-size: 14.5px;
-    letter-spacing: -0.01em;
+    gap: 8px;
+    height: 44px;
+    padding: 0 18px;
+    border-radius: var(--radius-btn);
     border: 1px solid transparent;
+    font-family: var(--font-sans);
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
     cursor: pointer;
     transition:
-      transform 140ms var(--ease-snap),
-      background-color 180ms var(--ease-clamp),
-      border-color 180ms var(--ease-clamp),
-      box-shadow 180ms var(--ease-clamp);
+      transform 120ms var(--ease-snap),
+      background-color 160ms var(--ease-out),
+      border-color 160ms var(--ease-out),
+      color 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out),
+      filter 160ms var(--ease-out);
   }
 
-  /* Pressing a control should feel like pressing metal: it depresses. */
   .btn:active:not(:disabled) {
-    transform: translateY(1px) scaleY(0.97);
+    transform: translateY(1px);
   }
 
   .btn:disabled {
-    opacity: 0.38;
+    opacity: 0.4;
     cursor: not-allowed;
   }
 
+  .btn-sm {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13.5px;
+  }
+
+  .btn-lg {
+    height: 52px;
+    padding: 0 24px;
+    font-size: 15.5px;
+  }
+
+  /* StonkFun's primary: flat steel blue, ink text. */
   .btn-primary {
-    background: linear-gradient(180deg, var(--color-torch-bright), var(--color-torch));
-    color: #190600;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.35),
-      0 0 0 0 rgba(255, 90, 31, 0);
+    background: var(--steel);
+    color: var(--ink);
   }
 
   .btn-primary:hover:not(:disabled) {
+    background: var(--steel-hi);
+  }
+
+  /* IMAGINE's signature call to action. */
+  .btn-dream {
+    background: var(--dream);
+    color: var(--ink);
+    font-weight: 700;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.45),
-      0 0 34px -6px rgba(255, 90, 31, 0.65);
+      0 0 0 0 rgba(94, 233, 181, 0);
+  }
+
+  .btn-dream:hover:not(:disabled) {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 10px 34px -10px rgba(94, 233, 181, 0.6);
+    filter: saturate(1.08) brightness(1.03);
   }
 
   .btn-ghost {
-    background: linear-gradient(180deg, var(--color-steel-820), var(--color-steel-900));
-    border-color: #39414f;
-    color: var(--color-steel-200);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    background: var(--ink-2);
+    border-color: var(--line);
+    color: var(--fg);
   }
 
   .btn-ghost:hover:not(:disabled) {
-    border-color: #4d5769;
-    color: var(--color-steel-50);
+    border-color: var(--line-strong);
+    background: var(--ink-3);
+  }
+
+  /* Destructive confirmation (early unlock and the like). */
+  .btn-danger {
+    background: color-mix(in oklab, var(--rose) 14%, var(--ink-2));
+    border-color: color-mix(in oklab, var(--rose) 45%, var(--line));
+    color: var(--rose);
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--rose) 22%, var(--ink-2));
+    border-color: var(--rose);
+  }
+
+  /* ---------- Surfaces ---------- */
+
+  .card {
+    position: relative;
+    background: var(--ink-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: border-color 180ms var(--ease-out), background-color 180ms var(--ease-out);
+  }
+
+  .card:is(a, button):hover,
+  .card-hover:hover {
+    border-color: var(--line-strong);
+  }
+
+  /* Recessed panel inside a card (stat wells, quote boxes). */
+  .well {
+    background: var(--ink-1);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+
+  /* A card that belongs to the viewer (their position, their stream). */
+  .card-dream {
+    border-color: transparent;
+    background:
+      linear-gradient(var(--ink-2), var(--ink-2)) padding-box,
+      var(--dream) border-box;
+  }
+
+  .hairline {
+    border-top: 1px solid var(--line);
+  }
+
+  /* ---------- Pills ---------- */
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--ink-1);
+    color: var(--fg-soft);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .pill-up {
+    color: var(--mint);
+    border-color: color-mix(in oklab, var(--mint) 35%, var(--line));
+    background: color-mix(in oklab, var(--mint) 9%, var(--ink-1));
+  }
+
+  .pill-down {
+    color: var(--rose);
+    border-color: color-mix(in oklab, var(--rose) 35%, var(--line));
+    background: color-mix(in oklab, var(--rose) 9%, var(--ink-1));
+  }
+
+  .pill-steel {
+    color: var(--steel-hi);
+    border-color: color-mix(in oklab, var(--steel) 40%, var(--line));
+    background: color-mix(in oklab, var(--steel) 10%, var(--ink-1));
   }
 
   /*
-   * Text fields. Recessed rather than raised: an input is a hole you put a
-   * value into, and the inset shadow is what makes that read at a glance.
+   * StonkFun's "Paired with ● NVDAx". Markup:
+   *   <span class="pill pill-pair"><span class="pill-label">Paired with</span>
+   *   <i class="pill-dot"></i><b>NVDAx</b></span>
    */
+  .pill-pair {
+    color: var(--fg);
+    background: var(--ink-3);
+  }
+
+  .pill-pair .pill-label {
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .pill-pair b {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .pill-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 999px;
+    background: var(--mint);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--mint) 22%, transparent);
+  }
+
+  /* ---------- Inputs ---------- */
+
   .input {
     width: 100%;
-    padding: 10px 13px;
-    border-radius: var(--radius-machined);
-    border: 1px solid var(--color-steel-700);
-    background: linear-gradient(180deg, #04060a, #0d1016);
-    color: var(--color-steel-50);
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.85);
+    height: 44px;
+    padding: 0 13px;
+    border-radius: var(--radius-btn);
+    border: 1px solid var(--line);
+    background: var(--ink-1);
+    color: var(--fg);
     transition:
-      border-color 180ms var(--ease-clamp),
-      box-shadow 180ms var(--ease-clamp);
+      border-color 160ms var(--ease-out),
+      box-shadow 160ms var(--ease-out);
+  }
+
+  textarea.input {
+    height: auto;
+    padding: 10px 13px;
   }
 
   .input::placeholder {
-    color: var(--color-steel-600);
+    color: var(--muted);
   }
 
   .input:focus {
     outline: none;
-    border-color: var(--color-torch);
-    box-shadow:
-      inset 0 1px 3px rgba(0, 0, 0, 0.85),
-      0 0 0 3px rgba(255, 90, 31, 0.15);
-  }
-
-  .hairline {
-    border-top: 1px solid var(--color-steel-780);
+    border-color: var(--steel);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--steel) 22%, transparent);
   }
 
   /*
-   * Loading shimmer. A sweep, not a pulse: a pulsing block reads as something
-   * blinking because it is broken, a sweep reads as something in progress.
+   * Range slider. `--fill` (a percentage) paints the travelled part of the
+   * track in the dream gradient.
    */
-  .shimmer {
+  .range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 24px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .range::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
     background:
-      linear-gradient(
-        90deg,
-        var(--color-steel-860) 0%,
-        #2f3644 42%,
-        var(--color-steel-860) 84%
-      );
+      linear-gradient(90deg, #8cc8dc 0%, #5ee9b5 var(--fill, 0%), transparent var(--fill, 0%)),
+      var(--ink-4);
+  }
+
+  .range::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--ink-4);
+  }
+
+  .range::-moz-range-progress {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--dream);
+  }
+
+  .range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    margin-top: -7px;
+    border-radius: 999px;
+    border: 3px solid var(--ink);
+    background: var(--fg);
+    box-shadow: 0 0 0 1px var(--line-strong), 0 4px 14px rgba(0, 0, 0, 0.5);
+    transition: box-shadow 160ms var(--ease-out);
+  }
+
+  .range:hover::-webkit-slider-thumb,
+  .range:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 1px var(--mint), 0 0 0 6px color-mix(in oklab, var(--mint) 22%, transparent);
+  }
+
+  .range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    border: 3px solid var(--ink);
+    background: var(--fg);
+  }
+
+  /* ---------- Motion ---------- */
+
+  /* Loading shimmer: a sweep, not a pulse. */
+  .shimmer {
+    background: linear-gradient(90deg, var(--ink-2) 0%, var(--ink-4) 42%, var(--ink-2) 84%);
     background-size: 280% 100%;
-    animation: shimmer-sweep 1.5s var(--ease-clamp) infinite;
+    animation: shimmer-sweep 1.5s var(--ease-out) infinite;
   }
 
   @keyframes shimmer-sweep {
     from { background-position: 140% 0; }
-    to   { background-position: -140% 0; }
+    to { background-position: -140% 0; }
   }
 
   /* Replayed on every navigation by app/template.tsx. */
   .route-enter {
-    animation: route-enter 420ms var(--ease-clamp) both;
+    animation: route-enter 380ms var(--ease-out) both;
   }
 
   @keyframes route-enter {
-    from { opacity: 0; transform: translate3d(0, 18px, 0); }
-    to   { opacity: 1; transform: none; }
-  }
-
-  /*
-   * The lock-duration control. Styled as a machined track with a knurled
-   * thumb — the fill is the part of the clamp already travelled.
-   */
-  .vise-range {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 26px;
-    background: transparent;
-    cursor: ew-resize;
-  }
-
-  .vise-range::-webkit-slider-runnable-track {
-    height: 6px;
-    border-radius: 3px;
-    background:
-      linear-gradient(90deg, var(--color-torch) 0%, var(--color-torch-bright) var(--fill), transparent var(--fill)),
-      linear-gradient(180deg, #05060a, #12151c);
-    box-shadow:
-      inset 0 1px 2px rgba(0, 0, 0, 0.9),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.05);
-  }
-
-  .vise-range::-moz-range-track {
-    height: 6px;
-    border-radius: 3px;
-    background:
-      linear-gradient(90deg, var(--color-torch) 0%, var(--color-torch-bright) var(--fill), transparent var(--fill)),
-      linear-gradient(180deg, #05060a, #12151c);
-  }
-
-  .vise-range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 16px;
-    height: 26px;
-    margin-top: -10px;
-    border-radius: 2px;
-    border: 1px solid #4d5769;
-    background:
-      repeating-linear-gradient(
-        -48deg,
-        rgba(255, 255, 255, 0.14) 0 1px,
-        transparent 1px 4px
-      ),
-      linear-gradient(180deg, #3a4354, #171b23);
-    box-shadow:
-      0 2px 10px rgba(0, 0, 0, 0.7),
-      inset 0 1px 0 rgba(255, 255, 255, 0.28);
-    transition: border-color 160ms var(--ease-clamp), box-shadow 160ms var(--ease-clamp);
-  }
-
-  .vise-range:hover::-webkit-slider-thumb,
-  .vise-range:focus-visible::-webkit-slider-thumb {
-    border-color: var(--color-torch);
-    box-shadow:
-      0 2px 16px rgba(255, 90, 31, 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  }
-
-  .vise-range::-moz-range-thumb {
-    width: 16px;
-    height: 26px;
-    border-radius: 2px;
-    border: 1px solid #4d5769;
-    background: linear-gradient(180deg, #3a4354, #171b23);
+    from { opacity: 0; transform: translate3d(0, 12px, 0); }
+    to { opacity: 1; transform: none; }
   }
 
   /* Marquee: a slow conveyor of live figures. Duplicated content, no JS. */
@@ -454,74 +551,165 @@
 
   @keyframes marquee-run {
     from { transform: translate3d(0, 0, 0); }
-    to   { transform: translate3d(-50%, 0, 0); }
+    to { transform: translate3d(-50%, 0, 0); }
   }
 
-  /* The travelling highlight on the fee-flow diagram. */
+  /* The travelling packet on the fee-flow diagram. */
   .flow-runner {
-    animation: flow-run 3.4s linear infinite;
+    animation: flow-run 3.2s linear infinite;
   }
 
   @keyframes flow-run {
     from { stroke-dashoffset: 1400; }
-    to   { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: 0; }
   }
 
-  /*
-   * Scroll reveal: a clip wipe, not a fade. Fades read as loading.
-   * The clip lives on the inner node; the outer one is what gets observed.
-   */
+  /* Live dot. */
+  .pulse-dot {
+    animation: pulse-dot 2s var(--ease-out) infinite;
+  }
+
+  @keyframes pulse-dot {
+    0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--mint) 55%, transparent); }
+    70% { box-shadow: 0 0 0 7px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+
+  /* Scroll reveal. The outer node is observed; the inner one animates. */
   .reveal-root {
     min-width: 0;
   }
 
   .reveal {
     height: 100%;
-    clip-path: inset(0 0 100% 0);
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(16px);
     transition:
-      clip-path 900ms var(--ease-clamp),
-      opacity 700ms var(--ease-clamp),
-      transform 900ms var(--ease-clamp);
+      opacity 700ms var(--ease-out),
+      transform 800ms var(--ease-out);
   }
 
   .reveal-root[data-shown="true"] > .reveal {
-    clip-path: inset(0 0 -25% 0);
     opacity: 1;
     transform: none;
+  }
+
+  /* ---------- Page furniture ---------- */
+
+  .container-x {
+    width: 100%;
+    max-width: 1240px;
+    margin-inline: auto;
+    padding-inline: 20px;
+  }
+
+  @media (min-width: 768px) {
+    .container-x {
+      padding-inline: 32px;
+    }
+  }
+
+  /* Faint teal grid behind hero-type sections. */
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, rgba(164, 197, 207, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(164, 197, 207, 0.05) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  /* Long-form copy for docs, terms, privacy, the article. */
+  .prose-imagine {
+    color: var(--fg-soft);
+    font-size: 16px;
+    line-height: 1.75;
+  }
+
+  .prose-imagine > * + * {
+    margin-top: 1.1em;
+  }
+
+  .prose-imagine h2 {
+    margin-top: 2.2em;
+    font-size: 1.5rem;
+    letter-spacing: -0.03em;
+  }
+
+  .prose-imagine h3 {
+    margin-top: 1.8em;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
+  }
+
+  .prose-imagine a {
+    color: var(--steel-hi);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in oklab, var(--steel-hi) 40%, transparent);
+    text-underline-offset: 3px;
+  }
+
+  .prose-imagine a:hover {
+    text-decoration-color: var(--steel-hi);
+  }
+
+  .prose-imagine strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .prose-imagine ul,
+  .prose-imagine ol {
+    padding-left: 1.25em;
+  }
+
+  .prose-imagine ul {
+    list-style: disc;
+  }
+
+  .prose-imagine ol {
+    list-style: decimal;
+  }
+
+  .prose-imagine li + li {
+    margin-top: 0.45em;
+  }
+
+  .prose-imagine li::marker {
+    color: var(--muted);
+  }
+
+  .prose-imagine code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    padding: 0.1em 0.38em;
+    border-radius: 5px;
+    background: var(--ink-3);
+    color: var(--fg);
   }
 }
 
 /*
- * The wallet-adapter modal.
- *
- * It ships a purple theme that every Solana site wears unchanged, which is the
- * single loudest "assembled from a template" signal a wallet flow can send.
- * These overrides are scoped to its own class names, so upgrading the package
- * degrades to the default rather than breaking the flow.
+ * The wallet-adapter modal: restyled into the palette, scoped to its own class
+ * names so a package upgrade degrades to its default rather than breaking.
  */
 .wallet-adapter-modal-wrapper {
-  background: var(--color-steel-900) !important;
-  border: 1px solid var(--color-steel-700);
-  border-radius: var(--radius-machined) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 40px 90px -30px rgba(0, 0, 0, 0.95) !important;
+  background: var(--ink-2) !important;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card) !important;
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.9) !important;
   font-family: var(--font-sans) !important;
 }
 
 .wallet-adapter-modal-overlay {
-  background: rgba(4, 5, 8, 0.82) !important;
+  background: rgba(4, 10, 12, 0.8) !important;
   backdrop-filter: blur(6px);
 }
 
 .wallet-adapter-modal-title {
-  font-family: var(--font-display) !important;
-  font-size: 22px !important;
-  font-weight: 700 !important;
+  font-family: var(--font-sans) !important;
+  font-size: 20px !important;
+  font-weight: 800 !important;
   letter-spacing: -0.03em;
-  color: var(--color-steel-50) !important;
+  color: var(--fg) !important;
   padding: 26px 26px 6px !important;
 }
 
@@ -530,25 +718,24 @@
 }
 
 .wallet-adapter-modal-list .wallet-adapter-button {
-  background: linear-gradient(180deg, var(--color-steel-820), var(--color-steel-900)) !important;
-  border: 1px solid var(--color-steel-700);
-  border-radius: var(--radius-machined) !important;
-  color: var(--color-steel-100) !important;
+  background: var(--ink-1) !important;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-btn) !important;
+  color: var(--fg) !important;
   font-family: var(--font-sans) !important;
   font-size: 14.5px !important;
   font-weight: 600 !important;
   height: 50px !important;
-  transition: border-color 180ms var(--ease-clamp), color 180ms var(--ease-clamp);
+  transition: border-color 160ms var(--ease-out);
 }
 
 .wallet-adapter-modal-list .wallet-adapter-button:hover {
-  border-color: var(--color-torch) !important;
-  color: var(--color-steel-50) !important;
+  border-color: var(--steel) !important;
 }
 
 .wallet-adapter-modal-list-more,
 .wallet-adapter-modal-button-close {
-  color: var(--color-steel-400) !important;
+  color: var(--fg-soft) !important;
   background: transparent !important;
 }
 
@@ -561,32 +748,8 @@
 .gsi-host > div,
 .gsi-host iframe {
   width: 100% !important;
-  min-height: 46px;
+  min-height: 44px;
   display: block;
-}
-
-/*
- * Global film grain. Flat digital gradients are the loudest "this was
- * generated" tell; a little moving emulsion costs one composited layer.
- */
-.grain {
-  position: fixed;
-  inset: -50%;
-  z-index: 60;
-  pointer-events: none;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation: grain-shift 700ms steps(1) infinite;
-  will-change: transform;
-}
-
-@keyframes grain-shift {
-  0% { transform: translate(0, 0); }
-  20% { transform: translate(-3%, 2%); }
-  40% { transform: translate(2%, -3%); }
-  60% { transform: translate(-2%, -2%); }
-  80% { transform: translate(3%, 1%); }
-  100% { transform: translate(0, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -594,17 +757,17 @@
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 
-  .grain {
-    animation: none;
-  }
-
   .reveal {
-    clip-path: none;
     opacity: 1;
     transform: none;
+  }
+
+  .marquee {
+    animation: none;
   }
 }

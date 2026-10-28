@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Render spot-check frames of the promo: scripts/promo-frames.sh <frame> [frame...]
+# Render half-scale spot-check frames of a film: scripts/promo-frames.sh <frame> [frame...]
+# COMP=Vertical scripts/promo-frames.sh 120 picks another composition (default Promo).
 set -euo pipefail
-export PATH="/opt/node/bin:$PATH"
-cd /mnt/c/tech/Hold/video
-SHELL_BIN=$(ls "$HOME/.cache/vise-browser"/chrome-headless-shell/*/chrome-headless-shell-linux64/chrome-headless-shell | head -1)
+cd "$(dirname "$0")/../video"
+COMP="${COMP:-Promo}"
 mkdir -p out/frames
 for f in "$@"; do
-  corepack pnpm exec remotion still src/index.ts Promo "out/frames/promo-$f.png" --frame="$f" --browser-executable="$SHELL_BIN" --log=error --scale=0.5
+  npx remotion still src/index.ts "$COMP" "out/frames/$(echo "$COMP" | tr '[:upper:]' '[:lower:]')-$f.png" --frame="$f" --scale=0.5 --log=error
   echo "frame $f"
 done

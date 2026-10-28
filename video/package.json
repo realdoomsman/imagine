@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "studio": "remotion studio",
-    "render:promo": "remotion render src/index.ts Promo out/vise-promo.mp4 --codec=h264 --crf=16",
-    "render:teaser": "remotion render src/index.ts Teaser out/vise-teaser.mp4 --codec=h264 --crf=16",
-    "render:explainer": "remotion render src/index.ts Explainer out/vise-explainer.mp4 --codec=h264 --crf=16",
-    "render:vertical": "remotion render src/index.ts Vertical out/vise-vertical.mp4 --codec=h264 --crf=16",
-    "render:all": "pnpm render:promo && pnpm render:teaser && pnpm render:explainer && pnpm render:vertical"
+    "score": "python audio/score.py",
+    "render:promo": "remotion render src/index.ts Promo out/imagine-promo.mp4 --codec=h264 --crf=16",
+    "render:teaser": "remotion render src/index.ts Teaser out/imagine-teaser.mp4 --codec=h264 --crf=16",
+    "render:explainer": "remotion render src/index.ts Explainer out/imagine-explainer.mp4 --codec=h264 --crf=16",
+    "render:vertical": "remotion render src/index.ts Vertical out/imagine-vertical.mp4 --codec=h264 --crf=16",
+    "render:all": "pnpm score && pnpm render:promo && pnpm render:teaser && pnpm render:explainer && pnpm render:vertical",
+    "typecheck": "tsc"
   },
   "dependencies": {
     "@remotion/cli": "4.0.373",

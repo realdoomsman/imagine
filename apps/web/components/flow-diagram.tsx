@@ -1,163 +1,126 @@
-"use client";
+/**
+ * Where a coin's fees go: three inflows into one vault, one frozen split out.
+ * An SVG on wide screens, a stacked list on phones; same facts in both.
+ */
 
-import { useEffect, useRef, useState } from "react";
-import { Ticker } from "./motion";
-
-const SPLIT = [
-  {
-    key: "lockers",
-    pct: 90,
-    label: "Lockers",
-    note: "Paid by weight, streamed over an hour",
-    hot: true,
-  },
-  {
-    key: "treasury",
-    pct: 10,
-    label: "Treasury",
-    note: "Indexing, hosting, audits, the keeper",
-    hot: false,
-  },
-  {
-    key: "creator",
-    pct: 0,
-    label: "Creator",
-    note: "Nothing. Creators earn by locking like everyone else",
-    hot: false,
-  },
+const SOURCES = [
+  { title: "Trades on imagine.fun", body: "1% app fee, paid into this coin's vault in the same transaction" },
+  { title: "StonkFun creator share", body: "forwarded by StonkFun to the coin's creator address: its vault" },
+  { title: "Donations", body: "anyone can deposit into a vault" },
 ];
 
-/**
- * The fee split, drawn as a schematic rather than a chart.
- *
- * One inbound trunk fans into three branches whose stroke widths *are* the
- * split, so the proportion is legible before a single number is read. Kept
- * deliberately thin and technical: the giant percentages below are the
- * statement, and a fat glowing bar here would just shout over them.
- */
+const SPLIT = [
+  { pct: "90%", title: "Lockers", body: "streamed by weight: amount × time" },
+  { pct: "10%", title: "Treasury", body: "taken off the top, frozen per pool" },
+];
+
+const SRC_Y = [40, 162, 284];
+const SRC_H = 84;
+const VAULT = { x: 385, y: 128, w: 230, h: 152 };
+const OUT = [
+  { y: 58, h: 118 },
+  { y: 248, h: 92 },
+];
+
 export function FlowDiagram() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [live, setLive] = useState(false);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setLive(true);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.2 },
-    );
-    io.observe(node);
-    return () => io.disconnect();
-  }, []);
-
-  const draw = (delay: number) => ({
-    strokeDasharray: 1300,
-    strokeDashoffset: live ? 0 : 1300,
-    transition: `stroke-dashoffset 1500ms ${delay}ms cubic-bezier(0.16,1,0.3,1)`,
-  });
-
+  const vaultMidY = VAULT.y + VAULT.h / 2;
   return (
-    <div ref={ref} className="mt-14 -mx-5 overflow-x-auto px-5 sm:mx-0 sm:overflow-visible sm:px-0">
+    <div className="mt-12">
       <svg
-        viewBox="0 0 1200 150"
-        className="w-full min-w-[720px] overflow-visible sm:min-w-0"
+        viewBox="0 0 1000 400"
+        className="hidden h-auto w-full md:block"
         role="img"
-        aria-label="A trade fee splitting 90 percent to lockers, 10 percent to treasury, nothing to the creator"
+        aria-label="Trades on imagine.fun, StonkFun's forwarded creator share and donations flow into the coin's vault; 90% streams to lockers by weight and 10% goes to the treasury."
       >
         <defs>
-          <linearGradient id="vise-flow-hot" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#ff5a1f" stopOpacity="0.2" />
-            <stop offset="55%" stopColor="#ff5a1f" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#ff7a45" stopOpacity="1" />
-          </linearGradient>
-          <linearGradient id="vise-flow-cold" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#3b4454" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#8b95a6" stopOpacity="0.9" />
+          <linearGradient id="flow-dream" x1="0" y1="0" x2="1" y2="0.58">
+            <stop offset="0" stopColor="#8CC8DC" />
+            <stop offset="0.55" stopColor="#5EE9B5" />
+            <stop offset="1" stopColor="#C7F9E5" />
           </linearGradient>
         </defs>
 
-        {/* Inbound trunk. */}
-        <text x="0" y="66" className="num" fill="#5a6578" fontSize="10" letterSpacing="2.4">
-          TRADE FEE
+        {SRC_Y.map((top, i) => {
+          const d = `M300 ${top + SRC_H / 2} C 345 ${top + SRC_H / 2}, 345 ${vaultMidY}, ${VAULT.x} ${vaultMidY}`;
+          return (
+            <g key={top}>
+              <path d={d} fill="none" stroke="#2F4F58" strokeWidth="1.5" />
+              <path d={d} fill="none" stroke="#69AAC1" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="14 161" className="flow-runner" style={{ animationDelay: `${i * -0.9}s` }} />
+              <rect x="20" y={top} width="280" height={SRC_H} rx="14" fill="#102127" stroke="#20363D" />
+              <text x="40" y={top + 33} fill="#F3F8F8" fontSize="16" fontWeight="700">
+                {SOURCES[i].title}
+              </text>
+              <foreignObject x="40" y={top + 42} width="246" height="40">
+                <p className="text-[12.5px] leading-[1.35] text-fg-soft">{SOURCES[i].body}</p>
+              </foreignObject>
+            </g>
+          );
+        })}
+
+        {OUT.map((box, i) => {
+          const d = `M${VAULT.x + VAULT.w} ${vaultMidY} C 660 ${vaultMidY}, 660 ${box.y + box.h / 2}, 700 ${box.y + box.h / 2}`;
+          return (
+            <g key={box.y}>
+              <path d={d} fill="none" stroke="#2F4F58" strokeWidth={i === 0 ? 3 : 1.5} />
+              <path d={d} fill="none" stroke={i === 0 ? "#5EE9B5" : "#69AAC1"} strokeWidth={i === 0 ? 3.5 : 2.5} strokeLinecap="round" strokeDasharray="14 161" className="flow-runner" style={{ animationDelay: `${i * -1.4}s` }} />
+              <rect x="700" y={box.y} width="280" height={box.h} rx="14" fill={i === 0 ? "#0F2A27" : "#102127"} stroke={i === 0 ? "url(#flow-dream)" : "#20363D"} strokeWidth={i === 0 ? 1.5 : 1} />
+              <text x="722" y={box.y + (i === 0 ? 52 : 40)} fill={i === 0 ? "#5EE9B5" : "#A4C5CF"} fontSize={i === 0 ? 38 : 26} fontWeight="800" fontFamily="var(--font-mono)">
+                {SPLIT[i].pct}
+              </text>
+              <text x={i === 0 ? 830 : 800} y={box.y + (i === 0 ? 50 : 38)} fill="#F3F8F8" fontSize="17" fontWeight="700">
+                {SPLIT[i].title}
+              </text>
+              <text x="722" y={box.y + box.h - (i === 0 ? 30 : 22)} fill="#768A93" fontSize="12.5">
+                {SPLIT[i].body}
+              </text>
+            </g>
+          );
+        })}
+
+        <rect x={VAULT.x} y={VAULT.y} width={VAULT.w} height={VAULT.h} rx="18" fill="#0B171B" stroke="url(#flow-dream)" strokeWidth="2" />
+        <text x={VAULT.x + VAULT.w / 2} y={VAULT.y + 46} textAnchor="middle" fill="#768A93" fontSize="11" fontFamily="var(--font-mono)" letterSpacing="2">
+          ONE PER COIN
         </text>
-        <path d="M 96 75 H 300" stroke="#4a5364" strokeWidth="11" fill="none" opacity="0.65" />
-
-        {/* Branches: stroke width is the share. */}
-        <path
-          d="M 300 75 C 392 75, 400 22, 492 22 H 1042"
-          stroke="url(#vise-flow-hot)"
-          strokeWidth="19.8"
-          fill="none"
-          style={draw(0)}
-        />
-        <path
-          d="M 300 75 H 1042"
-          stroke="url(#vise-flow-cold)"
-          strokeWidth="2.2"
-          fill="none"
-          style={draw(150)}
-        />
-        {/* The creator branch goes nowhere: a stub that stops short, dashed. */}
-        <path
-          d="M 300 75 C 340 75, 350 128, 400 128 H 470"
-          stroke="#3b4454"
-          strokeWidth="1"
-          fill="none"
-          strokeDasharray="3 5"
-          opacity={live ? 0.9 : 0}
-          style={{ transition: "opacity 900ms 400ms" }}
-        />
-        <text x="484" y="132" className="num" fill="#5a6578" fontSize="10" letterSpacing="1.6">
-          0 — NOTHING ROUTES HERE
+        <text x={VAULT.x + VAULT.w / 2} y={VAULT.y + 78} textAnchor="middle" fill="#F3F8F8" fontSize="22" fontWeight="800">
+          The coin&apos;s vault
         </text>
-
-        {/* A highlight that keeps travelling: fees are a stream, not a pie. */}
-        <path
-          d="M 300 75 C 392 75, 400 22, 492 22 H 1042"
-          stroke="#ffd9bf"
-          strokeWidth="1.6"
-          fill="none"
-          opacity={live ? 0.9 : 0}
-          strokeDasharray="42 1258"
-          className="flow-runner"
-        />
-
-        <g className="num" fontSize="11" letterSpacing="1.6">
-          <text x="1064" y="26" fill="#ffc79e">LOCKERS 90%</text>
-          <text x="1064" y="79" fill="#7d8798">TREASURY 10%</text>
-        </g>
+        <text x={VAULT.x + VAULT.w / 2} y={VAULT.y + 108} textAnchor="middle" fill="#A4C5CF" fontSize="13">
+          holds the pair asset
+        </text>
+        <text x={VAULT.x + VAULT.w / 2} y={VAULT.y + 130} textAnchor="middle" fill="#5EE9B5" fontSize="12" fontFamily="var(--font-mono)">
+          NVDAx · SPYx · USDC · SOL
+        </text>
       </svg>
 
-      <div className="mt-16 grid gap-10 sm:grid-cols-3 sm:gap-px">
-        {SPLIT.map((row) => (
-          <div
-            key={row.key}
-            className="border-t pt-6"
-            style={{
-              borderColor: row.hot ? "var(--color-torch)" : "var(--color-steel-700)",
-            }}
-          >
-            <div
-              className={`num text-[clamp(3rem,7vw,5.5rem)] leading-[0.82] ${
-                row.hot ? "text-torch" : "text-steel-200"
-              }`}
-            >
-              <Ticker value={row.pct} suffix="%" duration={1400} />
-            </div>
-            <div className="mt-4 text-[15px] font-semibold tracking-[-0.02em] text-steel-50">
-              {row.label}
-            </div>
-            <div className="mt-1 max-w-[30ch] text-[13px] leading-relaxed text-steel-500">
-              {row.note}
-            </div>
-          </div>
+      {/* Phones: the same flow, top to bottom. */}
+      <ol className="space-y-2 md:hidden">
+        {SOURCES.map((source) => (
+          <li key={source.title} className="card px-4 py-3">
+            <p className="text-[15px] font-bold text-fg">{source.title}</p>
+            <p className="mt-0.5 text-[13px] leading-snug text-fg-soft">{source.body}</p>
+          </li>
         ))}
-      </div>
+        <li aria-hidden="true" className="flex justify-center py-1 text-steel">
+          ↓
+        </li>
+        <li className="card card-dream px-4 py-4 text-center">
+          <p className="eyebrow">One per coin</p>
+          <p className="mt-1 text-[20px] font-extrabold text-fg">The coin&apos;s vault</p>
+          <p className="num mt-1 text-[12px] text-mint">holds the pair asset</p>
+        </li>
+        <li aria-hidden="true" className="flex justify-center py-1 text-mint">
+          ↓
+        </li>
+        <li className="grid grid-cols-2 gap-2">
+          {SPLIT.map((part, i) => (
+            <div key={part.title} className={`card px-4 py-3 ${i === 0 ? "card-dream" : ""}`}>
+              <p className={`num text-[26px] font-extrabold ${i === 0 ? "text-mint" : "text-fg-soft"}`}>{part.pct}</p>
+              <p className="text-[14px] font-bold text-fg">{part.title}</p>
+              <p className="mt-0.5 text-[12px] leading-snug text-muted">{part.body}</p>
+            </div>
+          ))}
+        </li>
+      </ol>
     </div>
   );
 }

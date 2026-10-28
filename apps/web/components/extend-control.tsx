@@ -35,14 +35,14 @@ export function ExtendControl({
 
   if (!open) {
     return (
-      <button type="button" disabled={busy} onClick={() => setOpen(true)} className="btn btn-ghost h-9 text-[13px]">
+      <button type="button" disabled={busy} onClick={() => setOpen(true)} className="btn btn-ghost btn-sm">
         Extend
       </button>
     );
   }
   return (
     <span className="flex flex-wrap items-center gap-1.5">
-      <span className="mr-1 text-[11.5px] text-steel-500">Re-lock from now for</span>
+      <span className="mr-1 text-[11.5px] text-muted">Re-lock from now for</span>
       {options.map((option) => (
         <button
           key={option.seconds}
@@ -53,7 +53,7 @@ export function ExtendControl({
             onExtend(option.seconds);
           }}
           title={option.allowed ? undefined : "Ends before the current unlock date"}
-          className="btn btn-ghost h-8 px-2.5 text-[12px] disabled:opacity-40"
+          className="btn btn-ghost h-8 px-2.5 text-[12px]"
         >
           {option.label}
         </button>
@@ -61,7 +61,7 @@ export function ExtendControl({
       <button type="button" onClick={() => setOpen(false)} className="btn btn-ghost h-8 px-2.5 text-[12px]">
         Cancel
       </button>
-      <span className="basis-full text-[11.5px] text-steel-500">
+      <span className="basis-full text-[11.5px] text-muted">
         Unclaimed rewards are paid to you in the same transaction; the multiplier is re-priced for the new term.
       </span>
     </span>

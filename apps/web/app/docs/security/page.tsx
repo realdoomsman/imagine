@@ -1,166 +1,132 @@
-import Link from "next/link";
-import { DocPage, DocSection } from "@/components/doc-page";
+import { IMAGINE_PROGRAM_ID } from "@imagine/sdk";
+import { DocLinks, DocPage, DocSection } from "@/components/doc-page";
 
 export const metadata = {
   title: "Security",
-  description:
-    "What the VISE program cannot do, what it was audited for, and what can still go wrong.",
+  description: "What the IMAGINE program cannot do, how it treats StonkFun coins, and what can still go wrong.",
 };
 
-const PROGRAM_ID = "VisecyrWrgtRg9wYhXe9ZgJ4tJBD9dPLCHoqXc54FRb";
-
 export default function SecurityPage() {
+  const programId = IMAGINE_PROGRAM_ID.toBase58();
   return (
     <DocPage
-      eyebrow="Security"
+      eyebrow="Docs · Security"
       title="What the program cannot do"
-      lede="The parts that matter are not promises we make. They are properties of the deployed bytecode, and you can check every one of them."
+      lede="The parts that matter are properties of the deployed program, not promises in a pitch. Each one below is something you can check."
     >
-      <DocSection title="No admin path to your money">
+      <DocSection title="No admin withdraw path">
         <p>
-          There is no instruction in this program that moves a pool&apos;s SOL or
-          tokens to an admin. Not a disabled one, not a timelocked one — it does
-          not exist in the bytecode.
+          There is no instruction that moves a pool&apos;s rewards or locked coins to an admin. Not
+          a disabled one, not a timelocked one: it is not in the program.
         </p>
         <p>
-          Only two signers can ever move a pool&apos;s funds. The vault PDA pays
-          the locker, creator, or treasury that earned a specific amount. The
-          pool PDA returns locked tokens to their owner or burns an early-exit
-          penalty. Neither can be directed by an admin key.
+          Only program-derived accounts move a pool&apos;s funds. The vault pays the locker, creator
+          or treasury that earned a specific amount, in the pair asset. The pool returns locked
+          coins to their owner, or burns an early-exit penalty. Neither can be pointed anywhere
+          else by a key.
         </p>
       </DocSection>
 
       <DocSection title="Terms are frozen when a pool is created">
         <p>
-          The fee split, multiplier curve, lock bounds, exit penalty, release
-          window and treasury address are copied onto the pool at creation, and
-          nothing rewrites them afterwards. We can change the defaults that apply
-          to coins launched later. We cannot reach into a pool that already
-          exists.
+          The fee split, multiplier curve, size tiers, lock bounds, exit penalty, stream window and
+          treasury address are copied onto the pool when it is created, and nothing rewrites them
+          afterwards. Defaults can change for coins launched later; a pool that exists keeps its
+          terms.
         </p>
       </DocSection>
 
-      <DocSection title="Claiming and unlocking cannot be paused">
+      <DocSection title="Claims and unlocks can't be paused">
         <p>
-          There is a pause switch. It is read by exactly one instruction — the
-          one that creates new pools. Claim, unlock, extend and deposit do not
-          even load the config account, so there is no code path by which a
-          paused platform could hold your position hostage.
+          There is a pause switch, and it stops new pools. Claiming and unlocking do not consult
+          it, so no state of the platform can hold a position hostage.
         </p>
       </DocSection>
 
-      <DocSection title="The creator is exposed first">
+      <DocSection title="The creator locks first">
         <p>
-          A pool cannot be created without the creator&apos;s own locked
-          position, opened in the same instruction. The amount and the term are
-          public on the coin&apos;s page from its first block.
-        </p>
-        <p>
-          A pool can also only be created by the person who actually launched the
-          coin: the program reads pump.fun&apos;s own{" "}
-          <code>BondingCurve.creator</code> record and requires it to match the
-          signer. Nobody can squat your coin&apos;s pool and collect its creator
-          share.
+          A pool opens with the creator&apos;s own lock, and nobody else can lock until it exists.
+          The amount and the term are public on the coin&apos;s page from the start.
         </p>
       </DocSection>
 
-      <DocSection title="Hostile mints are refused">
+      <DocSection title="StonkFun coins, checked on-chain">
         <p>
-          A lock vault holds someone else&apos;s tokens for up to a year. Any
-          mint that lets a third party interfere with that is rejected at pool
-          creation: freeze authority, transfer fees, transfer hooks, permanent
-          delegates, non-transferable tokens, default-frozen accounts.
+          Launching goes through the program, which creates the coin on Raydium LaunchLab under
+          StonkFun&apos;s platform config and requires that config to be the one it has on file.
+          The coin&apos;s creator address on LaunchLab is the pool&apos;s vault.
         </p>
         <p>
-          The check is an allow-list, so a token extension invented after this
-          program was compiled is rejected rather than waved through.
-        </p>
-      </DocSection>
-
-      <DocSection title="Solvency is a proven property, not a hope">
-        <p>
-          Rounding always favours the pool. When fees are spread across weight,
-          the amount the pool sets aside is rounded <em>up</em> from the credit it
-          hands out, while each position&apos;s claim is rounded <em>down</em>.
-          Each position keeps its own sub-lamport residue rather than rounding to
-          whole lamports, which is what stops many positions from each rounding
-          up until the pool owes more than it holds.
+          When a lock&apos;s ceiling is priced, the program reads the coin&apos;s own LaunchLab pool,
+          pinned when the coin launched, and checks who owns it. After migration it reads the
+          coin&apos;s Raydium pool and checks that it is the canonical pool for the coin and its pair.
         </p>
         <p>
-          A randomised test drives a pool through thousands of locks, deposits,
-          claims and exits and asserts, after every single step, that the vault
-          can still pay everyone it owes. A second test hammers the same property
-          with hundreds of uneven deposits.
+          A lock vault holds someone else&apos;s coins for up to a year, so mints that would let a
+          third party interfere with them are refused. The check is an allow-list of exactly what
+          LaunchLab coins use.
         </p>
       </DocSection>
 
-      <DocSection title="What was audited, and what was found">
+      <DocSection title="Solvency">
         <p>
-          A full pre-deployment review covered the entire program: every account
-          constraint, every arithmetic site, the Sealevel attack checklist, and
-          the accounting invariants re-derived by hand.
-        </p>
-        <p>
-          It found fourteen issues — one critical, three high, one medium. All of
-          them are fixed, and each fix carries a regression test that fails
-          against the old code. The critical one let a matured position mint
-          full-multiplier weight with no remaining lock term; the highest-value
-          fix was making rewards stream over time rather than land in an instant
-          that could be chosen by whoever was watching.
-        </p>
-        <p>
-          That review was internal. An independent external audit has not yet
-          happened, and this page will say so until it has.
+          Rounding always favours the pool: the amount set aside when fees are spread across weight
+          is rounded up, each position&apos;s claim is rounded down. A randomised test drives a pool
+          through long runs of locks, deposits, claims and exits and checks after every step that
+          the vault can still pay everyone it owes.
         </p>
       </DocSection>
 
       <DocSection title="What can still go wrong">
         <ul>
           <li>
-            <strong>The coin can go to zero.</strong> Locking makes that worse,
-            because you cannot sell into the decline without burning part of your
-            bag. VISE changes who receives trading fees; it does not make a bad
-            coin good.
+            <strong>The coin can go to zero.</strong> Locking makes that worse, because you
+            can&apos;t sell into the decline without burning part of your bag.
           </li>
           <li>
-            <strong>A coin with no volume pays nothing.</strong> There is no
-            emission, no inflation and no treasury subsidy. Yield here is other
-            people trading.
+            <strong>A coin nobody trades pays nothing.</strong> There is no emission and no subsidy.
           </li>
           <li>
-            <strong>The upgrade authority is a real authority.</strong> The
-            program can be upgraded by whoever holds it. Today that is a single
-            key held by the team, not a multisig. Moving it to a multisig, and
-            eventually burning it, is the end state — until that happens,
-            saying otherwise would be a lie.
+            <strong>The pair asset has its own risks.</strong> Lockers are paid in whatever the coin
+            is paired with, and that asset&apos;s price moves on its own.
           </li>
           <li>
-            <strong>The app fee depends on our front-end.</strong> It is enforced
-            by the transaction our API builds. If the API is compromised, the fee
-            it attaches could be changed — though it still can only ever pay into
-            the coin&apos;s own vault.
+            <strong>StonkFun&apos;s forwarding is StonkFun&apos;s.</strong> The creator share is
+            forwarded by StonkFun off-chain; the program cannot make it arrive.
+          </li>
+          <li>
+            <strong>The app fee depends on our front-end.</strong> It is attached by the transaction
+            our API builds, and it can only ever pay into the coin&apos;s own pool.
+          </li>
+          <li>
+            <strong>Upgrade authority.</strong> Whoever holds a Solana program&apos;s upgrade
+            authority can change it. Check this program&apos;s authority on an explorer before you
+            trust it with size.
+          </li>
+          <li>
+            <strong>No external audit has been published</strong> for this program. Treat it
+            accordingly.
           </li>
         </ul>
       </DocSection>
 
       <DocSection title="Check it yourself">
         <p>
-          Program: <code>{PROGRAM_ID}</code>
+          Program: <code className="break-all">{programId}</code>
         </p>
         <p>
-          Read the source, or read the tests — they are the shorter route to
-          knowing whether the guarantees on this page hold.
+          <a href={`https://solscan.io/account/${programId}`} target="_blank" rel="noreferrer">
+            View it on Solscan
+          </a>
         </p>
       </DocSection>
 
-      <div className="hairline mt-12 flex flex-wrap gap-3 pt-8">
-        <Link href="/how-it-works" className="btn btn-primary">
-          How it works
-        </Link>
-        <Link href="/docs/fees" className="btn btn-ghost">
-          Fee breakdown
-        </Link>
-      </div>
+      <DocLinks
+        links={[
+          { href: "/how-it-works", label: "How it works" },
+          { href: "/docs/fees", label: "Fee breakdown" },
+        ]}
+      />
     </DocPage>
   );
 }

@@ -13,11 +13,11 @@ import {
   type AddressLookupTableAccount,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { claimableFor, earlyExitPenalty, formatSol } from "@imagine/sdk";
+import { earlyExitPenalty, formatSol, quoteByMint } from "@imagine/sdk";
 import bs58 from "bs58";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { ActionError, ActionSchema, buildAction, friendlyChainError, lamports, pubkey } from "../actions.ts";
+import { ActionError, ActionSchema, baseUnits, buildAction, friendlyChainError, pubkey } from "../actions.ts";
 import {
   beginGoogleLogin,
   clearSession,
@@ -36,13 +36,16 @@ import {
 } from "../auth.ts";
 import { env } from "../env.ts";
 import { sql } from "../db.ts";
-import { budgetInstructions } from "../pump.ts";
-import { connection, vise } from "../solana.ts";
-import { buildLaunch, compileV0, LaunchSchema } from "./tx.ts";
+import { quoteDisplay, usdPrices, withPrices } from "../quotes.ts";
+import { connection, imagine } from "../solana.ts";
+import { buildLaunch } from "../stonk.ts";
+import { budgetInstructions, compileV0 } from "../transactions.ts";
+import { describePositions } from "./portfolio.ts";
+import { launchRequest, LaunchSchema } from "./tx.ts";
 
 /** The mint keypair for an account launch: a function of the account's key and a nonce. */
 function launchMintKeypair(wallet: Keypair, nonce: string): Keypair {
-  return Keypair.fromSeed(createHmac("sha256", wallet.secretKey).update(`vise-launch-mint:${nonce}`).digest());
+  return Keypair.fromSeed(createHmac("sha256", wallet.secretKey).update(`imagine-launch-mint:${nonce}`).digest());
 }
 
 /**
@@ -57,7 +60,7 @@ async function signAndSend(
 ): Promise<string> {
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
   // Always v0: nothing but this key signs here, so no wallet's support matters,
-  // and a launch's create + dev buy only fits through its lookup table.
+  // and a launch only fits in one transaction through its lookup table.
   const tx = compileV0(instructions, keypair.publicKey, blockhash, lookupTables);
   tx.sign([keypair, ...extraSigners]);
   let signature: string;
@@ -207,22 +210,21 @@ export async function accountRoutes(app: FastifyInstance) {
     if (!account) return;
     const owner = new PublicKey(account.walletPubkey);
 
-    const [sol, reserve, tokens2022, tokensLegacy, positions, actions, [claimedEver]] = await Promise.all([
+    const [sol, reserve, tokens2022, tokensLegacy, positions, actions] = await Promise.all([
       connection.getBalance(owner, "confirmed"),
       solReserve(),
       connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_2022_PROGRAM_ID }),
       connection.getParsedTokenAccountsByOwner(owner, { programId: TOKEN_PROGRAM_ID }),
-      vise.fetchPositionsByOwner(owner),
+      imagine.fetchPositionsByOwner(owner),
       sql`SELECT kind, detail, signature, at FROM account_actions
           WHERE account_id = ${account.id} ORDER BY at DESC LIMIT 50`,
-      sql`SELECT COALESCE(SUM(amount), 0)::text AS total FROM claim_events WHERE owner = ${account.walletPubkey}`,
     ]);
 
     const holdings = [...tokens2022.value, ...tokensLegacy.value]
       .map((entry) => {
         const info = entry.account.data.parsed.info as {
           mint: string;
-          tokenAmount: { amount: string; decimals: number; uiAmount: number | null };
+          tokenAmount: { amount: string; decimals: number };
         };
         return {
           mint: info.mint,
@@ -233,47 +235,37 @@ export async function accountRoutes(app: FastifyInstance) {
       })
       .filter((holding) => BigInt(holding.amount) > 0n);
 
-    // Coin metadata for anything held or locked, in one query.
-    const poolKeys = [...new Set(positions.map((p) => p.pool.toBase58()))];
-    const mints = [...new Set(holdings.map((h) => h.mint))];
-    const meta = await sql`
-      SELECT mint, pool, symbol, name, image_url, token_decimals, price_lamports,
-             total_weight, early_unlock_penalty_bps
-      FROM pools WHERE pool = ANY(${poolKeys}) OR mint = ANY(${mints})
+    // Coin metadata for anything held, in one query; quote assets (NVDAx,
+    // USDC, …) are labelled from the registry.
+    const heldMints = [...new Set(holdings.map((h) => h.mint))];
+    const coins = await sql`
+      SELECT mint, symbol, name, image_url, price_quote, quote_mint
+      FROM pools WHERE mint = ANY(${heldMints})
     `;
-    const byPool: Record<string, (typeof meta)[number]> = {};
-    const byMint: Record<string, (typeof meta)[number]> = {};
-    for (const row of meta) {
-      byPool[row.pool as string] = row;
-      byMint[row.mint as string] = row;
-    }
-
-    const projected = Object.fromEntries(
-      await Promise.all(
-        [...new Set(positions.map((p) => byPool[p.pool.toBase58()]?.mint as string | undefined))]
-          .filter((mint): mint is string => Boolean(mint))
-          .map(async (mint) => [mint, await vise.fetchProjectedPool(new PublicKey(mint))] as const),
-      ),
+    const coinByMint = new Map(coins.map((row) => [row.mint as string, row]));
+    const quoteMints = [
+      ...new Set([
+        ...coins.map((row) => row.quote_mint as string),
+        ...heldMints.filter((mint) => quoteByMint(mint) !== undefined),
+      ]),
+    ];
+    const quotes = new Map(
+      (await withPrices(await Promise.all(quoteMints.map((mint) => quoteDisplay(mint))))).map((q) => [q.mint, q]),
     );
+    const holdingPrices = await usdPrices(heldMints.filter((mint) => quoteByMint(mint) !== undefined));
 
+    const described = await describePositions(positions);
     const now = Math.floor(Date.now() / 1000);
-    let pendingTotal = 0n;
-    let claimedTotal = 0n;
-    const rows = positions.map((position) => {
-      const info = byPool[position.pool.toBase58()];
-      const mint = (info?.mint as string | undefined) ?? null;
-      const pool = mint ? projected[mint] : null;
-      const pending = pool ? claimableFor(position, pool) : 0n;
-      pendingTotal += pending;
-      claimedTotal += position.claimed;
+    const rows = described.rows.map(({ position, info, pool, quote, pending }) => {
       const penaltyBps = Number(info?.early_unlock_penalty_bps ?? 0);
       return {
         address: position.address.toBase58(),
-        mint,
-        symbol: (info?.symbol as string | null) ?? null,
-        name: (info?.name as string | null) ?? null,
-        imageUrl: (info?.image_url as string | null) ?? null,
+        mint: (info?.mint as string | undefined) ?? null,
+        symbol: (info?.symbol as string | null | undefined) ?? null,
+        name: (info?.name as string | null | undefined) ?? null,
+        imageUrl: (info?.image_url as string | null | undefined) ?? null,
         decimals: Number(info?.token_decimals ?? 6),
+        quote,
         index: position.index,
         amount: position.amount.toString(),
         weight: position.weight.toString(),
@@ -287,15 +279,14 @@ export async function accountRoutes(app: FastifyInstance) {
         share: pool && pool.totalWeight > 0n ? Number(position.weight) / Number(pool.totalWeight) : 0,
         minLockSecs: pool?.terms.minLockSecs ?? null,
         maxLockSecs: pool?.terms.maxLockSecs ?? null,
-        /** Capped pools: the most this lock may ever be paid, in lamports. */
-        rewardCap: pool?.capped ? position.rewardCap.toString() : null,
+        /** The most this lock may ever be paid, quote base units. */
+        rewardCap: position.rewardCap.toString(),
         /** Gave up its earnings for good: tokens locked, earns nothing. */
         renounced: position.renounced,
         /** What breaking the lock right now would burn. */
         earlyExitBurn: earlyExitPenalty(position.amount, position.lockStart, position.lockEnd, now, penaltyBps).toString(),
       };
     });
-    const claimedIndexed = BigInt(String(claimedEver.total));
 
     return {
       account: publicAccount(account),
@@ -303,23 +294,29 @@ export async function accountRoutes(app: FastifyInstance) {
       sol: String(sol),
       /** What a SOL withdrawal can actually take: balance less rent and a fee. */
       solAvailable: String(BigInt(sol) > reserve ? BigInt(sol) - reserve : 0n),
-      holdings: holdings.map((holding) => ({
-        ...holding,
-        symbol: (byMint[holding.mint]?.symbol as string | null) ?? null,
-        name: (byMint[holding.mint]?.name as string | null) ?? null,
-        imageUrl: (byMint[holding.mint]?.image_url as string | null) ?? null,
-        priceLamports: (byMint[holding.mint]?.price_lamports as number | null) ?? null,
-        hasPool: Boolean(byMint[holding.mint]),
-      })),
+      holdings: holdings.map((holding) => {
+        const coin = coinByMint.get(holding.mint);
+        const quote = coin ? (quotes.get(coin.quote_mint as string) ?? null) : null;
+        const asset = quoteByMint(holding.mint) ? (quotes.get(holding.mint) ?? null) : null;
+        const priceQuote = (coin?.price_quote as number | null | undefined) ?? null;
+        const assetUsd = asset ? (holdingPrices.get(holding.mint) ?? null) : null;
+        return {
+          ...holding,
+          symbol: (coin?.symbol as string | null | undefined) ?? asset?.symbol ?? null,
+          name: (coin?.name as string | null | undefined) ?? asset?.name ?? null,
+          imageUrl: (coin?.image_url as string | null | undefined) ?? asset?.logoUrl ?? null,
+          hasPool: Boolean(coin),
+          priceQuote,
+          priceUsd:
+            priceQuote !== null && quote?.usdPrice != null
+              ? priceQuote * quote.usdPrice
+              : assetUsd,
+          quote,
+          asset,
+        };
+      }),
       positions: rows,
-      totals: {
-        pending: pendingTotal.toString(),
-        // Lifetime, so a closed position's payouts still count. The indexed
-        // events can trail the chain by a few seconds; open positions' on-chain
-        // counters are the floor until they catch up.
-        claimed: (claimedIndexed > claimedTotal ? claimedIndexed : claimedTotal).toString(),
-        positions: rows.length,
-      },
+      totals: { pendingUsd: described.pendingUsd, claimedUsd: described.claimedUsd, positions: rows.length },
       actions: actions.map((row) => {
         const detail = row.detail as Record<string, unknown>;
         return {
@@ -341,7 +338,7 @@ export async function accountRoutes(app: FastifyInstance) {
     const keypair = await loadKeypair(account);
     try {
       const built = await buildAction(keypair.publicKey, action);
-      const signature = await signAndSend(keypair, built.instructions);
+      const signature = await signAndSend(keypair, built.instructions, [], built.lookupTables);
       await recordAction(account, action.kind, { ...action, ...built.meta }, signature);
       return { signature, ...built.meta };
     } catch (error) {
@@ -354,10 +351,10 @@ export async function accountRoutes(app: FastifyInstance) {
   });
 
   /**
-   * Choose the mint for an account launch before its metadata is pinned: the
-   * metadata's website is the coin's page, so it needs the address first. The
-   * keypair is derived from the account's key and a random nonce, so nothing
-   * is stored; `/me/launch` re-derives it from the nonce.
+   * Choose the mint for an account launch before its metadata is uploaded:
+   * the metadata's website is the coin's page, so it needs the address first.
+   * The keypair is derived from the account's key and a random nonce, so
+   * nothing is stored; `/me/launch` re-derives it from the nonce.
    */
   app.post("/me/launch/mint", async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -369,23 +366,23 @@ export async function accountRoutes(app: FastifyInstance) {
 
   /**
    * Launch a coin from the account wallet. The mint keypair comes from
-   * `/me/launch/mint` and signs create_v2 alongside the wallet; a pump mint
-   * has no further authority to exercise afterwards.
+   * `/me/launch/mint` and co-signs the step that creates the mint; a
+   * LaunchLab mint has no authority left to exercise afterwards.
    */
   app.post("/me/launch", async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
     // `resume` names a mint this account already created whose launch stopped
-    // partway; the finish stage skips whatever the chain shows done.
-    const body = LaunchSchema.omit({ mint: true, stage: true })
+    // partway; the builder returns only what the chain shows is left.
+    const body = LaunchSchema.omit({ mint: true })
       .extend({ resume: pubkey.optional(), mintNonce: z.string().regex(/^[0-9a-f]{32}$/).optional() })
       .parse(request.body);
     if (!body.resume && !body.mintNonce) {
       return reply.code(400).send({ error: "choose the mint first (POST /me/launch/mint)" });
     }
     if (body.resume) {
-      // Only a coin this account's own launch created: finishing signs a pool
-      // and a permanent fee routing with the account's key.
+      // Only a coin this account's own launch created: finishing signs a
+      // founding lock with the account's key.
       const [launched] = await sql`
         SELECT 1 FROM account_actions
         WHERE account_id = ${account.id} AND kind = 'launch' AND detail->>'mint' = ${body.resume}
@@ -397,23 +394,19 @@ export async function accountRoutes(app: FastifyInstance) {
     const mint = body.resume ?? (mintKeypair as Keypair).publicKey.toBase58();
     const signatures: Array<{ label: string; signature: string }> = [];
     try {
-      if (mintKeypair) {
-        const create = await buildLaunch(keypair.publicKey, { ...body, mint, stage: "create" });
-        for (const step of create.steps) {
-          signatures.push({ label: step.label, signature: await signAndSend(keypair, step.instructions, [mintKeypair], step.lookupTables) });
-        }
+      const plan = await buildLaunch(launchRequest(keypair.publicKey, { ...body, mint }));
+      for (const step of plan.steps) {
+        if (step.mintSigns && !mintKeypair) throw new ActionError(409, "this launch needs its mint key; start a new launch");
+        const extra = step.mintSigns && mintKeypair ? [mintKeypair] : [];
+        signatures.push({ label: step.label, signature: await signAndSend(keypair, step.instructions, extra, step.lookupTables) });
       }
-      const finish = await buildLaunch(keypair.publicKey, { ...body, mint, stage: "finish" });
-      for (const step of finish.steps) {
-        signatures.push({ label: step.label, signature: await signAndSend(keypair, step.instructions) });
-      }
-      await recordAction(account, "launch", { mint, pool: finish.pool, ...body }, signatures.at(-1)?.signature ?? null);
-      return { mint, pool: finish.pool, lockAmount: finish.lockAmount, signatures };
+      await recordAction(account, "launch", { mint, pool: plan.pool, ...body }, signatures.at(-1)?.signature ?? null);
+      return { mint, pool: plan.pool, lockAmount: plan.lockAmount, signatures };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await recordAction(account, "launch", { ...body, mint, completed: signatures, error: message }, null);
-      // The coin exists once the first signature landed; tell the client so it
-      // can offer to resume rather than launch a second coin.
+      // The coin may exist once a signature landed; tell the client so it can
+      // offer to resume rather than launch a second coin.
       const created = body.resume !== undefined || signatures.length > 0;
       if (error instanceof ActionError) {
         return reply.code(error.status).send({ error: error.message, completed: signatures, resume: created ? mint : null });
@@ -434,7 +427,7 @@ export async function accountRoutes(app: FastifyInstance) {
     const body = z
       .object({
         to: pubkey,
-        amount: lamports,
+        amount: baseUnits,
         /** Omit for SOL. */
         mint: pubkey.optional(),
       })
@@ -483,7 +476,7 @@ export async function accountRoutes(app: FastifyInstance) {
 
   /**
    * The wallet's secret key, for import into Phantom or anywhere else. The
-   * account owns this wallet; VISE holding a copy is a convenience, not a
+   * account owns this wallet; IMAGINE holding a copy is a convenience, not a
    * claim. Logged, so the account can see when it was exported.
    */
   app.post("/me/export-key", async (request, reply) => {

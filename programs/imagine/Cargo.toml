@@ -1,0 +1,21 @@
+[package]
+name = "imagine"
+version = "0.1.0"
+description = "IMAGINE: time-weighted lock-to-earn vaults for StonkFun coins, paid in each coin's pair asset"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "imagine"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+
+[dependencies]
+anchor-lang = "0.31.0"
+anchor-spl = { version = "0.31.0", features = ["token_2022", "associated_token"] }
