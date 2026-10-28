@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { curveProgress, curveSpotPrice, PUMP_CURVE } from "@vise/sdk";
+import { curveProgress, curveSpotPrice, PUMP_CURVE } from "@imagine/sdk";
 import { fetchCurve } from "../src/pump.ts";
 
 const mint = new PublicKey(process.argv[2]);

@@ -29,6 +29,9 @@ importers:
       '@fastify/rate-limit':
         specifier: ^10.2.2
         version: 10.3.0
+      '@imagine/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@pump-fun/pump-sdk':
         specifier: ^2.0.0
         version: 2.0.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -38,9 +41,6 @@ importers:
       '@solana/web3.js':
         specifier: ^1.98.2
         version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
-      '@vise/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
       bs58:
         specifier: ^6.0.0
         version: 6.0.0
@@ -66,6 +66,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@imagine/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
       '@solana/spl-token':
         specifier: ^0.4.13
         version: 0.4.15(@solana/web3.js@1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -84,9 +87,6 @@ importers:
       '@solana/web3.js':
         specifier: ^1.98.2
         version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
-      '@vise/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
       gsap:
         specifier: ^3.13.0
         version: 3.15.0

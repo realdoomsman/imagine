@@ -1,4 +1,4 @@
-import { formatPercent, formatSol, shortAddress } from "@vise/sdk";
+import { formatPercent, formatSol, shortAddress } from "@imagine/sdk";
 import Link from "next/link";
 import type { PoolSummary } from "@/lib/api";
 import { VISE_MINT } from "@/lib/official";

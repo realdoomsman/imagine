@@ -5,7 +5,7 @@ import {
   formatSol,
   formatTokenAmount,
   shortAddress,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import type { Locker } from "@/lib/api";
 
 export function LockerTable({

@@ -6,7 +6,7 @@ import {
   formatPercent,
   formatSol,
   formatTokenAmount,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, type PortfolioPosition } from "@/lib/api";

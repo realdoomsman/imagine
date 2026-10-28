@@ -8,7 +8,7 @@ import {
   formatSol,
   formatTokenAmount,
   shortAddress,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";

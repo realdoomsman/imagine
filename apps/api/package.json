@@ -1,5 +1,5 @@
 {
-  "name": "@vise/api",
+  "name": "@imagine/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
     "@pump-fun/pump-sdk": "^2.0.0",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
-    "@vise/sdk": "workspace:*",
+    "@imagine/sdk": "workspace:*",
     "bs58": "^6.0.0",
     "fastify": "^5.2.1",
     "jose": "^6.2.12",

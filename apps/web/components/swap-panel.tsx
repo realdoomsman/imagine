@@ -1,7 +1,7 @@
 "use client";
 
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { ECONOMICS, appFeeLamports, exactAmount, formatSol, formatTokenAmount } from "@vise/sdk";
+import { ECONOMICS, appFeeLamports, exactAmount, formatSol, formatTokenAmount } from "@imagine/sdk";
 import { useCallback, useState } from "react";
 import { useActor } from "@/lib/signer";
 import { useTokenBalance } from "@/lib/use-token-balance";

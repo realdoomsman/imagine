@@ -2,7 +2,7 @@
 
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
-import { shortAddress } from "@vise/sdk";
+import { shortAddress } from "@imagine/sdk";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "./account-provider";

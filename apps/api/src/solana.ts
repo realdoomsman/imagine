@@ -1,5 +1,5 @@
 import { Connection, type PublicKey } from "@solana/web3.js";
-import { ViseClient } from "@vise/sdk";
+import { ViseClient } from "@imagine/sdk";
 import { env } from "./env.ts";
 
 export const connection = new Connection(env.rpcUrl, {

@@ -50,7 +50,7 @@ import {
   splitInflow,
   VISE_PROGRAM_ID,
   ViseClient,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import { distributable } from "../src/keeper.ts";
 import { sweepCreatorFees } from "../src/pump.ts";
 

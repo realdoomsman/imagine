@@ -65,9 +65,9 @@ createdb vise   # or use the DATABASE_URL in apps/api/.env.local
 node --env-file=apps/api/.env.local apps/api/src/migrate.ts
 
 # 3. API + indexer + web
-pnpm --filter @vise/api start
-pnpm --filter @vise/api indexer
-pnpm --filter @vise/web dev
+pnpm --filter @imagine/api start
+pnpm --filter @imagine/api indexer
+pnpm --filter @imagine/web dev
 ```
 
 ## Tests

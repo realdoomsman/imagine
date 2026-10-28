@@ -1,4 +1,4 @@
-# Build context is the repo root: the web app imports @vise/sdk from the workspace.
+# Build context is the repo root: the web app imports @imagine/sdk from the workspace.
 FROM node:24-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -13,7 +13,7 @@ COPY packages/sdk/package.json packages/sdk/
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY video/package.json video/
-RUN pnpm install --frozen-lockfile --filter @vise/web...
+RUN pnpm install --frozen-lockfile --filter @imagine/web...
 
 FROM base AS builder
 WORKDIR /app

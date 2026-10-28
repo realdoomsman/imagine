@@ -2,7 +2,7 @@
 
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { DAY, ECONOMICS, formatTokenAmount } from "@vise/sdk";
+import { DAY, ECONOMICS, formatTokenAmount } from "@imagine/sdk";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, post } from "@/lib/api";

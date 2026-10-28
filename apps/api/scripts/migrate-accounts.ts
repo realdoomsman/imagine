@@ -12,7 +12,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { Connection, Keypair, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
-import { DISCRIMINATOR, POSITION_ACCOUNT_SIZE, VISE_PROGRAM_ID, ViseClient } from "@vise/sdk";
+import { DISCRIMINATOR, POSITION_ACCOUNT_SIZE, VISE_PROGRAM_ID, ViseClient } from "@imagine/sdk";
 import bs58 from "bs58";
 import { env } from "../src/env.ts";
 

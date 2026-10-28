@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { claimableFor, curveProgress, estimateApr, FeeKind } from "@vise/sdk";
+import { claimableFor, curveProgress, estimateApr, FeeKind } from "@imagine/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";

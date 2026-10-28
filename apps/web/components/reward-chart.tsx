@@ -1,4 +1,4 @@
-import { formatDuration, formatSol } from "@vise/sdk";
+import { formatDuration, formatSol } from "@imagine/sdk";
 import type { RewardHistory } from "@/lib/api";
 
 /**

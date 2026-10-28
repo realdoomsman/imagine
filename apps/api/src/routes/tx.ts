@@ -21,7 +21,7 @@ import {
   type AddressLookupTableAccount,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { ammVaultsFor, formatTokenAmount, poolPda, type PoolAccount } from "@vise/sdk";
+import { ammVaultsFor, formatTokenAmount, poolPda, type PoolAccount } from "@imagine/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {

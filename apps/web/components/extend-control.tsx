@@ -1,6 +1,6 @@
 "use client";
 
-import { LOCK_PRESETS } from "@vise/sdk";
+import { LOCK_PRESETS } from "@imagine/sdk";
 import { useState } from "react";
 
 /**

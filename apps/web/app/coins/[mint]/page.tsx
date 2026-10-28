@@ -5,7 +5,7 @@ import {
   formatSol,
   formatTokenAmount,
   shortAddress,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api, type PoolDetail } from "@/lib/api";

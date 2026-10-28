@@ -15,7 +15,7 @@ import {
   type Signer,
   type VersionedMessage,
 } from "@solana/web3.js";
-import { PUMP_PROGRAM_ID, VISE_PROGRAM_ID, pumpCreatorVaultPda, rewardVaultPda } from "@vise/sdk";
+import { PUMP_PROGRAM_ID, VISE_PROGRAM_ID, pumpCreatorVaultPda, rewardVaultPda } from "@imagine/sdk";
 import { post } from "./api.ts";
 
 export interface BuiltTransaction {

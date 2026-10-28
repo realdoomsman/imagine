@@ -21,4 +21,4 @@ cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "pnpm --filter @vise/sdk test"
+test = "pnpm --filter @imagine/sdk test"

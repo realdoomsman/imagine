@@ -1,5 +1,5 @@
 {
-  "name": "@vise/web",
+  "name": "@imagine/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -15,7 +15,7 @@
     "@solana/wallet-adapter-react-ui": "^0.9.39",
     "@solana/wallet-adapter-wallets": "^0.19.37",
     "@solana/web3.js": "^1.98.2",
-    "@vise/sdk": "workspace:*",
+    "@imagine/sdk": "workspace:*",
     "gsap": "^3.13.0",
     "lenis": "^1.1.20",
     "motion": "^11.15.0",

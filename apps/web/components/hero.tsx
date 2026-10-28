@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DAY, ECONOMICS, HOUR, durationMultiplierBps, combinedMultiplierBps } from "@vise/sdk";
+import { DAY, ECONOMICS, HOUR, durationMultiplierBps, combinedMultiplierBps } from "@imagine/sdk";
 import { useEffect, useState } from "react";
 import { durationLabel, durationStops } from "./lock-dial";
 import { ViseShader } from "./vise-shader";

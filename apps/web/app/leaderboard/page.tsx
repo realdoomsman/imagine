@@ -1,4 +1,4 @@
-import { formatDuration, formatMultiplier, formatSol, shortAddress } from "@vise/sdk";
+import { formatDuration, formatMultiplier, formatSol, shortAddress } from "@imagine/sdk";
 import Link from "next/link";
 import { api } from "@/lib/api";
 

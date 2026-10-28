@@ -14,7 +14,7 @@ import {
   poolPda,
   positionPda,
   VISE_PROGRAM_ID,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import { sql } from "./db.ts";
 import { fetchCurve, onlinePump, spotPriceLamports } from "./pump.ts";
 import { connection, vise } from "./solana.ts";

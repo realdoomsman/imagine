@@ -1,6 +1,6 @@
 "use client";
 
-import { DAY, HOUR, LOCK_PRESETS } from "@vise/sdk";
+import { DAY, HOUR, LOCK_PRESETS } from "@imagine/sdk";
 import { useCallback, useId, useMemo } from "react";
 
 /**

@@ -13,7 +13,7 @@ import {
   type AddressLookupTableAccount,
   type TransactionInstruction,
 } from "@solana/web3.js";
-import { claimableFor, earlyExitPenalty, formatSol } from "@vise/sdk";
+import { claimableFor, earlyExitPenalty, formatSol } from "@imagine/sdk";
 import bs58 from "bs58";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";

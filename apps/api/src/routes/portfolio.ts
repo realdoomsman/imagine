@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import { claimableFor } from "@vise/sdk";
+import { claimableFor } from "@imagine/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { sql } from "../db.ts";

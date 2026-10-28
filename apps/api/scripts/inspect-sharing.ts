@@ -14,7 +14,7 @@ import {
 } from "@pump-fun/pump-sdk";
 import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
-import { bondingCurvePda } from "@vise/sdk";
+import { bondingCurvePda } from "@imagine/sdk";
 
 const connection = new Connection(process.env.RPC_URL ?? "http://127.0.0.1:8899", "confirmed");
 const mint = new PublicKey(process.argv[2]!);

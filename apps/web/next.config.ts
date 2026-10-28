@@ -30,7 +30,7 @@ const CSP = [
 
 const config: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@vise/sdk"],
+  transpilePackages: ["@imagine/sdk"],
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
   images: {
     remotePatterns: [

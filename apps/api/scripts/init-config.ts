@@ -23,7 +23,7 @@ import {
   PublicKey,
   Transaction,
 } from "@solana/web3.js";
-import { configPda, ECONOMICS, ViseClient } from "@vise/sdk";
+import { configPda, ECONOMICS, ViseClient } from "@imagine/sdk";
 import { env } from "../src/env.ts";
 
 const keypairPath =

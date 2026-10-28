@@ -21,7 +21,7 @@ import {
   positionPda,
   rewardVaultPda,
   VISE_PROGRAM_ID,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import bs58 from "bs58";
 import { sql } from "./db.ts";
 import { env } from "./env.ts";

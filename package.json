@@ -11,8 +11,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "program:build": "anchor build",
-    "program:test": "pnpm --filter @vise/sdk test",
-    "dev": "pnpm --parallel --filter @vise/web --filter @vise/api dev"
+    "program:test": "pnpm --filter @imagine/sdk test",
+    "dev": "pnpm --parallel --filter @imagine/web --filter @imagine/api dev"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

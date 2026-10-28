@@ -15,7 +15,7 @@ import {
   formatDuration,
   positionPda,
   type PoolTerms,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import { z } from "zod";
 import { env } from "./env.ts";
 import { distributable } from "./keeper.ts";

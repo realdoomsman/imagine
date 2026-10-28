@@ -33,7 +33,7 @@ import {
   FeeKind,
   rewardVaultPda,
   type BondingCurveState,
-} from "@vise/sdk";
+} from "@imagine/sdk";
 import { env } from "./env.ts";
 import { chainConfig, connection, vise } from "./solana.ts";
 
