@@ -11,6 +11,16 @@ import { Faq } from "@/components/faq";
 import { OfficialCoinBanner } from "@/components/official-coin";
 import { CoinCard } from "@/components/coin-card";
 import { CoinCardSkeleton } from "@/components/skeleton";
+import { FirstLaunch } from "@/components/first-launch";
+import { loadFees } from "@/lib/fees";
+import { pageMetadata, SITE_CARD_DESCRIPTION, SITE_DESCRIPTION, SITE_TITLE } from "@/lib/seo";
+
+export const metadata = pageMetadata({
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  cardDescription: SITE_CARD_DESCRIPTION,
+  path: "/",
+});
 
 export default function HomePage() {
   return (
@@ -35,25 +45,16 @@ export default function HomePage() {
 function LiveCoinsSection() {
   return (
     <section className="container-x pt-16 lg:pt-20">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <span className="eyebrow">
-            <i className="pill-dot pulse-dot" aria-hidden="true" />
-            Live on IMAGINE
-          </span>
-          <h2 className="t-h2 mt-3">Coins people are locking</h2>
-        </div>
-        <Link href="/coins" className="btn btn-ghost btn-sm">
-          All coins →
-        </Link>
-      </div>
       <Suspense
         fallback={
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((i) => (
-              <CoinCardSkeleton key={i} />
-            ))}
-          </div>
+          <>
+            <LiveCoinsHeader />
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[0, 1, 2].map((i) => (
+                <CoinCardSkeleton key={i} />
+              ))}
+            </div>
+          </>
         }
       >
         <LiveCoins />
@@ -62,37 +63,57 @@ function LiveCoinsSection() {
   );
 }
 
-async function LiveCoins() {
-  const result = await api.pools({ sort: "rewards", limit: 6 }).then(
-    (value) => ({ pools: value.pools, failed: false }),
-    () => ({ pools: [], failed: true }),
-  );
-
-  if (result.pools.length === 0) {
-    return (
-      <div className="card mt-6 flex flex-col items-center gap-4 px-6 py-12 text-center">
-        <ImagineMark size={40} className="opacity-50" />
-        <p className="t-h3">
-          {result.failed ? "Live coins can't be loaded right now." : "No coins yet. Imagine yours first."}
-        </p>
-        <p className="max-w-[46ch] text-[14px] text-fg-soft">
-          {result.failed
-            ? "The index didn't answer. Coins and vaults live on-chain either way; try again in a moment."
-            : "Launch a coin on Raydium through IMAGINE, lock first, and it shows up here."}
-        </p>
-        <Link href={result.failed ? "/coins" : "/launch"} className="btn btn-primary btn-sm">
-          {result.failed ? "Open coins" : "Launch a coin"}
-        </Link>
+function LiveCoinsHeader() {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <span className="eyebrow">
+          <i className="pill-dot pulse-dot" aria-hidden="true" />
+          Live on IMAGINE
+        </span>
+        <h2 className="t-h2 mt-3">Coins people are locking</h2>
       </div>
-    );
-  }
+      <Link href="/coins" className="btn btn-ghost btn-sm">
+        All coins →
+      </Link>
+    </div>
+  );
+}
+
+async function LiveCoins() {
+  const [result, fees] = await Promise.all([
+    api.pools({ sort: "rewards", limit: 6 }).then(
+      (value) => ({ pools: value.pools, failed: false }),
+      () => ({ pools: [], failed: true }),
+    ),
+    loadFees(),
+  ]);
+
+  // Nothing launched yet: the case for launching first, not an empty grid.
+  if (!result.failed && result.pools.length === 0) return <FirstLaunch fees={fees} />;
 
   return (
-    <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {result.pools.map((pool) => (
-        <CoinCard key={pool.mint} pool={pool} />
-      ))}
-    </div>
+    <>
+      <LiveCoinsHeader />
+      {result.failed ? (
+        <div className="card mt-6 flex flex-col items-center gap-4 px-6 py-12 text-center">
+          <ImagineMark size={40} className="opacity-50" />
+          <p className="t-h3">Live coins can&apos;t be loaded right now.</p>
+          <p className="max-w-[46ch] text-[14px] text-fg-soft">
+            The index didn&apos;t answer. Coins and pools live on-chain either way; try again in a moment.
+          </p>
+          <Link href="/coins" className="btn btn-primary btn-sm">
+            Open coins
+          </Link>
+        </div>
+      ) : (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {result.pools.map((pool) => (
+            <CoinCard key={pool.mint} pool={pool} />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

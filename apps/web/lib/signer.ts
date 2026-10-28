@@ -4,7 +4,7 @@ import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { useCallback, useMemo } from "react";
 import { api, post } from "./api.ts";
-import { signAndSend, type BuiltTransaction } from "./send.ts";
+import { signAndSend, type BuiltTransaction, type Expectation } from "./send.ts";
 import { useAccount } from "@/components/account-provider";
 
 /**
@@ -22,8 +22,11 @@ export interface Actor {
   publicKey: PublicKey | null;
   /** "account" for an Imagine wallet, "wallet" for an extension, null for nobody. */
   via: "account" | "wallet" | null;
-  /** Run a protocol action; resolves to the transaction signature. */
-  act: (action: Record<string, unknown>) => Promise<string>;
+  /**
+   * Run a protocol action; resolves to the transaction signature. `expect`
+   * holds a wallet-signed trade to what the page showed (`assertTransactionAllowed`).
+   */
+  act: (action: Record<string, unknown>, expect?: Expectation) => Promise<string>;
 }
 
 /** Fired on `window` after any action lands, so panels re-read the chain. */
@@ -42,7 +45,7 @@ export function useActor(): Actor {
   const via: Actor["via"] = account ? "account" : wallet.publicKey ? "wallet" : null;
 
   const act = useCallback(
-    async (action: Record<string, unknown>) => {
+    async (action: Record<string, unknown>, expect?: Expectation) => {
       let signature: string;
       if (account) {
         ({ signature } = await api.act(action));
@@ -52,7 +55,7 @@ export function useActor(): Actor {
           owner: wallet.publicKey.toBase58(),
           ...action,
         });
-        signature = await signAndSend(connection, wallet, built);
+        signature = await signAndSend(connection, wallet, built, [], expect);
       }
       window.dispatchEvent(new Event(CHAIN_CHANGED));
       return signature;

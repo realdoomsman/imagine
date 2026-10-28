@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { DocPage, DocSection } from "@/components/doc-page";
 import { X_URL } from "@/components/site-header-links";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Privacy",
   description: "What imagine.fun stores about you, why, and how to take it away.",
-};
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   const channels = [

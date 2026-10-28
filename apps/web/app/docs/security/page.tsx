@@ -1,10 +1,12 @@
 import { IMAGINE_PROGRAM_ID } from "@imagine/sdk";
 import { DocLinks, DocPage, DocSection } from "@/components/doc-page";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Security",
   description: "What the IMAGINE program cannot do, how fees are enforced on-chain by Raydium LaunchLab, and what can still go wrong.",
-};
+  path: "/docs/security",
+});
 
 export default function SecurityPage() {
   const programId = IMAGINE_PROGRAM_ID.toBase58();
@@ -20,8 +22,8 @@ export default function SecurityPage() {
           a disabled one, not a timelocked one: it is not in the program.
         </p>
         <p>
-          Only program-derived accounts move a pool&apos;s funds. The vault pays the locker, creator
-          or treasury that earned a specific amount, in the pair asset. The pool returns locked
+          Only program-derived accounts move a pool&apos;s funds. The vault pays the locker or the
+          treasury that earned a specific amount, in the pair asset. The pool returns locked
           coins to their owner, or burns an early-exit penalty. Neither can be pointed anywhere
           else by a key.
         </p>

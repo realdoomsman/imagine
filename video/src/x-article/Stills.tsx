@@ -9,7 +9,7 @@ import {
   COIN_FULL,
   COIN_LOCK,
   Dream,
-  EXPLORER_CONFIG,
+  EXPLORER_PLATFORM,
   EXPLORER_PROGRAM,
   Eyebrow,
   Framed,
@@ -793,35 +793,30 @@ export function A08Compare() {
 
 // --- a09: proof ------------------------------------------------------------------------
 
-/** Explorer and GitHub captures: 1.2755 px per CSS px. */
-const PROGRAM_TABLE: [number, number, number, number] = [389, 311, 765, 462];
-const CONFIG_TABLE: [number, number, number, number] = [389, 304, 765, 257];
-const MAINNET_CHIP: [number, number, number, number] = [1237, 15, 213, 49];
+/** Explorer captures (explorer-*-raydium.png): 1.25 px per CSS px. GitHub capture: 1.2755. */
+const PROGRAM_TABLE: [number, number, number, number] = [370, 311, 765, 463];
+const PLATFORM_TABLE: [number, number, number, number] = [370, 304, 765, 257];
+const MAINNET_CHIP: [number, number, number, number] = [1217, 16, 212, 47];
 /** Repo name, branch bar, last commit and the first folders; stops before the commit-message column. */
 const REPO: [number, number, number, number] = [236, 236, 468, 434];
 
-/**
- * The IMAGINE platform config on Raydium LaunchLab. Rendered only once Main
- * fills it in out/x/facts-todo.md; never guess it.
- */
-const PLATFORM_CONFIG: string | null = null;
-
-function ShotLabel({ kicker, value }: { kicker: string; value: string }) {
+function ShotLabel({ kicker, value }: { kicker: string; value?: string }) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 10, whiteSpace: "nowrap" }}>
       <Eyebrow size={16} color={COLORS.muted}>
         {kicker}
       </Eyebrow>
-      <span style={{ ...mono, fontSize: 19, color: COLORS.fgSoft }}>{value}</span>
+      {value && <span style={{ ...mono, fontSize: 19, color: COLORS.fgSoft }}>{value}</span>}
     </div>
   );
 }
 
-const CHECKS: Array<{ title: string; body: string }> = [
-  { title: "Real mainnet builds", body: "Integration suites run against Raydium LaunchLab, CPMM and Token-2022 as deployed" },
-  { title: "Randomised solvency check", body: "after every step: a pool can still pay everyone it owes" },
-  { title: "Rust unit tests", body: "multiplier curve, accumulator conservation, penalty decay, price math" },
-  { title: "Mainnet-fork rehearsal", body: "SOL + SPYx coins: buy, sell, lock, fee collection, claim, early exit" },
+/** `result` lines are copied from raw/cargo-test-raydium.txt and raw/sdk-test-raydium.txt. */
+const CHECKS: Array<{ title: string; body: string; result?: string }> = [
+  { title: "Rust unit tests", body: "the reward math", result: "test result: ok. 17 passed; 0 failed" },
+  { title: "Integration", body: "real mainnet Raydium LaunchLab, CPMM, Token-2022 builds", result: "ℹ tests 115 · ℹ pass 115 · ℹ fail 0" },
+  { title: "Randomised solvency check", body: "after every step" },
+  { title: "Mainnet-fork rehearsal", body: "SOL + SPYx: buy, sell, lock, fee collection, claim, early exit" },
 ];
 
 export function A09Proof() {
@@ -847,9 +842,9 @@ export function A09Proof() {
           <Shot src={EXPLORER_PROGRAM} crop={PROGRAM_TABLE} width={leftW} />
         </Framed>
         <div style={{ height: 22 }} />
-        <ShotLabel kicker="Config" value="FjjucCXt…NLy2RZorHa" />
+        <ShotLabel kicker="IMAGINE platform config on Raydium LaunchLab" />
         <Framed>
-          <Shot src={EXPLORER_CONFIG} crop={CONFIG_TABLE} width={leftW} />
+          <Shot src={EXPLORER_PLATFORM} crop={PLATFORM_TABLE} width={leftW} />
         </Framed>
       </div>
 
@@ -859,36 +854,40 @@ export function A09Proof() {
           <Framed style={{ flex: "none" }}>
             <Shot src={GITHUB} crop={REPO} width={repoW} />
           </Framed>
-          <Panel style={{ flex: 1, padding: "20px 24px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 16 }}>
+          <Panel style={{ flex: 1, padding: "20px 24px", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <Eyebrow size={15} color={COLORS.muted}>
                 In the repo
               </Eyebrow>
-              <div style={{ fontSize: 21, lineHeight: 1.4, color: COLORS.fg, marginTop: 6 }}>The program, the SDK, the API and the site.</div>
+              <div style={{ fontSize: 20, lineHeight: 1.4, color: COLORS.fg, marginTop: 6 }}>The program, the SDK, the API and the site.</div>
             </div>
             <div>
               <Eyebrow size={15} color={COLORS.muted}>
-                The config
+                Config
               </Eyebrow>
-              <div style={{ fontSize: 19, lineHeight: 1.4, color: COLORS.fgSoft, marginTop: 6 }}>
-                Names the IMAGINE platform config on Raydium LaunchLab that every launch is checked against.
+              <div style={{ ...mono, fontSize: 16, color: COLORS.fg, marginTop: 6 }}>FjjucCXt…NLy2RZorHa</div>
+              <div style={{ fontSize: 18, lineHeight: 1.4, color: COLORS.fgSoft, marginTop: 4 }}>
+                names the platform config every launch is checked against:
               </div>
-              {PLATFORM_CONFIG && <div style={{ ...mono, fontSize: 15, color: COLORS.fg, marginTop: 6, wordBreak: "break-all" }}>{PLATFORM_CONFIG}</div>}
+              <div style={{ ...mono, fontSize: 16, color: COLORS.mint, marginTop: 4 }}>DYtCiTPJ…tQHaQNULk</div>
             </div>
           </Panel>
         </div>
-        <Panel style={{ marginTop: 16, padding: "16px 26px 18px", boxSizing: "border-box", background: COLORS.ink1 }}>
+        <Panel style={{ marginTop: 16, padding: "14px 26px 16px", boxSizing: "border-box", background: COLORS.ink1 }}>
           <Eyebrow size={15} color={COLORS.muted}>
             Tested against the real thing, not mocks
           </Eyebrow>
           {CHECKS.map((c, i) => (
-            <div key={c.title} style={{ display: "flex", gap: 14, alignItems: "flex-start", paddingTop: 12, marginTop: 10, borderTop: i ? `1px solid ${COLORS.line}` : undefined }}>
-              <svg width={22} height={22} viewBox="0 0 22 22" style={{ flex: "none", marginTop: 3 }}>
+            <div key={c.title} style={{ display: "flex", gap: 14, alignItems: "flex-start", paddingTop: 10, marginTop: 8, borderTop: i ? `1px solid ${COLORS.line}` : undefined }}>
+              <svg width={22} height={22} viewBox="0 0 22 22" style={{ flex: "none", marginTop: 2 }}>
                 <circle cx={11} cy={11} r={10} fill="rgba(94,233,181,0.14)" stroke={COLORS.mint} strokeWidth={1.5} />
                 <path d="M6.5 11.5 L9.5 14.5 L15.5 8" fill="none" stroke={COLORS.mint} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <div style={{ fontSize: 20, lineHeight: 1.35, color: COLORS.fgSoft }}>
-                <span style={{ color: COLORS.fg, fontWeight: 700 }}>{c.title}</span> · {c.body}
+              <div>
+                <div style={{ fontSize: 19, lineHeight: 1.35, color: COLORS.fgSoft }}>
+                  <span style={{ color: COLORS.fg, fontWeight: 700 }}>{c.title}</span> · {c.body}
+                </div>
+                {c.result && <div style={{ ...mono, fontSize: 22, color: COLORS.mint, marginTop: 4 }}>{c.result}</div>}
               </div>
             </div>
           ))}

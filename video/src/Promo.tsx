@@ -5,7 +5,7 @@ import { COLORS, DAY, FONTS, HOUR, durationLabel, ease, easeInOut, multiplierFor
 /**
  * The film, 58 s at 1920×1080. Cuts sit on the score's bars (96 BPM, 2.5 s):
  * the dump 0–7.5, "Imagine nobody sold" 7.5–12.5, the dial 12.5–22.5, the fee
- * path 22.5–30, lockers paid in the pair 30–35, StonkFun pairs 35–42.5, the
+ * path 22.5–30, lockers paid in the pair 30–35, pairs on Raydium 35–42.5, the
  * rules 42.5–50, the mark 50–58.
  */
 export const PROMO_DURATION = s(58);
@@ -165,7 +165,7 @@ function FlowScene() {
         <FeeFlow reveal={(frame - s(0.8)) / s(1.1)} flow={frame} />
       </div>
       <div style={{ position: "absolute", left: 120, bottom: 70, fontSize: 24, color: COLORS.muted, ...appear(frame, s(5)) }}>
-        StonkFun forwards a creator share to each coin's creator address. For IMAGINE coins, that address is the pool vault.
+        Raydium LaunchLab enforces the 0.5% on-chain. The creator earns nothing from fees, only by locking like everyone else.
       </div>
     </AbsoluteFill>
   );
@@ -265,7 +265,7 @@ function PairsScene() {
           <Eyebrow>Launch</Eyebrow>
         </div>
         <div style={{ ...headline, fontSize: 96, marginTop: 26, ...appear(frame, 10) }}>
-          Coins launch on StonkFun,
+          Coins launch on Raydium,
           <br />
           <Dream>paired with anything.</Dream>
         </div>

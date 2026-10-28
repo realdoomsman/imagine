@@ -7,6 +7,16 @@ import { rawToUsd, usdPrices, type QuoteInfo } from "./quotes.ts";
 
 type Row = Record<string, unknown>;
 
+/**
+ * `fee_events.kind` beyond the program's `FeeKind` (0–3): 4 a sync — what the
+ * pool actually took in (`RewardsSynced`); 5 synced inflow the read model has
+ * no transaction for (history from before its cursor), reconstructed from the
+ * pool's lifetime counters so the reward chart is never blank for a pool that
+ * has paid out. 5 is shown in the chart but never counted in a 24h/7d rate.
+ */
+export const SYNCED_KIND = 4;
+export const RECONSTRUCTED_KIND = 5;
+
 /** Columns that hold a pool's quote display fields (select them as-is). */
 export const QUOTE_COLUMNS = [
   "quote_mint",

@@ -292,6 +292,18 @@ to the trade. The keeper cranks `collect_creator_fee` (or a plain `sync`) per
 pool once the uncollected and unsynced value passes `SYNC_MIN_USD`. The chain
 stays authoritative for every number a user acts on; Postgres is a read model.
 
+Before a browser wallet is asked to sign, the web app checks the API's bytes
+(`apps/web/lib/send.ts`, `assertTransactionAllowed`), so a compromised API
+cannot redirect funds: only allowlisted programs and IMAGINE's user-facing
+instructions; SOL and token transfers only into the signer's own accounts;
+LaunchLab `buy_exact_in`/`sell_exact_in`, CPMM `swap_base_input` and Jupiter
+`route`/`shared_accounts_route` paid from and into the signer's own token
+accounts, on an IMAGINE coin's pool, with no share or platform fee; and, for a
+trade, the input, the `deposit_reward` app fee and the minimum output held to
+what the page showed (minimum output within slippage plus 30% of the spot
+estimate). Swaps and fee deposits are refused in any transaction that is not a
+trade or a launch.
+
 Coin links: `https://raydium.io/launchpad/token/?mint=<mint>`; after graduation
 also `https://raydium.io/swap/?inputMint=<quote>&outputMint=<mint>`.
 

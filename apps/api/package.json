@@ -9,6 +9,7 @@
     "indexer": "node src/indexer.ts",
     "migrate": "node src/migrate.ts",
     "typecheck": "tsc --noEmit",
+    "test": "node --test test/*.test.ts",
     "e2e": "node scripts/e2e.ts",
     "fork:fixtures": "node scripts/fork-fixtures.ts",
     "init-config": "node scripts/init-config.ts",

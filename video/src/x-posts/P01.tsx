@@ -5,25 +5,26 @@ import { Crop, Cut, DreamLead, Ground, Shot } from "./common";
 
 /**
  * p01: the live homepage hero, "Imagine the chart", from the real capture
- * SOURCE (slider at 0% for the first ~17 s, then dragged 0→100%). Recorded
- * after the Raydium site deploy; set SELL_FROM / DRAG_FROM to its timings.
+ * SOURCE, recorded from live https://imagine.fun after the Raydium deploy
+ * (slider at 0% for 17 s, dragged 0→100% at 17.63–24.25 s), framed in a
+ * browser window showing imagine.fun.
  * Title card, the sell-off, the drag with a push into the chart card (the
  * site's own ILLUSTRATIVE label stays in frame), then the end card.
  */
 
 // The hero card spans x 372–1548, y 96–863 of the capture; the chart card x 997–1491, y 209–750.
-const WIDE: Crop = { x: 960, y: 480, w: 1520 };
+const WIDE: Crop = { x: 960, y: 480, w: 1440 };
 const SETTLE: Crop = { x: 962, y: 480, w: 1400 };
 // Tightest frame that still holds the whole headline (x ≥ 430) and the chart card.
 const CHART: Crop = { x: 962, y: 482, w: 1090 };
 
-const SOURCE = "hero-long-v2.mp4";
-const SELL_FROM = 3.0; // seconds into SOURCE: the sell-off at 0%
-const DRAG_FROM = 17.6; // seconds into SOURCE: just before the drag starts
+const SOURCE = "hero-long-live.mp4";
+const SELL_FROM = 1.0; // seconds into SOURCE: the sell-off at 0%
+const DRAG_FROM = 16.9; // seconds into SOURCE: just before the drag starts
 
 const TITLE = 66;
 const SELL = 150;
-const DRAG = 294;
+const DRAG = 270; // ends before the chart loop restarts at 26.5 s
 const END = 80;
 const XFADE = 10;
 
@@ -70,6 +71,7 @@ export function P01() {
       <Cut at={TITLE - XFADE} length={SELL + XFADE}>
         <Shot
           src={SOURCE}
+          url="imagine.fun"
           from={SELL_FROM - XFADE / 30}
           durationInFrames={SELL + XFADE}
           crop={[
@@ -81,6 +83,7 @@ export function P01() {
       <Cut at={TITLE + SELL - XFADE} length={DRAG + 2 * XFADE}>
         <Shot
           src={SOURCE}
+          url="imagine.fun"
           from={DRAG_FROM - XFADE / 30}
           durationInFrames={DRAG + 2 * XFADE}
           fadeIn={XFADE}

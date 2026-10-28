@@ -388,7 +388,8 @@ export const api = {
     if (params.category) query.set("category", params.category);
     return get<{ pools: PoolSummary[] }>(`/api/pools?${query}`);
   },
-  pool: (mint: string) => get<PoolDetail>(`/api/pools/${mint}`),
+  /** `init` lets a caller that can tolerate staleness (the share card) opt into Next's fetch cache. */
+  pool: (mint: string, init?: RequestInit) => get<PoolDetail>(`/api/pools/${mint}`, init),
   lockers: (mint: string) =>
     get<{ lockers: Locker[]; totalWeight: string }>(`/api/pools/${mint}/lockers`),
   rewards: (mint: string) => get<RewardHistory>(`/api/pools/${mint}/rewards`),

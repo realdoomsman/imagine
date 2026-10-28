@@ -6,6 +6,8 @@ import { api, ApiError, type PoolDetail, type RewardHistory } from "@/lib/api";
 import { loadFees } from "@/lib/fees";
 import { formatBps, formatPrice, formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
 import { IMAGINE_MINT } from "@/lib/official";
+import { SITE_NAME, SITE_URL } from "@/lib/seo";
+import { X_HANDLE } from "@/components/site-header-links";
 import { CopyButton } from "@/components/copy-button";
 import { ImagineMark } from "@/components/imagine-mark";
 import { LockPanel } from "@/components/lock-panel";
@@ -34,16 +36,19 @@ export async function generateMetadata({ params }: { params: Promise<{ mint: str
   const symbol = detail.metadata?.symbol ?? shortAddress(mint);
   const name = detail.metadata?.name ?? symbol;
   const description = `${name} launched on Raydium, paired with ${detail.quote.symbol}. ${formatPercent(lockedFraction(detail), 1)} of supply locked, ${formatQuote(detail.pool.lifetimeRewards, detail.quote)} paid to lockers so far. Lock it, earn ${detail.quote.symbol}.`;
+  const url = `${SITE_URL}/coins/${mint}`;
   return {
     title: `$${symbol} · ${name}`,
     description,
-    openGraph: {
+    alternates: { canonical: url },
+    // The card image is this route's opengraph-image, drawn from the coin.
+    openGraph: { title: `$${symbol} on Imagine`, description, url, siteName: SITE_NAME, type: "website" },
+    twitter: {
+      card: "summary_large_image",
       title: `$${symbol} on Imagine`,
       description,
-      url: `https://imagine.fun/coins/${mint}`,
-      ...(detail.metadata?.imageUrl ? { images: [{ url: detail.metadata.imageUrl, width: 512, height: 512 }] } : {}),
+      ...(X_HANDLE ? { site: X_HANDLE, creator: X_HANDLE } : {}),
     },
-    twitter: { card: detail.metadata?.imageUrl ? "summary" : "summary_large_image" },
   };
 }
 
@@ -236,7 +241,8 @@ export default async function CoinPage({
               Written onto the pool when it opened. Nobody can change them — not the creator, not Imagine. Claims and
               unlocks can&apos;t be paused.
             </p>
-            <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-5">
+            {/* Five terms: on two columns the last one spans both, rather than leaving a blank cell. */}
+            <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-5 [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1">
               <Term label="To lockers" value={formatPercent(lockersShare, 0)} accent />
               <Term label="To treasury" value={formatPercent(pool.terms.treasuryShareBps / 10_000, 0)} />
               <Term label="Max multiplier" value={formatMultiplier(pool.terms.maxMultiplierBps)} />

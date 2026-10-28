@@ -3,14 +3,12 @@ import { PublicKey } from "@solana/web3.js";
 import { claimableFor, FeeKind, raydiumTokenUrl } from "@imagine/sdk";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { pubkey } from "../actions.ts";
 import { sql } from "../db.ts";
 import { launchableQuotes, quoteInfo, rawToUsd, usdPrices } from "../quotes.ts";
 import { chainConfig, connection, imagine } from "../solana.ts";
 import { marketCapQuote, readMarket, uncollectedFees, unsyncedRewards } from "../raydium.ts";
-import { poolSummary, pricesFor, SUMMARY_COLUMNS } from "../views.ts";
-
-/** `fee_events.kind` for a `RewardsSynced` row: what the pool actually took in. */
-const SYNCED = 4;
+import { poolSummary, pricesFor, RECONSTRUCTED_KIND, SUMMARY_COLUMNS, SYNCED_KIND as SYNCED } from "../views.ts";
 
 const HISTORY_MIN_SECS = 3600;
 const HISTORY_MAX_SECS = 7 * 86_400;
@@ -87,7 +85,7 @@ export async function poolRoutes(app: FastifyInstance) {
       ? await sql`
           SELECT mint, COALESCE(SUM(to_lockers), 0)::TEXT AS lockers_7d
           FROM fee_events
-          WHERE at > NOW() - INTERVAL '7 days' AND mint = ANY(${mints})
+          WHERE at > NOW() - INTERVAL '7 days' AND mint = ANY(${mints}) AND kind <> ${RECONSTRUCTED_KIND}
           GROUP BY mint
         `
       : [];
@@ -269,7 +267,7 @@ export async function poolRoutes(app: FastifyInstance) {
    * Amounts are in the pool's quote base units.
    */
   app.get("/pools/:mint/rewards", async (request) => {
-    const { mint } = z.object({ mint: z.string() }).parse(request.params);
+    const { mint } = z.object({ mint: pubkey }).parse(request.params);
     const [pool] = await sql`SELECT created_at FROM pools WHERE mint = ${mint}`;
     const now = Math.floor(Date.now() / 1000);
     const created = pool ? Math.floor(new Date(pool.created_at as string).getTime() / 1000) : now - HISTORY_MAX_SECS;
@@ -278,9 +276,9 @@ export async function poolRoutes(app: FastifyInstance) {
     const since = Math.floor((now - span) / bucketSecs) * bucketSecs;
     const rows = await sql`
       SELECT to_timestamp(FLOOR(EXTRACT(EPOCH FROM at) / ${bucketSecs}) * ${bucketSecs}) AS bucket,
-             SUM(amount) FILTER (WHERE kind = ${SYNCED})::TEXT AS inflow,
+             SUM(amount) FILTER (WHERE kind IN (${SYNCED}, ${RECONSTRUCTED_KIND}))::TEXT AS inflow,
              SUM(to_lockers)::TEXT AS to_lockers,
-             COUNT(*) FILTER (WHERE kind = ${SYNCED})::INT AS events
+             COUNT(*) FILTER (WHERE kind IN (${SYNCED}, ${RECONSTRUCTED_KIND}))::INT AS events
       FROM fee_events
       WHERE mint = ${mint} AND at >= to_timestamp(${since})
       GROUP BY bucket
@@ -290,7 +288,7 @@ export async function poolRoutes(app: FastifyInstance) {
   });
 
   app.get("/pools/:mint/activity", async (request) => {
-    const { mint } = z.object({ mint: z.string() }).parse(request.params);
+    const { mint } = z.object({ mint: pubkey }).parse(request.params);
     const rows = await sql`
       (SELECT 'lock' AS type, owner, amount::TEXT, at, signature FROM lock_events WHERE mint = ${mint})
       UNION ALL

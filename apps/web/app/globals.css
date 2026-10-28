@@ -405,7 +405,8 @@
   }
 
   .pill-pair .pill-label {
-    color: var(--muted);
+    /* --muted alone is 4.3:1 on --ink-3; lifted toward --fg-soft to clear 4.5:1 at this size. */
+    color: color-mix(in oklab, var(--muted) 70%, var(--fg-soft));
     font-weight: 500;
   }
 

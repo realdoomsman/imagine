@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { AccountView } from "@/components/account-view";
 
-export const metadata = { title: "Your wallet" };
+// A signed-in view with nothing to index; the sitemap and robots.txt leave it out too.
+export const metadata: Metadata = {
+  title: "Your wallet",
+  description: "Your locks, what they're earning in each pair asset, and your Imagine wallet.",
+  robots: { index: false, follow: true },
+};
 
 export default function AccountPage() {
   return (

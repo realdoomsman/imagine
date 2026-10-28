@@ -325,7 +325,8 @@
       [
         "Program: imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa",
         "Upgrade authority: E1MQZaMhRELUihUffFCUbuARpTy53fJv8hpB98MoYhZc",
-        "Config: FjjucCXttbwBzNdBkxHS6wtQYqaUpwxtAjNLy2RZorHa, which names the IMAGINE platform config on LaunchLab that every launch is checked against"
+        "Config: FjjucCXttbwBzNdBkxHS6wtQYqaUpwxtAjNLy2RZorHa, which names the platform config below; every launch is checked against it",
+        "IMAGINE platform config on Raydium LaunchLab: DYtCiTPJoqCyDApm45b9C7D3xotkSDecJaAtQHaQNULk"
       ]
     ],
     [
@@ -334,7 +335,7 @@
     ],
     [
       "p",
-      "It is tested against the real thing, not mocks. Rust unit tests cover the reward math: the multiplier curve, accumulator conservation, penalty decay and price math. The integration suites run against the real mainnet builds of Raydium LaunchLab, CPMM and Token-2022, including a randomised test that checks after every step that a pool can still pay everyone it owes."
+      "It is tested against the real thing, not mocks. 17 Rust unit tests cover the reward math: the multiplier curve, accumulator conservation, penalty decay and price math. 115 integration tests run against the real mainnet builds of Raydium LaunchLab, CPMM and Token-2022, including a randomised test that checks after every step that a pool can still pay everyone it owes."
     ],
     [
       "p",

@@ -25,7 +25,7 @@ export function Banner() {
           <Dream>Earn its pair.</Dream>
         </div>
         <div style={{ marginTop: 24, fontFamily: FONTS.mono, fontSize: 20, letterSpacing: "0.16em", textTransform: "uppercase", color: COLORS.fgSoft }}>
-          Lock-to-earn on StonkFun · imagine.fun
+          Lock-to-earn on Raydium · imagine.fun
         </div>
       </div>
     </AbsoluteFill>

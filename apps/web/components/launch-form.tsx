@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, post, type QuoteInfo } from "@/lib/api";
 import { loadFees, LAUNCHLAB_PROTOCOL_FEE_BPS, type PoolFees } from "@/lib/fees";
 import { decimalInput, formatAmount, formatBps, formatQuote, parseAmount, usdSuffix } from "@/lib/format";
+import { signMintProof } from "@/lib/mint-proof";
 import { signAndSend, type BuiltTransaction } from "@/lib/send";
 import { useActor } from "@/lib/signer";
 import { useTokenBalance } from "@/lib/use-token-balance";
@@ -17,6 +18,7 @@ import { durationLabel, LockDial } from "./lock-dial";
 import { PairPill, QuoteLogo } from "./pair-pill";
 import { QuotePicker } from "./quote-picker";
 import { SignInPrompt } from "./sign-in-prompt";
+import { ReauthNotice, reauthMessage } from "./reauth-notice";
 
 interface LaunchPlan {
   mint: string;
@@ -54,6 +56,8 @@ export function LaunchForm() {
   const [progress, setProgress] = useState<string[]>([]);
   const [result, setResult] = useState<{ mint: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** An Imagine-wallet launch that needs a fresh sign-in first. */
+  const [reauth, setReauth] = useState<string | null>(null);
   // A launch that stopped after something landed: the mint to finish and the
   // metadata already stored for it. Retrying resumes rather than mints again.
   const [partial, setPartial] = useState<{ mint: string; uri: string } | null>(null);
@@ -102,6 +106,7 @@ export function LaunchForm() {
     if ((!image && !partial) || !quote) return;
     setPhase("signing");
     setError(null);
+    setReauth(null);
     setProgress([partial ? `Resuming ${partial.mint.slice(0, 6)}…` : "Storing the image and metadata…"]);
 
     const request = {
@@ -129,6 +134,12 @@ export function LaunchForm() {
         form.append("description", description.trim());
         form.append("twitter", twitter.trim());
         form.append("telegram", telegram.trim());
+        // Proves this launch owns the mint, so a retry may replace what an earlier attempt stored.
+        if (accountMint) form.append("mintNonce", accountMint.nonce);
+        else {
+          const proof = await signMintProof(mintKeypair);
+          if (proof) form.append("mintSignature", proof);
+        }
         const stored = await api.pinMetadata(form);
         request.uri = stored.uri;
         setProgress(["Metadata stored"]);
@@ -176,7 +187,12 @@ export function LaunchForm() {
         const label = built.label ?? "Transaction";
         setProgress((prev) => [...prev, `${label}…`]);
         try {
-          const signature = await signAndSend(connection, wallet, built, [mintKeypair]);
+          const signature = await signAndSend(connection, wallet, built, [mintKeypair], {
+            kind: "launch",
+            mint: mintKeypair.publicKey,
+            devBuy: devBuyBase,
+            payWithSol: solPays,
+          });
           setProgress((prev) => [...prev.slice(0, -1), `${label} — ${signature.slice(0, 12)}…`]);
         } catch (cause) {
           setPartial({ mint, uri: request.uri });
@@ -187,7 +203,9 @@ export function LaunchForm() {
       setPartial(null);
       setPhase("done");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "launch failed");
+      const again = reauthMessage(cause);
+      if (again) setReauth(again);
+      else setError(cause instanceof Error ? cause.message : "launch failed");
       setPhase("error");
     }
   }, [account, connection, description, devBuyBase, image, lockPercent, lockSeconds, mintKeypair, name, partial, quote, solPays, symbol, telegram, twitter, wallet]);
@@ -455,6 +473,7 @@ export function LaunchForm() {
         </ol>
       ) : null}
 
+      {reauth ? <ReauthNotice message={reauth} /> : null}
       {error ? (
         <div className="rounded-[10px] border border-rose/40 bg-rose/10 px-5 py-4 text-[13px] text-rose">
           <p className="break-words">{error}</p>
@@ -595,7 +614,7 @@ function ImagePicker({
           <span className="px-4 text-center text-[12.5px] leading-relaxed text-muted">
             Drop an image here or click to choose.
             <br />
-            <span className="text-muted/70">Square looks best.</span>
+            Square looks best.
           </span>
         )}
         {preview && !locked ? (
@@ -607,6 +626,9 @@ function ImagePicker({
         type="file"
         accept={IMAGE_TYPES.join(",")}
         className="sr-only"
+        // The button above is the control; this input only opens the file dialog for it.
+        tabIndex={-1}
+        aria-label="Coin image"
         onChange={(event) => {
           take(event.target.files?.[0]);
           event.target.value = "";

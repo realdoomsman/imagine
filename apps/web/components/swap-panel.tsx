@@ -2,6 +2,7 @@
 
 import { exactAmount, formatTokenAmount } from "@imagine/sdk";
 import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { PublicKey } from "@solana/web3.js";
 import { useCallback, useState } from "react";
 import type { QuoteInfo } from "@/lib/api";
 import { LAUNCHLAB_PROTOCOL_FEE_BPS } from "@/lib/fees";
@@ -10,6 +11,7 @@ import { useActor } from "@/lib/signer";
 import { useTokenBalance } from "@/lib/use-token-balance";
 import { QuoteLogo } from "./pair-pill";
 import { SignInPrompt } from "./sign-in-prompt";
+import { ReauthNotice, reauthMessage } from "./reauth-notice";
 
 /** Lamports a "max" SOL spend leaves behind for fees and token-account rent. */
 const SOL_FEE_RESERVE = 10_000_000n;
@@ -64,7 +66,7 @@ export function SwapPanel({
   const [payWithSol, setPayWithSol] = useState(false);
   const [input, setInput] = useState("");
   const [slippageBps, setSlippageBps] = useState<number>(300);
-  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [status, setStatus] = useState<{ ok: boolean; text: string; reauth?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const coinHeld = useTokenBalance(mint, coinTokenProgram, actor.publicKey);
@@ -100,14 +102,30 @@ export function SwapPanel({
     setBusy(true);
     setStatus(null);
     try {
-      const signature = await actor.act({
-        kind: "swap",
-        mint,
-        side,
-        amount: amount.toString(),
-        slippageBps,
-        ...(solPays ? { payWithSol: true } : {}),
-      });
+      const signature = await actor.act(
+        {
+          kind: "swap",
+          mint,
+          side,
+          amount: amount.toString(),
+          slippageBps,
+          ...(solPays ? { payWithSol: true } : {}),
+        },
+        {
+          kind: "trade",
+          mint: new PublicKey(mint),
+          side,
+          amountIn: amount,
+          payWithSol: solPays,
+          slippageBps,
+          tradeFeeBps,
+          appFee: fee,
+          expectedOut:
+            expectedOut === null
+              ? null
+              : BigInt(Math.floor(expectedOut * 10 ** (side === "buy" ? coinDecimals : quote.decimals))),
+        },
+      );
       setStatus({
         ok: true,
         text:
@@ -117,11 +135,12 @@ export function SwapPanel({
       });
       setInput("");
     } catch (error) {
-      setStatus({ ok: false, text: error instanceof Error ? error.message : "swap failed" });
+      const again = reauthMessage(error);
+      setStatus(again ? { ok: false, text: again, reauth: true } : { ok: false, text: error instanceof Error ? error.message : "swap failed" });
     } finally {
       setBusy(false);
     }
-  }, [actor, amount, fee, mint, quote, side, slippageBps, solPays, tradeFeeBps]);
+  }, [actor, amount, coinDecimals, expectedOut, fee, mint, quote, side, slippageBps, solPays, tradeFeeBps]);
 
   if (migrating) {
     return (
@@ -303,7 +322,9 @@ export function SwapPanel({
         </div>
       )}
 
-      {status ? (
+      {status?.reauth ? (
+        <ReauthNotice message={status.text} className="mt-3" />
+      ) : status ? (
         <p className={`mt-3 break-all text-[12px] ${status.ok ? "text-mint" : "text-rose"}`}>{status.text}</p>
       ) : null}
     </section>

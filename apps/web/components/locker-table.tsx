@@ -27,7 +27,8 @@ export function LockerTable({
       {lockers.length === 0 ? (
         <p className="px-6 pb-6 text-[13.5px] text-muted">Nobody has locked yet. The first lock takes the whole stream.</p>
       ) : (
-        <div className="overflow-x-auto">
+        // Scrolls sideways on phones; focusable so the keyboard can scroll it too.
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Lockers, scrolls sideways">
           <table className="w-full min-w-[640px] text-[13px]">
             <thead>
               <tr className="hairline text-left">

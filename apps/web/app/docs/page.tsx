@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Docs",
   description: "How IMAGINE works, every fee on an IMAGINE coin, and the security model of the program.",
-};
+  path: "/docs",
+});
 
 const DOCS = [
   { href: "/how-it-works", title: "How it works", body: "Raydium LaunchLab coins with a lock pool: where fees come from and how weight is computed." },

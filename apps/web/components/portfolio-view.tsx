@@ -22,6 +22,8 @@ export function PortfolioView() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The last failed action and why, so a position can react to its own unlock failing.
+  const [failed, setFailed] = useState<{ key: string; message: string } | null>(null);
 
   const refresh = useCallback(async () => {
     if (!actor.publicKey) return;
@@ -46,11 +48,14 @@ export function PortfolioView() {
     async (key: string, action: Record<string, unknown>) => {
       setBusy(key);
       setError(null);
+      setFailed(null);
       try {
         await actor.act(action);
         await refresh();
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "action failed");
+        const message = cause instanceof Error ? cause.message : "action failed";
+        setError(message);
+        setFailed({ key, message });
       } finally {
         setBusy(null);
       }
@@ -120,6 +125,7 @@ export function PortfolioView() {
                 position={position}
                 earlyExitBurn={null}
                 busy={busy}
+                unlockError={failed?.key === `unlock-${key}` ? failed.message : null}
                 onClaim={() => void act(`claim-${key}`, { kind: "claim", ...base })}
                 onUnlock={(early) => void act(`unlock-${key}`, { kind: "unlock", ...base, early })}
                 onExtend={(seconds) => void act(`extend-${key}`, { kind: "extend", ...base, durationSecs: seconds })}

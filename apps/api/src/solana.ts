@@ -2,9 +2,22 @@ import { Connection, type PublicKey } from "@solana/web3.js";
 import { ImagineClient } from "@imagine/sdk";
 import { env } from "./env.ts";
 
+/**
+ * web3.js sets no deadline on its HTTP calls, so one request the provider
+ * never answers would hang the route awaiting it and — worse — the keeper
+ * tick, which skips every later tick while one is running. Every RPC call
+ * gets one; a caller's own signal still applies.
+ */
+const RPC_TIMEOUT_MS = 45_000;
+export const timedFetch: typeof fetch = (input, init) => {
+  const deadline = AbortSignal.timeout(RPC_TIMEOUT_MS);
+  return fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, deadline]) : deadline });
+};
+
 export const connection = new Connection(env.rpcUrl, {
   commitment: "confirmed",
   wsEndpoint: env.wsUrl || undefined,
+  fetch: timedFetch,
 });
 
 export const imagine = new ImagineClient(connection);

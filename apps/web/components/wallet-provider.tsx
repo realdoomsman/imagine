@@ -3,7 +3,8 @@
 import { ConnectionProvider, WalletProvider as BaseWalletProvider } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { useMemo } from "react";
-import "@solana/wallet-adapter-react-ui/styles.css";
+// Vendored without upstream's Google Fonts @import; see the file's header.
+import "./wallet-adapter.css";
 
 // IMAGINE coins live on mainnet only. Production points both at the API's proxy
 // (https://api.imagine.fun/rpc, wss://api.imagine.fun/rpc-ws) so no keyed RPC

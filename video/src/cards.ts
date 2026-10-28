@@ -15,10 +15,10 @@ export const CARDS: Array<{ id: string; props: CardProps }> = [
     id: "02-stock",
     props: {
       kind: "pairs",
-      eyebrow: "Lock-to-earn on StonkFun",
+      eyebrow: "Lock-to-earn on Raydium",
       lines: ["Lock the meme.", "Earn its pair."],
       accent: 1,
-      sub: "Coins launch on StonkFun, paired with anything. Lockers are paid in that pair: a coin paired with NVDAx pays NVDAx; a SOL pair pays SOL; a USDC pair pays USDC.",
+      sub: "Coins launch on Raydium LaunchLab, paired with anything. Lockers are paid in that pair: a coin paired with NVDAx pays NVDAx; a SOL pair pays SOL; a USDC pair pays USDC.",
       pairs: ["NVDAx", "SPYx", "TSLAx", "SOL", "USDC"],
     },
   },

@@ -21,8 +21,15 @@ import {
   type Signer,
   type VersionedMessage,
 } from "@solana/web3.js";
-import { CPMM_PROGRAM_ID, IMAGINE_PROGRAM_ID, LAUNCHLAB_PROGRAM_ID, rewardVaultPda } from "@imagine/sdk";
-import { post } from "./api.ts";
+import {
+  CPMM_PROGRAM_ID,
+  creatorFeeVaultPda,
+  IMAGINE_IDL,
+  IMAGINE_PROGRAM_ID,
+  LAUNCHLAB_PROGRAM_ID,
+  poolPda,
+  rewardVaultPda,
+} from "@imagine/sdk";
 
 export interface BuiltTransaction {
   transaction: string;
@@ -65,55 +72,164 @@ const TOKEN_BURN_CHECKED = 15;
 /** Token-2022 TransferFee extension; sub-instruction 1 is TransferCheckedWithFee. */
 const TOKEN_TRANSFER_FEE_EXTENSION = 26;
 
+/** Associated Token Account program: Create (empty data or 0) and CreateIdempotent (1); [payer, ata, wallet, mint, …]. */
+const ATA_CREATE_TAGS = new Set([undefined, 0, 1]);
+
+const hex = (bytes: Uint8Array) => Buffer.from(bytes.subarray(0, 8)).toString("hex");
+
+/**
+ * The IMAGINE instructions a wallet signs through the site, by Anchor
+ * discriminator from the SDK's IDL. Admin instructions (config, admin
+ * transfer) and the creator/treasury claims never come from here.
+ */
+const IMAGINE_USER_INSTRUCTIONS = new Map(
+  (IMAGINE_IDL.instructions ?? [])
+    .filter((ix) =>
+      [
+        "launch",
+        "found",
+        "lock",
+        "increase",
+        "extend",
+        "claim",
+        "harvest",
+        "renounce",
+        "unlock",
+        "early_unlock",
+        "deposit_reward",
+        "collect_creator_fee",
+        "sync",
+      ].includes(ix.name),
+    )
+    .map((ix) => [hex(Uint8Array.from(ix.discriminator)), ix.name]),
+);
+
+// Raydium LaunchLab curve trades: [amount_in u64, minimum_amount_out u64, share_fee_rate u64].
+const LAUNCHLAB_BUY_EXACT_IN = "faea0d7bd59c13ec";
+const LAUNCHLAB_SELL_EXACT_IN = "9527de9bd37c981a";
+// Raydium CPMM swap_base_input: [amount_in u64, minimum_amount_out u64].
+const CPMM_SWAP_BASE_INPUT = "8fbe5adac41e33de";
+// Jupiter v6 exact-in routes; both end in [in_amount u64, quoted_out_amount u64, slippage_bps u16, platform_fee_bps u8].
+const JUPITER_ROUTE = "e517cb977ae3ad2a";
+const JUPITER_SHARED_ACCOUNTS_ROUTE = "c1209b3341d69c81";
+
+/**
+ * What the person asked for, as the page showed it, so the transaction can
+ * be held to it. Swaps and app-fee deposits are refused in a transaction
+ * that comes without one.
+ */
+export type Expectation =
+  | {
+      kind: "trade";
+      mint: PublicKey;
+      side: "buy" | "sell";
+      /** Buy: pair-asset base units to spend (lamports when `payWithSol`). Sell: coin base units. */
+      amountIn: bigint;
+      payWithSol: boolean;
+      slippageBps: number;
+      /** The app fee rate shown, bps. */
+      tradeFeeBps: number;
+      /** The app fee shown, pair-asset base units; null when it depends on a SOL swap's output. */
+      appFee: bigint | null;
+      /** What the page estimated the trade returns, base units of the asset received; null when unknown. */
+      expectedOut: bigint | null;
+    }
+  | {
+      kind: "launch";
+      mint: PublicKey;
+      /** The dev buy: pair-asset base units, or lamports when `payWithSol`. */
+      devBuy: bigint;
+      payWithSol: boolean;
+    };
+
+/**
+ * How far below the page's spot estimate a trade's on-chain minimum may sit,
+ * on top of the chosen slippage: room for the trade's own price impact
+ * (the estimate is at spot) and a price that moved since the page loaded.
+ */
+export const MAX_PRICE_IMPACT_BPS = 3_000;
+
+const refuse = (reason: string): never => {
+  throw new Error(`refusing to sign: ${reason}`);
+};
+
+function u64(data: Uint8Array, offset: number): bigint {
+  if (data.length < offset + 8) refuse("an instruction is shorter than its layout");
+  return Buffer.from(data).readBigUInt64LE(offset);
+}
+
+/** The signer's associated token account for `mint` under either token program. */
+function isOwnAta(account: PublicKey | undefined, mint: PublicKey | undefined, signer: PublicKey): boolean {
+  if (!account || !mint) return false;
+  return [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID].some((program) =>
+    getAssociatedTokenAddressSync(mint, signer, true, program).equals(account),
+  );
+}
+
 /**
  * Check what the API asked this wallet to sign before the wallet sees it, so
- * a compromised or impersonated API cannot slip in a payment to itself.
+ * a compromised or impersonated API cannot route the signer's money anywhere
+ * but back to the signer or into the coin they are trading.
  *
  * - the fee payer is `signer`;
  * - every instruction calls an allowlisted program;
- * - the only System Program instruction allowed is a transfer, and only into
- *   the signer's own wrapped-SOL account (wrapping for a SOL-paired trade) or
- *   an IMAGINE reward vault for a coin the transaction names;
- * - a token transfer may only land in an account the signer owns or in an
- *   IMAGINE reward token account for a coin the transaction names; approvals,
- *   authority changes and direct burns are refused, and closing an account
- *   must return its rent to the signer.
+ * - System Program: only a transfer into the signer's own wrapped-SOL account;
+ * - SPL Token: transfers only into the signer's own accounts; approvals,
+ *   authority changes and direct burns are refused; a closed account's rent
+ *   returns to the signer; Associated Token Account creation only for the signer;
+ * - IMAGINE: only the user-facing instructions, by discriminator; an app-fee
+ *   `deposit_reward` only into the traded coin's pool, for the side traded,
+ *   and no more than the fee shown;
+ * - LaunchLab `buy_exact_in`/`sell_exact_in` and CPMM `swap_base_input`: paid
+ *   from and into the signer's own token accounts, on an IMAGINE coin's pool,
+ *   with no share-fee receiver, and with input and minimum output held to
+ *   `expect`;
+ * - Jupiter `route`/`shared_accounts_route` (pay with SOL): the signer's own
+ *   source and destination accounts, no platform fee, no more SOL in than
+ *   asked, and no looser slippage than chosen.
  *
- * Swaps, locks and claims move funds inside the programs; none of that is a
- * top-level instruction, so none of it is affected.
- *
- * `lookupTables` resolves a v0 message's table-loaded keys; pass what
- * `fetchLookupTables` returns. Throws with the reason on the first violation.
+ * Swaps and fee deposits need `expect`; without one (a lock, a claim, …) they
+ * are refused outright. `lookupTables` resolves a v0 message's table-loaded
+ * keys; pass what `fetchLookupTables` returns. Throws with the reason on the
+ * first violation.
  */
 export function assertTransactionAllowed(
   message: VersionedMessage,
   lookupTables: AddressLookupTableAccount[],
   signer: PublicKey,
+  expect?: Expectation,
 ): void {
   const feePayer = message.staticAccountKeys[0];
   if (!feePayer?.equals(signer)) {
-    throw new Error(`refusing to sign: the fee payer is ${feePayer?.toBase58() ?? "missing"}, not your wallet`);
+    refuse(`the fee payer is ${feePayer?.toBase58() ?? "missing"}, not your wallet`);
   }
   const keys = message.getAccountKeys({ addressLookupTableAccounts: lookupTables });
-  // Reward vaults of every account named, read as a coin mint; built once, on demand.
-  let vaults: PublicKey[] | null = null;
-  const rewardVaults = () => (vaults ??= keys.keySegments().flat().map((mint) => rewardVaultPda(mint)));
+  const ownWrappedSol = getAssociatedTokenAddressSync(NATIVE_MINT, signer, true, TOKEN_PROGRAM_ID);
+
+  // Per-transaction tallies, held to `expect` once every instruction is read.
+  let venueIn = 0n;
+  let venueTrades = 0;
+  let appFee = 0n;
+  let jupiterIn = 0n;
+  let jupiterMinOut = 0n;
 
   for (const compiled of message.compiledInstructions) {
     const programId = keys.get(compiled.programIdIndex);
     if (!programId || !ALLOWED_PROGRAMS.has(programId.toBase58())) {
-      throw new Error(`refusing to sign: the transaction calls an unexpected program ${programId?.toBase58() ?? "?"}`);
+      refuse(`the transaction calls an unexpected program ${programId?.toBase58() ?? "?"}`);
     }
     const accounts = compiled.accountKeyIndexes.map((index) => {
       const pubkey = keys.get(index);
-      if (!pubkey) throw new Error("refusing to sign: an instruction names an account the transaction does not carry");
-      return pubkey;
+      if (!pubkey) refuse("an instruction names an account the transaction does not carry");
+      return pubkey!;
     });
+    const data = compiled.data;
+    const program = programId!;
 
-    if (programId.equals(SystemProgram.programId)) {
+    if (program.equals(SystemProgram.programId)) {
       const instruction = new TransactionInstruction({
-        programId,
-        data: Buffer.from(compiled.data),
+        programId: program,
+        data: Buffer.from(data),
         keys: compiled.accountKeyIndexes.map((index, position) => ({
           pubkey: accounts[position],
           isSigner: message.isAccountSigner(index),
@@ -126,59 +242,195 @@ export function assertTransactionAllowed(
       } catch {
         kind = "unknown";
       }
-      if (kind !== "Transfer") {
-        throw new Error(`refusing to sign: unexpected System Program instruction (${kind})`);
-      }
+      if (kind !== "Transfer") refuse(`unexpected System Program instruction (${kind})`);
       const { toPubkey, lamports } = SystemInstruction.decodeTransfer(instruction);
-      const ownWrappedSol = getAssociatedTokenAddressSync(NATIVE_MINT, signer, true, TOKEN_PROGRAM_ID);
-      if (!toPubkey.equals(ownWrappedSol) && !rewardVaults().some((vault) => vault.equals(toPubkey))) {
-        throw new Error(
-          `refusing to sign: the transaction sends ${lamports} lamports to ${toPubkey.toBase58()}, which is neither your wrapped-SOL account nor an IMAGINE reward vault`,
-        );
+      if (!toPubkey.equals(ownWrappedSol)) {
+        refuse(`the transaction sends ${lamports} lamports to ${toPubkey.toBase58()}, which is not your wrapped-SOL account`);
       }
       continue;
     }
 
-    if (!TOKEN_PROGRAMS.has(programId.toBase58())) continue;
-    const data = compiled.data;
-    const tag = data[0];
-    if (tag === TOKEN_APPROVE || tag === TOKEN_APPROVE_CHECKED || tag === TOKEN_SET_AUTHORITY) {
-      throw new Error("refusing to sign: the transaction hands control of a token account to someone else");
-    }
-    if (tag === TOKEN_BURN || tag === TOKEN_BURN_CHECKED) {
-      throw new Error("refusing to sign: the transaction burns tokens directly");
-    }
-    if (tag === TOKEN_CLOSE_ACCOUNT) {
-      if (!accounts[1]?.equals(signer)) {
-        throw new Error(`refusing to sign: the transaction closes a token account into ${accounts[1]?.toBase58() ?? "?"}, not your wallet`);
+    if (program.equals(ASSOCIATED_TOKEN_PROGRAM_ID)) {
+      if (!ATA_CREATE_TAGS.has(data[0])) refuse("unexpected Associated Token Account instruction");
+      if (!accounts[2]?.equals(signer)) {
+        refuse(`the transaction pays rent for a token account owned by ${accounts[2]?.toBase58() ?? "?"}`);
       }
       continue;
     }
-    // [source, destination, owner] for a plain transfer; [source, mint,
-    // destination, owner] for the checked forms.
-    let destination: PublicKey | undefined;
-    let mint: PublicKey | undefined;
-    if (tag === TOKEN_TRANSFER) {
-      destination = accounts[1];
-    } else if (tag === TOKEN_TRANSFER_CHECKED || (tag === TOKEN_TRANSFER_FEE_EXTENSION && data[1] === 1)) {
-      mint = accounts[1];
-      destination = accounts[2];
-    } else {
+
+    if (TOKEN_PROGRAMS.has(program.toBase58())) {
+      assertTokenInstruction(data, accounts, signer, program);
       continue;
     }
-    if (!destination || !mint) {
-      // A plain transfer does not name its mint, so where it lands cannot be checked.
-      throw new Error("refusing to sign: the transaction makes an unchecked token transfer");
+
+    if (program.equals(IMAGINE_PROGRAM_ID)) {
+      const name = IMAGINE_USER_INSTRUCTIONS.get(hex(data));
+      if (!name) refuse("the transaction calls an IMAGINE instruction the site never sends");
+      if (name === "deposit_reward") {
+        // [payer, pool, …]; args amount u64, kind u8 (0 buy, 1 sell).
+        if (expect?.kind !== "trade") refuse("the transaction pays an app fee outside a trade");
+        const trade = expect as Extract<Expectation, { kind: "trade" }>;
+        if (!accounts[0]?.equals(signer)) refuse("the app fee is paid by another account");
+        if (!accounts[1]?.equals(poolPda(trade.mint))) refuse("the app fee goes to another coin's pool");
+        if (data[16] !== (trade.side === "buy" ? 0 : 1)) refuse("the app fee is booked as the wrong side of the trade");
+        appFee += u64(data, 8);
+      }
+      continue;
     }
-    const ownAccount = getAssociatedTokenAddressSync(mint, signer, true, programId);
-    const toRewardAccount = rewardVaults().some((vault) =>
-      getAssociatedTokenAddressSync(mint, vault, true, programId).equals(destination),
+
+    if (program.equals(LAUNCHLAB_PROGRAM_ID)) {
+      // [payer, authority, global_config, platform_config, pool, user_base, user_quote,
+      //  base_vault, quote_vault, base_mint, quote_mint, base_program, quote_program,
+      //  event_authority, program, system_program, platform_fee_vault, creator_fee_vault]
+      const disc = hex(data);
+      if (disc !== LAUNCHLAB_BUY_EXACT_IN && disc !== LAUNCHLAB_SELL_EXACT_IN) {
+        refuse("the transaction calls a Raydium LaunchLab instruction other than a curve buy or sell");
+      }
+      if (!expect) refuse("the transaction trades without a trade being asked for");
+      const baseMint = accounts[9];
+      const quoteMint = accounts[10];
+      if (!accounts[0]?.equals(signer)) refuse("the curve trade is made by another account");
+      if (!isOwnAta(accounts[5], baseMint, signer) || !isOwnAta(accounts[6], quoteMint, signer)) {
+        refuse("the curve trade pays from or into a token account that is not yours");
+      }
+      if (!baseMint?.equals(expect!.mint)) refuse("the curve trade is for another coin");
+      if (u64(data, 24) !== 0n || accounts.length !== 18) refuse("the curve trade pays a share fee to a third party");
+      // An IMAGINE coin's LaunchLab creator is its reward vault, so its creator fee vault pins the pool to IMAGINE.
+      if (!accounts[17].equals(creatorFeeVaultPda(rewardVaultPda(baseMint!), quoteMint!, LAUNCHLAB_PROGRAM_ID))) {
+        refuse("the curve trade is on a pool that does not pay an IMAGINE vault");
+      }
+      const buying = disc === LAUNCHLAB_BUY_EXACT_IN;
+      if (expect!.kind === "launch" ? !buying : buying !== (expect!.side === "buy")) {
+        refuse("the curve trade is on the wrong side");
+      }
+      venueIn += u64(data, 8);
+      assertMinOut(u64(data, 16), expect!);
+      venueTrades += 1;
+      continue;
+    }
+
+    if (program.equals(CPMM_PROGRAM_ID)) {
+      // [payer, authority, amm_config, pool, input_account, output_account, input_vault,
+      //  output_vault, input_program, output_program, input_mint, output_mint, observation]
+      if (hex(data) !== CPMM_SWAP_BASE_INPUT) refuse("the transaction calls a Raydium CPMM instruction other than an exact-in swap");
+      if (expect?.kind !== "trade") refuse("the transaction swaps on Raydium without a trade being asked for");
+      const trade = expect as Extract<Expectation, { kind: "trade" }>;
+      if (!accounts[0]?.equals(signer)) refuse("the swap is made by another account");
+      if (!isOwnAta(accounts[4], accounts[10], signer) || !isOwnAta(accounts[5], accounts[11], signer)) {
+        refuse("the swap pays from or into a token account that is not yours");
+      }
+      const coinIn = trade.side === "sell";
+      if (!(coinIn ? accounts[10] : accounts[11])?.equals(trade.mint)) refuse("the swap is for another coin, or the wrong side");
+      venueIn += u64(data, 8);
+      assertMinOut(u64(data, 16), trade);
+      venueTrades += 1;
+      continue;
+    }
+
+    if (program.equals(JUPITER_PROGRAM_ID)) {
+      if (!expect?.payWithSol || (expect.kind === "trade" && expect.side !== "buy")) {
+        refuse("the transaction routes through Jupiter without paying in SOL being asked for");
+      }
+      const disc = hex(data);
+      let authority: PublicKey | undefined;
+      let source: PublicKey | undefined;
+      let destination: PublicKey | undefined;
+      let destinationMint: PublicKey | undefined;
+      let platformFeeAccount: PublicKey | undefined;
+      if (disc === JUPITER_ROUTE) {
+        // [token_program, authority, user_source, user_destination, destination (optional), destination_mint, platform_fee (optional), …]
+        [authority, source, destination, destinationMint, platformFeeAccount] = [accounts[1], accounts[2], accounts[3], accounts[5], accounts[6]];
+        if (!accounts[4]?.equals(JUPITER_PROGRAM_ID) && !accounts[4]?.equals(destination!)) {
+          refuse("the Jupiter route delivers to an account that is not yours");
+        }
+      } else if (disc === JUPITER_SHARED_ACCOUNTS_ROUTE) {
+        // [token_program, program_authority, authority, source, program_source, program_destination,
+        //  destination, source_mint, destination_mint, platform_fee (optional), …]
+        [authority, source, destination, destinationMint, platformFeeAccount] = [accounts[2], accounts[3], accounts[6], accounts[8], accounts[9]];
+        if (!accounts[7]?.equals(NATIVE_MINT)) refuse("the Jupiter route spends something other than SOL");
+      } else {
+        refuse("the transaction calls a Jupiter instruction other than an exact-in route");
+      }
+      if (!authority?.equals(signer)) refuse("the Jupiter route is authorised by another account");
+      if (!source?.equals(ownWrappedSol)) refuse("the Jupiter route spends from an account that is not your wrapped SOL");
+      if (!isOwnAta(destination, destinationMint, signer)) refuse("the Jupiter route delivers to an account that is not yours");
+      if (!platformFeeAccount?.equals(JUPITER_PROGRAM_ID) || data[data.length - 1] !== 0) {
+        refuse("the Jupiter route takes a platform fee");
+      }
+      const tail = data.length - 19;
+      const inAmount = u64(data, tail);
+      const quotedOut = u64(data, tail + 8);
+      const slippage = Buffer.from(data).readUInt16LE(tail + 16);
+      const asked = expect!.kind === "trade" ? expect!.slippageBps : null;
+      if (asked !== null && slippage > asked) refuse(`the Jupiter route allows ${slippage / 100}% slippage, more than you chose`);
+      jupiterIn += inAmount;
+      jupiterMinOut += (quotedOut * BigInt(10_000 - slippage)) / 10_000n;
+      continue;
+    }
+  }
+
+  if (!expect) return;
+  if (expect.kind === "trade" && venueTrades !== 1) refuse("the transaction does not make exactly the one trade asked for");
+  if (expect.payWithSol && jupiterIn > (expect.kind === "trade" ? expect.amountIn : expect.devBuy)) {
+    refuse("the transaction spends more SOL than you entered");
+  }
+  if (expect.kind === "launch") {
+    // Paid in the pair asset, the dev buy may spend at most what was entered;
+    // paid in SOL, at most what the swap guarantees in the same transaction.
+    if (!expect.payWithSol && venueIn > expect.devBuy) refuse("the dev buy spends more than you entered");
+    if (expect.payWithSol && jupiterIn > 0n && venueIn > jupiterMinOut) refuse("the dev buy spends more than the SOL swap returns");
+    return;
+  }
+  if (expect.side === "buy") {
+    // The budget covers the venue leg and the fee; paid in SOL, the budget is
+    // what the Jupiter leg guarantees.
+    const budget = expect.payWithSol ? jupiterMinOut : expect.amountIn;
+    if (expect.payWithSol && jupiterIn === 0n) refuse("the SOL swap the trade relies on is missing");
+    if (venueIn + appFee > budget) refuse("the trade spends more than you entered");
+    const feeCap = expect.payWithSol || expect.appFee === null ? (budget * BigInt(expect.tradeFeeBps)) / 10_000n : expect.appFee;
+    if (appFee > feeCap) refuse("the app fee is more than the one shown");
+  } else {
+    if (venueIn > expect.amountIn) refuse("the trade sells more than you entered");
+    // Shown at spot; the chain charges the fee on what the sell really returns,
+    // which may sit above spot by at most the slippage chosen.
+    const shown = expect.appFee ?? 0n;
+    if (appFee > shown + (shown * BigInt(expect.slippageBps)) / 10_000n + 1n) refuse("the app fee is more than the one shown");
+  }
+}
+
+/** A trade's on-chain minimum output against the page's estimate, slippage and price impact allowed for. */
+function assertMinOut(minOut: bigint, expect: Expectation): void {
+  if (minOut === 0n) refuse("the trade accepts any price (no minimum output)");
+  if (expect.kind !== "trade" || expect.expectedOut === null || expect.payWithSol) return;
+  const floor = (expect.expectedOut * BigInt(10_000 - expect.slippageBps - MAX_PRICE_IMPACT_BPS)) / 10_000n;
+  if (minOut < floor) {
+    refuse(
+      `the trade's minimum output is more than ${(expect.slippageBps + MAX_PRICE_IMPACT_BPS) / 100}% below the price shown; refresh the page or trade a smaller amount`,
     );
-    if (!destination.equals(ownAccount) && !toRewardAccount) {
-      throw new Error(
-        `refusing to sign: the transaction sends tokens to ${destination.toBase58()}, which is neither yours nor an IMAGINE reward account`,
-      );
+  }
+}
+
+/** SPL Token / Token-2022: nothing leaves the signer's accounts except into the signer's accounts. */
+function assertTokenInstruction(data: Uint8Array, accounts: PublicKey[], signer: PublicKey, program: PublicKey): void {
+  const tag = data[0];
+  if (tag === TOKEN_APPROVE || tag === TOKEN_APPROVE_CHECKED || tag === TOKEN_SET_AUTHORITY) {
+    refuse("the transaction hands control of a token account to someone else");
+  }
+  if (tag === TOKEN_BURN || tag === TOKEN_BURN_CHECKED) refuse("the transaction burns tokens directly");
+  if (tag === TOKEN_CLOSE_ACCOUNT) {
+    if (!accounts[1]?.equals(signer)) {
+      refuse(`the transaction closes a token account into ${accounts[1]?.toBase58() ?? "?"}, not your wallet`);
     }
+    return;
+  }
+  // [source, destination, owner] for a plain transfer; [source, mint,
+  // destination, owner] for the checked forms.
+  if (tag === TOKEN_TRANSFER) refuse("the transaction makes an unchecked token transfer");
+  if (tag !== TOKEN_TRANSFER_CHECKED && !(tag === TOKEN_TRANSFER_FEE_EXTENSION && data[1] === 1)) return;
+  const mint = accounts[1];
+  const destination = accounts[2];
+  if (!mint || !destination || !getAssociatedTokenAddressSync(mint, signer, true, program).equals(destination)) {
+    refuse(`the transaction sends tokens to ${destination?.toBase58() ?? "?"}, which is not yours`);
   }
 }
 
@@ -206,7 +458,8 @@ export async function fetchLookupTables(
  *
  * `extraSigners` are offered, not forced: each signs only if the message
  * requires its signature (a launch's mint keypair signs the launch, not the
- * SOL→pair swap ahead of it).
+ * SOL→pair swap ahead of it). `expect` is what the page showed for a trade or
+ * a launch; see `assertTransactionAllowed`.
  *
  * Shaped the way Phantom asks, because it blocks requests it cannot simulate
  * as "this dApp could be malicious": a transaction only the wallet signs goes
@@ -221,6 +474,7 @@ export async function signAndSend(
   wallet: WalletContextState,
   built: BuiltTransaction,
   extraSigners: Signer[] = [],
+  expect?: Expectation,
 ): Promise<string> {
   if (!wallet.publicKey || !wallet.signTransaction) throw new Error("wallet cannot sign transactions");
   const bytes = Buffer.from(built.transaction, "base64");
@@ -232,6 +486,7 @@ export async function signAndSend(
     message,
     tx instanceof Transaction ? [] : await fetchLookupTables(connection, tx.message),
     wallet.publicKey,
+    expect,
   );
   const required = message.staticAccountKeys.slice(0, message.header.numRequiredSignatures);
   const cosigners = extraSigners.filter((signer) => required.some((key) => key.equals(signer.publicKey)));
@@ -257,15 +512,4 @@ export async function signAndSend(
     throw new Error(`transaction failed on chain: ${JSON.stringify(result.value.err)}`);
   }
   return signature;
-}
-
-/** Build on the API, then sign and send. One round trip per action. */
-export async function buildAndSend(
-  connection: Connection,
-  wallet: WalletContextState,
-  path: string,
-  body: unknown,
-): Promise<string> {
-  const built = await post<BuiltTransaction>(path, body);
-  return signAndSend(connection, wallet, built);
 }

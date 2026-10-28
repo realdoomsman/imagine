@@ -5,7 +5,7 @@ import { z } from "zod";
 import { sql } from "../db.ts";
 import { rawToUsd, type QuoteInfo } from "../quotes.ts";
 import { imagine } from "../solana.ts";
-import { pricesFor, QUOTE_COLUMNS, quoteFromRow } from "../views.ts";
+import { pricesFor, QUOTE_COLUMNS, quoteFromRow, RECONSTRUCTED_KIND } from "../views.ts";
 
 type Row = Record<string, unknown>;
 
@@ -211,6 +211,7 @@ export async function portfolioRoutes(app: FastifyInstance) {
              COALESCE((SELECT SUM(f.to_lockers) FROM fee_events f
                        JOIN pools q ON q.mint = f.mint
                        WHERE q.quote_mint = p.quote_mint AND NOT q.hidden
+                         AND f.kind <> ${RECONSTRUCTED_KIND}
                          AND f.at > NOW() - INTERVAL '24 hours'), 0)::TEXT AS lockers_24h
       FROM pools p
       WHERE NOT p.hidden

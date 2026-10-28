@@ -5,7 +5,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, googleSignInUrl, type Holding, type WalletView } from "@/lib/api";
+import { api, ApiError, type Holding, type WalletView } from "@/lib/api";
 import { formatAmount, formatNumber, formatUsd, parseAmount, decimalInput } from "@/lib/format";
 import { useAccount } from "./account-provider";
 import { ImagineMark } from "./imagine-mark";
@@ -14,6 +14,7 @@ import { PortfolioView } from "./portfolio-view";
 import { PositionCard } from "./position-card";
 import { Shimmer } from "./skeleton";
 import { SignInPrompt } from "./sign-in-prompt";
+import { ReauthNotice, reauthMessage } from "./reauth-notice";
 
 const CLUSTER = process.env.NEXT_PUBLIC_CLUSTER ?? "mainnet-beta";
 const EXPLORER_SUFFIX = CLUSTER === "mainnet-beta" ? "" : `?cluster=${CLUSTER === "localnet" ? "custom" : CLUSTER}`;
@@ -36,6 +37,8 @@ export function AccountView() {
   // API asks for one, this holds its message and the page offers the way.
   const [reauth, setReauth] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The last failed action and why, so a position can react to its own unlock failing.
+  const [failed, setFailed] = useState<{ key: string; message: string } | null>(null);
 
   // The sign-in callback lands here with `?error=` when Google or the
   // handshake refused; say so once and clean the address bar.
@@ -81,6 +84,7 @@ export function AccountView() {
     async (key: string, work: () => Promise<unknown>) => {
       setBusy(key);
       setError(null);
+      setFailed(null);
       setReauth(null);
       try {
         await work();
@@ -89,8 +93,13 @@ export function AccountView() {
         // a second one shortly after shows the result without a manual reload.
         window.setTimeout(() => void refresh(), 2_500);
       } catch (cause) {
-        if (cause instanceof ApiError && cause.detail.reauth === true) setReauth(cause.message);
-        else setError(cause instanceof Error ? cause.message : "action failed");
+        const again = reauthMessage(cause);
+        if (again) setReauth(again);
+        else {
+          const message = cause instanceof Error ? cause.message : "action failed";
+          setError(message);
+          setFailed({ key, message });
+        }
       } finally {
         setBusy(null);
       }
@@ -152,20 +161,7 @@ export function AccountView() {
       {error ? (
         <p className="break-words rounded-[10px] border border-rose/40 bg-rose/10 px-5 py-3 text-[13px] text-rose">{error}</p>
       ) : null}
-      {reauth ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-steel/40 bg-steel/10 px-5 py-3 text-[13px] text-fg">
-          <span>{reauth}</span>
-          <button
-            type="button"
-            onClick={() => {
-              window.location.href = googleSignInUrl("/account");
-            }}
-            className="btn btn-primary btn-sm"
-          >
-            Sign in again
-          </button>
-        </div>
-      ) : null}
+      {reauth ? <ReauthNotice message={reauth} /> : null}
 
       {/* Identity and the address to fund. */}
       <section className="card p-6">
@@ -244,6 +240,7 @@ export function AccountView() {
                   position={position}
                   earlyExitBurn={position.earlyExitBurn}
                   busy={busy}
+                  unlockError={failed?.key === `unlock-${key}` ? failed.message : null}
                   onClaim={() => void run(`claim-${key}`, () => api.act({ kind: "claim", ...base }))}
                   onUnlock={(early) => void run(`unlock-${key}`, () => api.act({ kind: "unlock", ...base, early }))}
                   onExtend={(seconds) =>
@@ -475,7 +472,7 @@ function WithdrawPanel({
         </button>
         <span className="num text-[12px] text-muted">
           Available {formatAmount(max, decimals)} {symbol}
-          {holding ? null : <span className="text-muted/70"> · rent and fee stay behind</span>}
+          {holding ? null : " · rent and fee stay behind"}
         </span>
         {done ? (
           <a href={explorerTx(done)} target="_blank" rel="noreferrer" className="num text-[12px] text-mint">

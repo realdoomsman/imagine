@@ -60,6 +60,13 @@ const MAX_BATCH = 20;
 const UPSTREAM_TIMEOUT_MS = 15_000;
 const MAX_WS_PER_IP = 10;
 const MAX_SUBS_PER_WS = 32;
+/**
+ * What the proxy will buffer from upstream for one request. Nothing the site
+ * reads comes close (a full lookup table is ~8 KB); without a ceiling a batch
+ * of getMultipleAccounts over large accounts would make this process hold
+ * gigabytes for one caller.
+ */
+const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 /** Client frames buffered while the upstream socket is still connecting. */
 const MAX_WS_BACKLOG = 32;
 /** Clients only ever send small JSON frames; ws would otherwise buffer up to 100 MiB. */
@@ -87,6 +94,29 @@ export function clientIp(request: FastifyRequest): string {
   const header = request.headers["x-forwarded-for"];
   const forwarded = Array.isArray(header) ? header.join(",") : header;
   return forwarded?.split(",").at(-1)?.trim() || request.socket.remoteAddress || "unknown";
+}
+
+/** The body as text, or null once it exceeds `max` bytes (the rest is not read). */
+export async function readCapped(response: Response, max: number): Promise<string | null> {
+  if (Number(response.headers.get("content-length") ?? 0) > max) {
+    await response.body?.cancel();
+    return null;
+  }
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 /** Fixed one-minute windows per key; `hit` reports the seconds to wait when over budget. */
@@ -139,11 +169,15 @@ export async function registerRpcProxy(
 
     const allowed: unknown[] = [];
     const rejected: object[] = [];
+    const methods: string[] = [];
     for (const call of calls) {
       if (!isRecord(call) || typeof call.method !== "string") rejected.push(rpcError(callId(call), -32600, "invalid request"));
       else if (!Object.hasOwn(HTTP_METHODS, call.method)) {
         rejected.push(rpcError(callId(call), -32601, `method ${call.method.slice(0, 64)} is not available through this proxy`));
-      } else allowed.push(call);
+      } else {
+        allowed.push(call);
+        methods.push(call.method);
+      }
     }
     if (allowed.length === 0) return reply.send(batch ? rejected : rejected[0]);
 
@@ -159,7 +193,17 @@ export async function registerRpcProxy(
       request.log.warn({ err: String(error) }, "rpc proxy upstream failed");
       return reply.code(502).send(rpcError(null, -32603, "upstream RPC unavailable"));
     }
-    const text = await upstream.text();
+    let text: string | null;
+    try {
+      text = await readCapped(upstream, MAX_RESPONSE_BYTES);
+    } catch (error) {
+      request.log.warn({ err: String(error) }, "rpc proxy upstream read failed");
+      return reply.code(502).send(rpcError(null, -32603, "upstream RPC unavailable"));
+    }
+    if (text === null) {
+      request.log.warn({ methods }, "rpc proxy response over cap");
+      return reply.code(502).send(rpcError(null, -32603, `response exceeds ${MAX_RESPONSE_BYTES} bytes; request less`));
+    }
     if (rejected.length > 0 && upstream.ok) {
       try {
         const results: unknown = JSON.parse(text);
@@ -185,7 +229,8 @@ export async function registerRpcProxy(
     if (limiter?.hit(ip)) return socket.close(1008, "rate limit exceeded");
     socketsPerIp.set(ip, open + 1);
 
-    const upstream = new WebSocket(opts.wsUrl);
+    // Upstream frames are capped like HTTP responses (ws would accept 100 MiB).
+    const upstream = new WebSocket(opts.wsUrl, { maxPayload: MAX_RESPONSE_BYTES });
     let clientGone = false;
     const backlog: string[] = [];
     /** Subscription ids confirmed by upstream, and in-flight (un)subscribe requests by client request id. */
@@ -212,7 +257,10 @@ export async function registerRpcProxy(
           // Unparseable upstream frames are relayed untouched.
         }
       }
-      if (socket.readyState === WebSocket.OPEN) socket.send(data, { binary: isBinary });
+      if (socket.readyState !== WebSocket.OPEN) return;
+      // A client that stops reading must not make this process buffer for it.
+      if (socket.bufferedAmount > MAX_RESPONSE_BYTES) return socket.close(1013, "client too slow");
+      socket.send(data, { binary: isBinary });
     });
     upstream.on("close", () => socket.close(1011, "upstream closed"));
     upstream.on("error", (error) => {

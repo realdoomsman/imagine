@@ -18,7 +18,7 @@ export const OG_PROPS: CardProps = {
   kind: "chart",
   lines: ["Imagine", "everyone locks."],
   accent: 1,
-  sub: "Launch on StonkFun, paired with anything. Every trade pays the holders who lock, in whatever it's paired with.",
+  sub: "Launched on Raydium. Every trade pays the holders who lock, in whatever the coin is paired with.",
 };
 
 export function Card(props: CardProps) {

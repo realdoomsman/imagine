@@ -2,7 +2,7 @@
   "name": "imagine",
   "private": true,
   "version": "0.1.0",
-  "description": "IMAGINE — lock-to-earn vaults for StonkFun coins, paid in each coin's pair asset",
+  "description": "IMAGINE — lock-to-earn pools for coins launched on Raydium LaunchLab, paid in each coin's pair asset",
   "packageManager": "pnpm@10.13.1",
   "engines": {
     "node": ">=20"

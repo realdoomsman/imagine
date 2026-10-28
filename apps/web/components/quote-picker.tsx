@@ -80,23 +80,26 @@ export function QuotePicker({
     );
   }
 
+  // The pair that takes the list's one tab stop: the selected one if shown, else the first shown.
+  const anchor =
+    groups.flatMap((group) => group.quotes).find((quote) => quote.mint === selected?.mint) ?? groups[0]?.quotes[0];
+
   return (
     <div className="well p-3">
       <input
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder={`Search ${quotes.length} pair assets on Raydium LaunchLab — NVDAx, SOL, USDC…`}
+        placeholder={`Search ${quotes.length} pairs — NVDAx, SOL, USDC…`}
         aria-label="Search pair assets"
         className="input text-[14px]"
       />
-      <div className="mt-2.5 flex flex-wrap gap-1.5" role="tablist" aria-label="Pair category">
+      <div className="mt-2.5 flex flex-wrap gap-1.5" role="group" aria-label="Pair category">
         {[{ category: null, label: "All" }, ...allGroups].map((group) => (
           <button
             key={group.category ?? "all"}
             type="button"
-            role="tab"
-            aria-selected={tab === group.category}
+            aria-pressed={tab === group.category}
             onClick={() => setTab(group.category)}
             className={`pill cursor-pointer transition-colors ${
               tab === group.category ? "border-transparent bg-steel text-ink" : "hover:border-line-strong hover:text-fg"
@@ -106,7 +109,24 @@ export function QuotePicker({
           </button>
         ))}
       </div>
-      <div className="mt-3 max-h-[360px] space-y-4 overflow-y-auto pr-1" role="listbox" aria-label="Pair asset">
+      {/* One tab stop for the whole list: arrows move between pairs and pick them, like any radio group. */}
+      <div
+        className="mt-3 max-h-[360px] space-y-4 overflow-y-auto pr-1"
+        role="radiogroup"
+        aria-label="Pair asset"
+        onKeyDown={(event) => {
+          const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+          const radios = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
+          const at = radios.indexOf(document.activeElement as HTMLButtonElement);
+          if (at < 0 || radios.length === 0) return;
+          const next =
+            event.key === "Home" ? 0 : event.key === "End" ? radios.length - 1 : step ? (at + step + radios.length) % radios.length : -1;
+          if (next < 0) return;
+          event.preventDefault();
+          radios[next].focus();
+          radios[next].click();
+        }}
+      >
         {groups.length === 0 ? (
           <p className="px-1 py-4 text-[13px] text-muted">
             No pair matches{query.trim() ? ` “${query.trim()}”` : ""}
@@ -116,17 +136,19 @@ export function QuotePicker({
           groups.map((group) => (
             <div key={group.category}>
               <p className="eyebrow px-1">
-                {group.label} <span className="text-muted/70">{group.quotes.length}</span>
+                {group.label} <span className="text-muted">{group.quotes.length}</span>
               </p>
               <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {group.quotes.map((quote) => {
                   const active = selected?.mint === quote.mint;
+                  const tabbable = quote.mint === anchor?.mint;
                   return (
                     <button
                       key={quote.mint}
                       type="button"
-                      role="option"
-                      aria-selected={active}
+                      role="radio"
+                      aria-checked={active}
+                      tabIndex={tabbable ? 0 : -1}
                       onClick={() => onSelect(quote)}
                       className={`flex min-w-0 items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-left transition-colors ${
                         active

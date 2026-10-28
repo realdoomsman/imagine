@@ -297,15 +297,15 @@ function HeroScene() {
       <Backdrop glow={0.7} glowX={60} glowY={45} />
       <div style={{ position: "absolute", left: 180, top: 70, transform: `perspective(2200px) rotateX(${(1 - enter) * 9}deg) translateY(${(1 - enter) * 50}px)`, opacity: enter }}>
         <Footage
-          src="hero-long-x2.5.mp4"
-          startAt={18.0 / 2.5}
+          src="hero-long-live-x2.mp4"
+          startAt={17.7 / 2}
           width={1560}
           url="imagine.fun"
           badge={{ text: "live on mainnet", tone: "live" }}
           keys={[
             { at: 0, z: 1.0, x: 960, y: 470 },
             { at: s(1.6), z: 1.16, x: 960, y: 470 },
-            { at: s(3.2), z: 1.2, x: 980, y: 480 },
+            { at: s(3.2), z: 1.2, x: 980, y: 450 },
           ]}
           spots={[{ from: s(0.7), to: s(3.1), rect: [1016, 527, 454, 64], dim: false }]}
         />
@@ -331,14 +331,14 @@ function PairsScene() {
   const l06 = at("pairs", cue("l06"));
   // The recording starts 1.5 s in and plays at 1.43×, so NVDAx is picked as
   // the voice says it. Source second -> local frame:
-  const rate = 1.43;
+  const rate = 1.46;
   const src = (sec: number) => s((sec - 1.5) / rate);
   return (
     <AbsoluteFill>
       <Backdrop glow={0.55} glowX={80} glowY={40} />
       <div style={{ position: "absolute", left: 90, top: 190, ...appear(frame, 0, 18, 30) }}>
         <Footage
-          src="pair-picker-x1.43.mp4"
+          src="pair-picker-live-x1.46.mp4"
           startAt={1.5 / rate}
           width={1180}
           url="imagine.fun/launch"
@@ -349,14 +349,14 @@ function PairsScene() {
             { at: src(9.2), z: 1.95, x: 735, y: 330 },
           ]}
           ripples={[
-            { at: src(2.16) - 4, x: 486, y: 262 },
-            { at: src(4.06) - 4, x: 570, y: 262 },
-            { at: src(6.0) - 4, x: 653, y: 262 },
-            { at: src(10.82) - 4, x: 728, y: 383 },
+            { at: src(2.2) - 4, x: 486, y: 263 },
+            { at: src(4.15) - 4, x: 569, y: 263 },
+            { at: src(6.12) - 4, x: 653, y: 263 },
+            { at: src(11.03) - 4, x: 728, y: 383 },
           ]}
           spots={[
-            { from: src(10.95), to: s(10), rect: [624, 354, 209, 60] },
-            { from: src(11.4), to: s(10), rect: [397, 436, 345, 28], dim: false },
+            { from: src(11.15), to: s(10), rect: [625, 353, 207, 61] },
+            { from: src(11.5), to: s(10), rect: [397, 437, 345, 28], dim: false },
           ]}
         />
       </div>
@@ -393,7 +393,7 @@ function PairsScene() {
  * shows up. `typed` is the recording second when the amount lands; `feeRow`
  * the fee line's rect.
  */
-const FEE_CLIP = { src: "coin-page.mp4", typed: 3.5, feeRow: [1173, 694, 350, 28] as [number, number, number, number], focus: { x: 1350, y: 640 } };
+const FEE_CLIP = { src: "coin-page-local.mp4", typed: 4.0, feeRow: [1180, 692, 336, 56] as [number, number, number, number], focus: { x: 1350, y: 670 } };
 
 function FeesScene() {
   const frame = useCurrentFrame();
@@ -664,11 +664,11 @@ const CURVE_TICKS = [
 
 function CurveScene() {
   const frame = useCurrentFrame();
-  // The recording starts at 6.0 s and plays at 1.6×. The curve follows the
+  // The recording starts at 7.2 s and plays at 1.65×. The curve follows the
   // dial in the footage stop for stop: dial-track.json is the knob's index
   // per source frame, read off the recording itself.
-  const rate = 1.6;
-  const sourceFrame = Math.round((6.0 + (frame / 30) * rate) * 30) - DIAL.startFrame;
+  const rate = 1.65;
+  const sourceFrame = Math.round((7.2 + (frame / 30) * rate) * 30) - DIAL.startFrame;
   const stop = DIAL.index[Math.min(DIAL.index.length - 1, Math.max(0, sourceFrame))];
   const secsNow = stop < 20 ? (4 + stop) * HOUR : (stop - 19) * DAY;
   const span = LOCK_TERMS.maxLockSecs - LOCK_TERMS.minLockSecs;
@@ -689,8 +689,8 @@ function CurveScene() {
       <Backdrop glow={0.5 + 0.5 * progress} glowX={72} glowY={50} />
       <div style={{ position: "absolute", left: 80, top: 160, ...appear(frame, 0, 16, 30) }}>
         <Footage
-          src="coin-lock-x1.6.mp4"
-          startAt={6.0 / rate}
+          src="coin-lock-local-x1.65.mp4"
+          startAt={7.2 / rate}
           width={960}
           url="localhost · mainnet fork"
           badge={{ text: "mainnet-fork demo", tone: "demo" }}
@@ -919,7 +919,7 @@ const TERMINAL: Array<{ text: string; tone?: "cmd" | "ok" | "dim" }> = [
   { text: "" },
   { text: "$ node --test test/*.test.ts", tone: "cmd" },
   { text: "✔ launches, dev-buys and founds in a single transaction (SPYx)" },
-  { text: "✔ burns an early exit's penalty and streams its forfeit to the stayers" },
+  { text: "✔ refuses a LaunchLab platform other than the configured one" },
   { text: "ℹ tests 115", tone: "dim" },
   { text: "ℹ pass 115", tone: "ok" },
   { text: "ℹ fail 0", tone: "dim" },
@@ -1013,7 +1013,7 @@ function EndScene() {
           <span style={{ width: 2, height: 40, background: COLORS.lineStrong }} />
           <span style={{ fontFamily: FONTS.mono, fontWeight: 500, fontSize: 44, letterSpacing: "0.04em", color: COLORS.steelHi }}>@LockImagine</span>
         </div>
-        <div style={{ marginTop: 40, fontSize: 22, color: COLORS.muted, ...appear(frame, l22 + 14) }}>
+        <div style={{ marginTop: 40, fontSize: 22, color: COLORS.muted, ...appear(frame, l22 + 4) }}>
           Lock the meme. Earn its pair. · Launched on Raydium.
         </div>
       </div>

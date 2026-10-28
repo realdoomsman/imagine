@@ -14,6 +14,7 @@ import { clientIp, registerRpcProxy } from "./rpc-proxy.ts";
 import { txRoutes } from "./routes/tx.ts";
 import { platformConfig } from "./raydium.ts";
 import { chainConfig, connection } from "./solana.ts";
+import { assessHealth, readStatus, type Health } from "./status.ts";
 import { timingSafeEqual } from "node:crypto";
 
 const INTERNAL_KEY = process.env.IMAGINE_INTERNAL_KEY ? Buffer.from(process.env.IMAGINE_INTERNAL_KEY) : null;
@@ -70,17 +71,62 @@ app.setErrorHandler((error: unknown, request, reply) => {
   return reply.code(status).send({ error: status >= 500 ? "internal error" : message });
 });
 
-// Polled by the platform and by anyone else who likes; the slot is served
-// from a value at most 10s old so polling never becomes an RPC call each.
-const SLOT_TTL_MS = 10_000;
-let slotCache: { at: number; slot: Promise<number> } | null = null;
+// Polled by the platform and by anyone else who likes. Everything it reports
+// is held for 10s, so polling never becomes an RPC call or a query each.
+const HEALTH_TTL_MS = 10_000;
 
-app.get("/health", async () => {
-  const [{ ok }] = await sql`SELECT 1 AS ok`;
-  if (!slotCache || Date.now() - slotCache.at >= SLOT_TTL_MS) {
-    slotCache = { at: Date.now(), slot: connection.getSlot("confirmed") };
+interface HealthReport extends Health {
+  /** This process can serve: the database answers. */
+  ok: boolean;
+  db: boolean;
+  slot: number | null;
+  cluster: string;
+}
+
+let healthCache: { at: number; report: Promise<HealthReport> } | null = null;
+
+async function buildHealth(): Promise<HealthReport> {
+  const [slot, rows] = await Promise.all([
+    connection.getSlot("confirmed").catch(() => null),
+    readStatus().catch(() => null),
+  ]);
+  const db = rows !== null;
+  const health = assessHealth(rows ?? []);
+  const warnings = [...(db ? [] : ["database unreachable"]), ...(slot === null ? ["RPC unreachable"] : []), ...health.warnings];
+  return {
+    ok: db,
+    status: warnings.length === 0 ? "ok" : "degraded",
+    db,
+    slot,
+    cluster: env.cluster,
+    warnings,
+    indexer: health.indexer,
+    keeper: health.keeper,
+  };
+}
+
+function health() {
+  if (!healthCache || Date.now() - healthCache.at >= HEALTH_TTL_MS) {
+    healthCache = { at: Date.now(), report: buildHealth() };
   }
-  return { ok: ok === 1, slot: await slotCache.slot, cluster: env.cluster };
+  return healthCache.report;
+}
+
+/**
+ * Liveness of this process plus a report on the background role: indexer lag,
+ * keeper balance and last run. 503 only when this process cannot serve (no
+ * database); a stale indexer or a low keeper shows as `status: "degraded"`
+ * with warnings, so a deploy health check never couples the API to the indexer.
+ */
+app.get("/health", { config: { rateLimit: false } }, async (_request, reply) => {
+  const report = await health();
+  return reply.code(report.db ? 200 : 503).send(report);
+});
+
+/** For uptime monitors: 503 whenever anything above is degraded. */
+app.get("/ready", { config: { rateLimit: false } }, async (_request, reply) => {
+  const report = await health();
+  return reply.code(report.status === "ok" ? 200 : 503).send(report);
 });
 
 app.get("/config", async () => {
@@ -115,8 +161,16 @@ await registerRpcProxy(app, {
   allowedOrigins: env.corsOrigins,
 });
 
+let stopping = false;
 const shutdown = async (signal: string) => {
+  if (stopping) return;
+  stopping = true;
   app.log.info({ signal }, "shutting down");
+  // In-flight requests get this long to finish; then the process goes regardless.
+  setTimeout(() => {
+    app.log.error("shutdown timed out");
+    process.exit(1);
+  }, 15_000).unref();
   await app.close();
   await sql.end({ timeout: 5 });
   process.exit(0);

@@ -16,7 +16,7 @@
     "media": "C:\\tech\\imagine\\video\\out\\x\\posts\\p03.png"
   },
   {
-    "text": "IMAGINE is live on Solana mainnet, and the code is public: github.com/realdoomsman/imagine\n\nThe tests run against the real mainnet builds of Raydium LaunchLab, CPMM and Token-2022, not mocks. A randomised test checks after every step that a pool can still pay everyone it owes.\n\nOn a mainnet fork we launched a SOL-paired and an SPYx-paired coin and ran buys, sells, locks, fee collection, claims and an early exit.\n\nNo external audit is published yet. Program, upgrade authority and platform config: imagine.fun/docs/security",
+    "text": "IMAGINE is live on Solana mainnet, and the code is public: github.com/realdoomsman/imagine\n\n17 Rust unit tests and 115 integration tests run against the real mainnet builds of Raydium LaunchLab, CPMM and Token-2022, not mocks. A randomised test checks after every step that a pool can still pay everyone it owes.\n\nOn a mainnet fork we launched a SOL-paired and an SPYx-paired coin and ran buys, sells, locks, fee collection, claims and an early exit.\n\nNo external audit is published yet. Program, upgrade authority and platform config: imagine.fun/docs/security",
     "media": "C:\\tech\\imagine\\video\\out\\x\\posts\\p04.png"
   },
   {

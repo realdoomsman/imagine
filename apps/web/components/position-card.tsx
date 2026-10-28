@@ -12,14 +12,29 @@ const RENOUNCE_WARNING =
   "Give up this lock's earnings for good? Your tokens stay locked until the same date, but it will never earn again: what it has built up and everything it would earn goes to the other lockers. Claim first if you want what is unclaimed. This cannot be undone.";
 
 /**
+ * A payout refused because the pair asset's issuer froze the reward account or
+ * paused the token: SPL "Account is frozen" (custom error 17) or Token-2022's
+ * paused-mint error, as the wallet path or the Imagine wallet reports them.
+ */
+const BLOCKED_PAYOUT = /frozen|paused|"Custom":\s*17\b|custom program error: 0x11\b/i;
+
+/**
  * One lock: what is locked, what it has earned in its pair asset, how long
  * is left, and the controls. Breaking a lock early is irreversible and costs
  * principal, so it takes a second, differently-worded press.
+ *
+ * A matured lock can also leave without its rewards: the program's
+ * `early_unlock` on a matured position burns nothing, returns every coin and
+ * moves no pair asset, and the unclaimed rewards go to the other lockers. It
+ * is the way out when the pair asset's issuer has frozen or paused payouts,
+ * so it is offered prominently after an unlock fails that way and behind a
+ * small link otherwise.
  */
 export function PositionCard({
   position,
   earlyExitBurn,
   busy,
+  unlockError,
   onClaim,
   onUnlock,
   onExtend,
@@ -30,12 +45,15 @@ export function PositionCard({
   earlyExitBurn: string | null;
   /** The key of the action in flight anywhere on the page, or null. */
   busy: string | null;
+  /** Why this position's last unlock failed, if it did. */
+  unlockError: string | null;
   onClaim: () => void;
   onUnlock: (early: boolean) => void;
   onExtend: (seconds: number) => void;
   onRenounce: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const [forfeiting, setForfeiting] = useState(false);
   const now = Math.floor(Date.now() / 1000);
   const secondsLeft = Math.max(position.lockEnd - now, 0);
   const matured = secondsLeft === 0;
@@ -47,6 +65,7 @@ export function PositionCard({
   const amountLabel = formatTokenAmount(BigInt(position.amount), position.decimals);
   const pendingLabel = quote ? `${formatAmount(pending, quote.decimals)} ${quote.symbol}` : "—";
   const burnLabel = earlyExitBurn !== null ? formatTokenAmount(BigInt(earlyExitBurn), position.decimals) : null;
+  const payoutBlocked = unlockError !== null && BLOCKED_PAYOUT.test(unlockError);
 
   return (
     <article className={`card p-5 ${pending > 0n ? "card-dream" : ""}`}>
@@ -102,10 +121,43 @@ export function PositionCard({
         <button type="button" disabled={busy !== null || pending === 0n} onClick={onClaim} className="btn btn-primary btn-sm">
           {busy === `claim-${key}` ? "Claiming…" : `Claim${quote ? ` ${quote.symbol}` : ""}`}
         </button>
-        {matured ? (
-          <button type="button" disabled={busy !== null} onClick={() => onUnlock(false)} className="btn btn-ghost btn-sm">
-            {busy === `unlock-${key}` ? "Working…" : "Unlock"}
-          </button>
+        {matured && forfeiting ? (
+          <>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => {
+                setForfeiting(false);
+                onUnlock(true);
+              }}
+              className="btn btn-danger btn-sm"
+            >
+              {busy === `unlock-${key}` ? "Withdrawing…" : `Withdraw ${amountLabel}, forfeit ${pendingLabel}`}
+            </button>
+            <button type="button" onClick={() => setForfeiting(false)} className="btn btn-ghost btn-sm">
+              Cancel
+            </button>
+          </>
+        ) : matured ? (
+          <>
+            <button type="button" disabled={busy !== null} onClick={() => onUnlock(false)} className="btn btn-ghost btn-sm">
+              {busy === `unlock-${key}` ? "Working…" : "Unlock"}
+            </button>
+            {payoutBlocked ? (
+              <button type="button" disabled={busy !== null} onClick={() => setForfeiting(true)} className="btn btn-danger btn-sm">
+                Withdraw coins, forfeit rewards
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() => setForfeiting(true)}
+                className="text-[11.5px] text-muted underline decoration-line-strong underline-offset-2 hover:text-fg"
+              >
+                Can&apos;t unlock? Withdraw coins without rewards
+              </button>
+            )}
+          </>
         ) : confirming ? (
           <>
             <button
@@ -152,6 +204,16 @@ export function PositionCard({
             </button>
           </>
         )}
+        {matured && (forfeiting || payoutBlocked) ? (
+          <span className="basis-full text-[11.5px] leading-relaxed text-muted">
+            {payoutBlocked && !forfeiting
+              ? `The unlock was refused because ${quote?.symbol ?? "the pair asset"}'s issuer has frozen or paused it, so its rewards can't be paid out right now. `
+              : ""}
+            Withdrawing without rewards returns all {amountLabel} of your coins with no burn and moves no{" "}
+            {quote?.symbol ?? "pair asset"}; the {pendingLabel} this lock has earned goes to the other lockers instead.
+            This can&apos;t be undone — use it only if a normal unlock fails.
+          </span>
+        ) : null}
         {!matured ? (
           <span className="basis-full text-[11.5px] leading-relaxed text-muted sm:basis-auto">
             {confirming ? "This can't be undone. It " : "Breaking it now "}

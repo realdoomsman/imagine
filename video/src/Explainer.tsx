@@ -13,9 +13,9 @@ const STEPS = [
   { at: 2.5, text: "Someone buys or sells an IMAGINE coin." },
   {
     at: 7.5,
-    text: "imagine.fun adds a 1% app fee on trades it routes. StonkFun forwards a creator share to the coin's creator address, which for IMAGINE coins is the pool vault.",
+    text: "Raydium LaunchLab sends a 0.5% on-chain trading fee to the coin's pool on every trade, anywhere. Trades on imagine.fun add a 1.5% app fee: 2% in all.",
   },
-  { at: 12.5, text: "Both land in that coin's own vault. There is no admin withdraw path." },
+  { at: 12.5, text: "Both land in that coin's own vault. The creator earns nothing from fees. There is no admin withdraw path." },
   { at: 17.5, text: "90% streams to lockers by weight, paid in the coin's pair asset. 10% goes to the treasury." },
 ];
 

@@ -5,12 +5,16 @@ import { categoryLabel } from "@/lib/quotes";
 import { IMAGINE_MINT } from "@/lib/official";
 import { CoinCard } from "@/components/coin-card";
 import { ImagineMark } from "@/components/imagine-mark";
+import { FirstLaunch } from "@/components/first-launch";
+import { loadFees } from "@/lib/fees";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Coins",
   description:
     "Every coin launched on Raydium through Imagine, paired with SOL, USDC or a tokenized stock. See how much of each is locked and what its lockers have been paid.",
-};
+  path: "/coins",
+});
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +43,19 @@ export default async function CoinsPage({ searchParams }: { searchParams: Promis
   const current: Params = { sort: sort === "new" ? undefined : sort, q: search, cat: category };
 
   let pools: PoolSummary[] = [];
-  let error: string | null = null;
-  const [poolsResult, quotesResult] = await Promise.allSettled([
-    api.pools({ sort, search, category, limit: 60 }),
-    api.quotes(),
+  let failed = false;
+  const [poolsResult, quotesResult, fees] = await Promise.all([
+    api.pools({ sort, search, category, limit: 60 }).then(
+      (value) => ({ ok: true as const, value }),
+      (reason: unknown) => ({ ok: false as const, reason }),
+    ),
+    api.quotes().then(
+      (value) => ({ ok: true as const, value }),
+      () => ({ ok: false as const }),
+    ),
+    loadFees(),
   ]);
-  if (poolsResult.status === "fulfilled") {
+  if (poolsResult.ok) {
     pools = category
       ? poolsResult.value.pools.filter((pool) => pool.quote.category.toLowerCase() === category)
       : poolsResult.value.pools;
@@ -54,14 +65,18 @@ export default async function CoinsPage({ searchParams }: { searchParams: Promis
       if (official) pools = [official, ...pools.filter((pool) => pool.mint !== IMAGINE_MINT)];
     }
   } else {
-    error = poolsResult.reason instanceof Error ? poolsResult.reason.message : "could not reach the indexer";
+    // The reason stays in the server log; visitors get a plain sentence.
+    console.error("coins: pool list failed", poolsResult.reason);
+    failed = true;
   }
+  // Nothing has launched at all: filters and sorts would only lead to more emptiness.
+  const nothingLaunched = !failed && pools.length === 0 && !search && !category;
 
   // Filter chips for the categories actually offered as pairs; the full list
   // when the pair list is unavailable.
   const known: string[] = QUOTE_CATEGORIES.map((entry) => entry.id);
   const offered =
-    quotesResult.status === "fulfilled"
+    quotesResult.ok
       ? [...new Set(quotesResult.value.map((quote) => quote.category.toLowerCase()))]
       : known;
   const categories = known
@@ -81,65 +96,67 @@ export default async function CoinsPage({ searchParams }: { searchParams: Promis
             Coins launched on Raydium with an Imagine pool. Each one pays its lockers in the asset it&apos;s paired with.
           </p>
         </div>
-        <form action="/coins" className="flex w-full gap-2 sm:w-auto" role="search">
-          {current.sort ? <input type="hidden" name="sort" value={current.sort} /> : null}
-          {category ? <input type="hidden" name="cat" value={category} /> : null}
-          <input
-            type="search"
-            name="q"
-            defaultValue={search ?? ""}
-            placeholder="Search name, ticker or mint"
-            aria-label="Search coins"
-            className="input w-full text-[14px] sm:w-[300px]"
-          />
-          <button type="submit" className="btn btn-ghost shrink-0">
-            Search
-          </button>
-        </form>
+        {nothingLaunched ? null : (
+          <form action="/coins" className="flex w-full gap-2 sm:w-auto" role="search">
+            {current.sort ? <input type="hidden" name="sort" value={current.sort} /> : null}
+            {category ? <input type="hidden" name="cat" value={category} /> : null}
+            <input
+              type="search"
+              name="q"
+              defaultValue={search ?? ""}
+              placeholder="Search name, ticker or mint"
+              aria-label="Search coins"
+              className="input w-full text-[14px] sm:w-[300px]"
+            />
+            <button type="submit" className="btn btn-ghost shrink-0">
+              Search
+            </button>
+          </form>
+        )}
       </header>
 
-      <div className="mt-8 space-y-3">
-        <nav aria-label="Pair category" className="flex flex-wrap gap-1.5">
-          <Chip href={href(current, { cat: undefined })} active={!category}>
-            All pairs
-          </Chip>
-          {categories.map((slug) => (
-            <Chip key={slug} href={href(current, { cat: slug })} active={category === slug}>
-              {categoryLabel(slug)}
+      {nothingLaunched ? null : (
+        <div className="mt-8 space-y-3">
+          <nav aria-label="Pair category" className="flex flex-wrap gap-1.5">
+            <Chip href={href(current, { cat: undefined })} active={!category}>
+              All pairs
             </Chip>
-          ))}
-        </nav>
-        <nav aria-label="Sort" className="flex flex-wrap items-center gap-1.5">
-          <span className="eyebrow mr-1">Sort</span>
-          {SORTS.map((option) => (
-            <Chip
-              key={option.key}
-              href={href(current, { sort: option.key === "new" ? undefined : option.key })}
-              active={sort === option.key}
-              subtle
-            >
-              {option.label}
-            </Chip>
-          ))}
-        </nav>
-      </div>
+            {categories.map((slug) => (
+              <Chip key={slug} href={href(current, { cat: slug })} active={category === slug}>
+                {categoryLabel(slug)}
+              </Chip>
+            ))}
+          </nav>
+          <nav aria-label="Sort" className="flex flex-wrap items-center gap-1.5">
+            <span className="eyebrow mr-1">Sort</span>
+            {SORTS.map((option) => (
+              <Chip
+                key={option.key}
+                href={href(current, { sort: option.key === "new" ? undefined : option.key })}
+                active={sort === option.key}
+                subtle
+              >
+                {option.label}
+              </Chip>
+            ))}
+          </nav>
+        </div>
+      )}
 
-      {error ? (
-        <EmptyState title="The indexer isn't answering" body={`Coins can't be listed right now. ${error}`} />
+      {failed ? (
+        <EmptyState
+          title="Coins can't be listed right now"
+          body="The index didn't answer. Coins and their pools live on-chain either way; try again in a moment."
+          action={{ href: href(current, {}), label: "Try again" }}
+        />
+      ) : nothingLaunched ? (
+        <FirstLaunch fees={fees} className="mt-10" />
       ) : pools.length === 0 ? (
-        search || category ? (
-          <EmptyState
-            title="Nothing matches"
-            body={`No coin${category ? ` paired with ${categoryLabel(category)}` : ""}${search ? ` matches “${search}”` : ""} yet.`}
-            action={{ href: "/coins", label: "Clear filters" }}
-          />
-        ) : (
-          <EmptyState
-            title="No coins yet"
-            body="Nothing has launched through Imagine yet. Pick a pair, launch on Raydium, and be the first pool."
-            action={{ href: "/launch", label: "Launch a coin" }}
-          />
-        )
+        <EmptyState
+          title="Nothing matches"
+          body={`No coin${category ? ` paired with ${categoryLabel(category)}` : ""}${search ? ` matches “${search}”` : ""} yet.`}
+          action={{ href: "/coins", label: "Clear filters" }}
+        />
       ) : (
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {pools.map((pool) => (

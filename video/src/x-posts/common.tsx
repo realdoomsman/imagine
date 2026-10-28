@@ -29,7 +29,8 @@ export function cropAt(keys: Array<[number, Crop]>, t: number): Crop {
 
 /**
  * One cut of a real screen recording: plays `src` from `from` seconds at
- * `rate`, framed by a moving crop, with an optional fade at both ends.
+ * `rate`, framed by a moving crop, with an optional fade at both ends. With
+ * `url`, the cropped page sits inside a browser window showing that address.
  */
 export function Shot({
   src,
@@ -39,6 +40,7 @@ export function Shot({
   crop,
   fadeIn = 0,
   fadeOut = 0,
+  url,
 }: {
   src: string;
   from: number;
@@ -47,6 +49,7 @@ export function Shot({
   crop: Array<[number, Crop]>;
   fadeIn?: number;
   fadeOut?: number;
+  url?: string;
 }) {
   const frame = useCurrentFrame();
   const c = cropAt(crop, frame / durationInFrames);
@@ -55,12 +58,74 @@ export function Shot({
     fadeIn > 0 ? Math.min(1, frame / fadeIn) : 1,
     fadeOut > 0 ? Math.min(1, (durationInFrames - frame) / fadeOut) : 1,
   );
-  return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.ink, opacity }}>
-      <AbsoluteFill style={{ transformOrigin: "960px 540px", transform: `scale(${k}) translate(${960 - c.x}px, ${540 - c.y}px)` }}>
-        <OffthreadVideo src={staticFile(src)} trimBefore={Math.round(from * FPS)} playbackRate={rate} muted style={{ width: 1920, height: 1080 }} />
-      </AbsoluteFill>
+  const page = (
+    <AbsoluteFill style={{ transformOrigin: "960px 540px", transform: `scale(${k}) translate(${960 - c.x}px, ${540 - c.y}px)` }}>
+      <OffthreadVideo src={staticFile(src)} trimBefore={Math.round(from * FPS)} playbackRate={rate} muted style={{ width: 1920, height: 1080 }} />
     </AbsoluteFill>
+  );
+  if (!url) return <AbsoluteFill style={{ backgroundColor: COLORS.ink, opacity }}>{page}</AbsoluteFill>;
+  return (
+    <AbsoluteFill style={{ opacity }}>
+      <Ground glowX={50} glowY={50} glow={0.7} grain={false} />
+      <BrowserWindow url={url}>{page}</BrowserWindow>
+    </AbsoluteFill>
+  );
+}
+
+const WINDOW_W = 1720;
+const CHROME_H = 46;
+
+/** A clean browser window centred in the 1920×1080 frame; children render in a 1920×1080 page space. */
+function BrowserWindow({ url, children }: { url: string; children: React.ReactNode }) {
+  const s = WINDOW_W / 1920;
+  const pageH = 1080 * s;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: (1920 - WINDOW_W) / 2,
+        top: (1080 - pageH - CHROME_H) / 2,
+        width: WINDOW_W,
+        borderRadius: 16,
+        overflow: "hidden",
+        background: COLORS.ink1,
+        border: `1px solid ${COLORS.lineStrong}`,
+        boxShadow: "0 50px 120px rgba(0,0,0,0.55), 0 0 90px rgba(94,233,181,0.08)",
+      }}
+    >
+      <div style={{ height: CHROME_H, display: "flex", alignItems: "center", gap: 10, padding: "0 18px", background: COLORS.ink2, borderBottom: `1px solid ${COLORS.line}` }}>
+        {[COLORS.rose, COLORS.steel, COLORS.mint].map((col) => (
+          <span key={col} style={{ width: 12, height: 12, borderRadius: 99, background: col, opacity: 0.55 }} />
+        ))}
+        <div
+          style={{
+            margin: "0 auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            padding: "6px 22px",
+            minWidth: WINDOW_W * 0.34,
+            borderRadius: 999,
+            background: COLORS.ink,
+            border: `1px solid ${COLORS.line}`,
+            fontFamily: FONTS.mono,
+            fontSize: 17,
+            color: COLORS.fgSoft,
+          }}
+        >
+          <svg width="12" height="14" viewBox="0 0 12 14">
+            <rect x="1" y="6" width="10" height="7.5" rx="2" fill={COLORS.muted} />
+            <path d="M3.5 6V4.2a2.5 2.5 0 015 0V6" stroke={COLORS.muted} strokeWidth="1.6" fill="none" />
+          </svg>
+          {url}
+        </div>
+        <span style={{ width: 54 }} />
+      </div>
+      <div style={{ position: "relative", width: WINDOW_W, height: pageH, overflow: "hidden", background: COLORS.ink }}>
+        <div style={{ position: "absolute", left: 0, top: 0, width: 1920, height: 1080, transformOrigin: "0 0", transform: `scale(${s})` }}>{children}</div>
+      </div>
+    </div>
   );
 }
 

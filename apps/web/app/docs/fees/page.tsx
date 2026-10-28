@@ -1,10 +1,12 @@
 import { DocLinks, DocPage, DocSection } from "@/components/doc-page";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: "/docs/fees",
   title: "Fees",
   description:
     "Every fee on an IMAGINE coin: who charges it, where it lands, and what it costs to leave a lock early.",
-};
+});
 
 export default function FeesPage() {
   return (

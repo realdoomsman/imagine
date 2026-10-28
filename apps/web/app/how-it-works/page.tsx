@@ -1,11 +1,13 @@
 import { DocLinks, DocPage, DocSection } from "@/components/doc-page";
 import { RAYDIUM_LAUNCHPAD_URL } from "@/components/site-header-links";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: "/how-it-works",
   title: "How it works",
   description:
     "The mechanics of IMAGINE: coins launched on Raydium LaunchLab with a lock pool, where the fees come from, how weight is computed, and what the program will not let anyone do.",
-};
+});
 
 export default function HowItWorksPage() {
   return (

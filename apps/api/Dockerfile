@@ -32,6 +32,9 @@ EXPOSE 8080
 # run directly — no build step and no emitted JavaScript to keep in sync.
 #
 # One image, two roles. ROLE=index (the default) serves HTTP and can scale
-# out; ROLE=indexer builds the read model and runs the keeper, and must stay a
-# singleton — two keepers would race to send the same cranks.
-CMD ["sh", "-c", "node src/migrate.ts && node src/${ROLE:-index}.ts"]
+# out; ROLE=indexer builds the read model and runs the keeper. Two keepers
+# overlapping during a deploy never both send: they share a lease row.
+#
+# `exec` replaces the shell with node, so the platform's SIGTERM reaches the
+# process and it shuts down gracefully instead of being killed at the deadline.
+CMD ["sh", "-c", "node src/migrate.ts && exec node src/${ROLE:-index}.ts"]

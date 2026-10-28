@@ -7,12 +7,12 @@ import { P04, P04Props } from "./P04";
 import { P05, P05_FRAMES } from "./P05";
 import { XAvatar, XBanner } from "./Profile";
 
-// Post-pivot captures (ProgramSdk). platformConfig stays null until Main fills out/x/facts-todo.md.
+// Post-pivot captures (ProgramSdk) and the IMAGINE platform config confirmed on mainnet.
 const P04_PROPS: P04Props = {
   cargoFile: "cargo-test-raydium.txt",
   sdkFile: "sdk-test-raydium.txt",
   sdkSuite: "one-transaction launch",
-  platformConfig: null,
+  platformConfig: "DYtCiTPJoqCyDApm45b9C7D3xotkSDecJaAtQHaQNULk",
 };
 
 /** X launch post assets. Render with `--public-dir out/x/raw` (see render.sh). */

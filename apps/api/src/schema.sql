@@ -61,6 +61,8 @@ CREATE TABLE IF NOT EXISTS pools (
   updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- The reconciler re-reads the stalest pools first.
+CREATE INDEX IF NOT EXISTS pools_updated_at_idx ON pools (updated_at);
 CREATE INDEX IF NOT EXISTS pools_created_at_idx ON pools (created_at DESC);
 CREATE INDEX IF NOT EXISTS pools_quote_mint_idx ON pools (quote_mint);
 
@@ -82,11 +84,17 @@ CREATE TABLE IF NOT EXISTS positions (
 CREATE INDEX IF NOT EXISTS positions_owner_idx ON positions (owner) WHERE NOT closed;
 CREATE INDEX IF NOT EXISTS positions_mint_idx ON positions (mint) WHERE NOT closed;
 CREATE INDEX IF NOT EXISTS positions_weight_idx ON positions (mint, weight DESC);
+-- The diamond board: live locks that have not ended yet.
+CREATE INDEX IF NOT EXISTS positions_live_lock_end_idx ON positions (lock_end) WHERE NOT closed;
 
 -- Append-only event log. Drives the live feed, the reward chart, and APR,
 -- which is computed from realised inflow rather than projected volume.
 -- kind: 0 buy fee, 1 sell fee, 2 creator share, 3 donation (FeeDeposited);
--- 4 a sync (RewardsSynced: what the pool actually took in, every source once).
+-- 4 a sync (RewardsSynced: what the pool actually took in, every source once);
+-- 5 synced inflow with no transaction in the read model (history from before
+-- its cursor), reconstructed from the pool's lifetime counters at startup —
+-- charted, never counted in a 24h/7d rate. Its signature is
+-- `history-gap:<mint>:<lifetime inflow>`.
 CREATE TABLE IF NOT EXISTS fee_events (
   id          BIGSERIAL PRIMARY KEY,
   signature   TEXT NOT NULL,
@@ -142,6 +150,22 @@ CREATE TABLE IF NOT EXISTS indexer_cursor (
 );
 
 INSERT INTO indexer_cursor (id, slot) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;
+
+-- What the indexer/keeper process last reported, for the API's /health:
+-- indexer catch-up time and cursor, keeper wallet balance and last run.
+CREATE TABLE IF NOT EXISTS service_status (
+  name       TEXT PRIMARY KEY,
+  detail     JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Single-holder leases. The keeper takes one before every send, so two
+-- indexer processes overlapping during a deploy never both crank.
+CREATE TABLE IF NOT EXISTS leases (
+  name       TEXT PRIMARY KEY,
+  holder     TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+);
 
 -- Every sync the keeper sent. Observability, not accounting: the pool account
 -- is the ledger, this is the log of who cranked it and when.

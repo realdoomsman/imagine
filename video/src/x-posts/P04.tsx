@@ -99,7 +99,7 @@ export function P04({ cargoFile, sdkFile, sdkSuite, platformConfig }: P04Props) 
   const suiteEnd = sdk.findIndex((l, i) => i > suiteStart && l.startsWith(`✔ ${sdkSuite} (`));
   if (suiteStart < 0 || suiteEnd < 0) throw new Error(`suite "${sdkSuite}" not found in ${sdkFile}`);
   const sdkHead = sdk.slice(suiteStart, suiteEnd + 1);
-  const addresses: Array<[string, string]> = platformConfig ? [...ADDRESSES, ["IMAGINE platform config on Raydium LaunchLab", platformConfig]] : ADDRESSES;
+  const addresses: Array<[string, string]> = platformConfig ? [...ADDRESSES, ["IMAGINE platform config (Raydium LaunchLab)", platformConfig]] : ADDRESSES;
 
   return (
     <AbsoluteFill style={{ backgroundColor: COLORS.ink, fontFamily: FONTS.sans, color: COLORS.fg }}>
@@ -130,9 +130,9 @@ export function P04({ cargoFile, sdkFile, sdkSuite, platformConfig }: P04Props) 
       <div style={{ ...card, position: "relative", padding: "14px 20px 18px", background: "#141a1d" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <span style={{ ...eyebrow, color: COLORS.fgSoft }}>Solana Explorer · program account</span>
-          <Crop src="explorer-program.png" srcW={2000} srcH={1250} region={[1238, 18, 214, 44]} width={150} />
+          <Crop src="explorer-program-raydium.png" srcW={2000} srcH={1250} region={[1238, 18, 214, 44]} width={150} />
         </div>
-        <Crop src="explorer-program.png" srcW={2000} srcH={1250} region={[390, 312, 1220, 462]} width={688} />
+        <Crop src="explorer-program-raydium.png" srcW={2000} srcH={1250} region={[390, 312, 1220, 462]} width={688} />
       </div>
       </div>
 

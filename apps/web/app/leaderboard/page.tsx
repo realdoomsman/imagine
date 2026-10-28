@@ -4,12 +4,14 @@ import { api, type Leaderboard } from "@/lib/api";
 import { formatQuote, formatUsd } from "@/lib/format";
 import { ImagineMark } from "@/components/imagine-mark";
 import { PairPill } from "@/components/pair-pill";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: "/leaderboard",
   title: "Leaderboard",
   description:
     "Top earners, top coins and the longest locks on Imagine — ranked on rewards actually paid and live on-chain commitments.",
-};
+});
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +28,15 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
   const active = BOARDS.find((b) => b.key === params.board) ?? BOARDS[0];
 
   let data: Leaderboard | null = null;
-  let error: string | null = null;
+  let failed = false;
   try {
     // Tag the rows with the board that was asked for, whatever the response echoes.
     const { rows } = await api.leaderboard<BoardKey>(active.key);
     data = { board: active.key, rows } as Leaderboard;
   } catch (cause) {
-    error = cause instanceof Error ? cause.message : "could not load the leaderboard";
+    // The reason stays in the server log; visitors get a plain sentence.
+    console.error("leaderboard: load failed", cause);
+    failed = true;
   }
 
   return (
@@ -62,10 +66,31 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
       </nav>
       <p className="mt-3 text-[12.5px] text-muted">{active.note}</p>
 
-      {error ? (
-        <Empty title="The leaderboard isn't answering" body={error} />
+      {failed ? (
+        <Empty
+          title="The leaderboard isn't answering"
+          body="The index didn't answer. Every claim and lock is on-chain either way; try again in a moment."
+        />
       ) : !data || data.rows.length === 0 ? (
-        <Empty title="Nothing to rank yet" body="The first claims and locks will show up here." />
+        <Empty
+          title="Nothing to rank yet"
+          body={
+            active.key === "coins"
+              ? "Coins show up here once their lockers have been paid. The first coin launched through IMAGINE leads this board."
+              : active.key === "diamond"
+                ? "Live locks show up here, longest term first. The first one is the founding lock of the first coin launched."
+                : "Claims show up here as lockers collect what their locks earned. The first coin launched starts the stream."
+          }
+        >
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <Link href="/launch" className="btn btn-dream btn-sm">
+              Launch the first coin
+            </Link>
+            <Link href="/coins" className="btn btn-ghost btn-sm">
+              Browse coins
+            </Link>
+          </div>
+        </Empty>
       ) : (
         <ol className="card mt-6 divide-y divide-line overflow-hidden">
           {data.board === "earners"
@@ -158,12 +183,13 @@ function CoinThumb({ src, symbol }: { src: string | null; symbol: string | null 
   );
 }
 
-function Empty({ title, body }: { title: string; body: string }) {
+function Empty({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
   return (
     <div className="card mt-6 flex flex-col items-center gap-3 px-8 py-16 text-center">
       <ImagineMark size={40} className="opacity-40" />
       <h2 className="t-h3">{title}</h2>
       <p className="max-w-[52ch] break-words text-[13.5px] text-muted">{body}</p>
+      {children}
     </div>
   );
 }

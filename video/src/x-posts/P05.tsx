@@ -4,10 +4,10 @@ import { COLORS, FONTS, ease } from "../theme";
 import { Crop, Cut, DreamLead, Ground, Shot } from "./common";
 
 /**
- * p05: the live /launch page from the real capture SOURCE, recorded after the
- * Raydium site deploy (image drop, name, pair picker → SPYx, first buy, lock %,
- * dial to 30 days, the 90 / 10 / 0 box, the fee list). Each segment's `from`
- * is seconds into SOURCE. Nothing is signed: the cut ends on the fee list,
+ * p05: live https://imagine.fun/launch after the Raydium deploy, from the real
+ * capture SOURCE (image 1.2 s, name 3.2, Stocks 13.2, list scroll 15.5, ETFs
+ * 18.7, "SPY" 21.3, SPYx 23.3, first buy 28.0, lock % 31.2, 4h 32.8, dial to
+ * 30d 34.9–37.0, fees 41.9). Each segment's `from` is seconds into SOURCE. Nothing is signed: the cut ends on the fee list,
  * before any wallet.
  */
 
@@ -19,18 +19,22 @@ const PILL: Crop = { x: 720, y: 360, w: 1000 };
 const BUY: Crop = { x: 790, y: 380, w: 1150 };
 const DIAL: Crop = { x: 760, y: 400, w: 980 };
 const FEES: Crop = { x: 800, y: 390, w: 1150 };
+// "Where the stream goes: 90% lockers · 10% treasury · 0% creator", beside the first buy.
+const STREAM: Crop = { x: 900, y: 290, w: 760 };
 
-const SOURCE = "launch-walk-v2.mp4";
+const SOURCE = "launch-walk-live.mp4";
 
 const INTRO = 40;
 const SEGS: Seg[] = [
-  { from: 3.6, rate: 1.5, length: 108, step: 1, crop: [[0, COIN], [1, { ...COIN, w: 1020 }]] },
-  { from: 14.4, rate: 1.9, length: 152, step: 2, crop: [[0, PICKER], [1, PICKER]] },
-  { from: 24.0, rate: 1.0, length: 54, step: 2, crop: [[0, PICKER], [0.5, PILL], [1, PILL]] },
-  { from: 28.6, rate: 2.0, length: 123, step: 3, crop: [[0, BUY], [1, BUY]] },
-  { from: 36.8, rate: 1.4, length: 90, step: 3, crop: [[0, BUY], [0.4, DIAL], [1, DIAL]] },
-  { from: 42.4, rate: 1.0, length: 100, step: 4, crop: [[0, FEES], [1, { ...FEES, w: 1100 }]] },
+  { from: 0.6, rate: 1.5, length: 108, step: 1, crop: [[0, COIN], [1, { ...COIN, w: 1020 }]] },
+  { from: 12.9, rate: 1.9, length: 152, step: 2, crop: [[0, PICKER], [1, PICKER]] },
+  { from: 22.9, rate: 1.0, length: 66, step: 2, crop: [[0, PICKER], [0.5, PILL], [1, PILL]] },
+  { from: 27.5, rate: 2.0, length: 123, step: 3, crop: [[0, BUY], [1, BUY]] },
+  { from: 34.6, rate: 1.4, length: 90, step: 3, crop: [[0, BUY], [0.4, DIAL], [1, DIAL]] },
+  { from: 38.9, rate: 1.0, length: 54, step: 3, crop: [[0, DIAL], [0.45, STREAM], [1, STREAM]] },
+  { from: 42.6, rate: 1.0, length: 100, step: 4, crop: [[0, FEES], [1, { ...FEES, w: 1100 }]] },
 ];
+
 const END = 66;
 const XFADE = 6;
 
@@ -132,7 +136,7 @@ function LiveTag() {
       }}
     >
       <span style={{ width: 12, height: 12, borderRadius: 999, background: COLORS.mint, boxShadow: `0 0 10px ${COLORS.mint}` }} />
-      imagine.fun/launch · no signing
+      Live site · stops before signing
     </div>
   );
 }
@@ -181,7 +185,7 @@ export function P05() {
         const length = seg.length + XFADE;
         return (
           <Cut key={i} at={STARTS[i]} length={length}>
-            <Shot src={SOURCE} from={seg.from} rate={seg.rate} durationInFrames={length} crop={seg.crop} fadeIn={i === 0 ? 0 : XFADE} />
+            <Shot src={SOURCE} url="imagine.fun/launch" from={seg.from} rate={seg.rate} durationInFrames={length} crop={seg.crop} fadeIn={i === 0 ? 0 : XFADE} />
           </Cut>
         );
       })}

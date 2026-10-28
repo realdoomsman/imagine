@@ -11,16 +11,17 @@ mkdir -p "$WORK/public" "$VIDEO/out/x/posts" "$VIDEO/out/x/profile"
 cd "$VIDEO"
 
 # Stills read the raw captures (explorer screenshot, captured post-pivot test output) directly.
-# XP04 fails until raw/cargo-test-raydium.txt and raw/sdk-test-raydium.txt exist.
 npx remotion still "$ENTRY" XP02 out/x/posts/p02.png --public-dir="$RAW"
 npx remotion still "$ENTRY" XP03 out/x/posts/p03.png --public-dir="$RAW"
 npx remotion still "$ENTRY" XP04 out/x/posts/p04.png --public-dir="$RAW"
 npx remotion still "$ENTRY" XAvatar out/x/profile/avatar.png --public-dir="$RAW"
 npx remotion still "$ENTRY" XBanner out/x/profile/banner.png --public-dir="$RAW"
 
-# The screen recordings are variable-frame-rate; OffthreadVideo wants constant 30 fps.
-for f in hero-long-v2.mp4 launch-walk-v2.mp4; do
-  ffmpeg -v error -y -i "$RAW/$f" -vf fps=30 -c:v libx264 -crf 12 -preset fast -pix_fmt yuv420p -an "$WORK/public/$f"
+# Live captures of https://imagine.fun after the Raydium deploy. Re-timed to a clean
+# 30 fps CFR stream; a plain fps=30 transcode makes OffthreadVideo miss frames.
+for f in hero-long-live.mp4 launch-walk-live.mp4; do
+  ffmpeg -v error -y -i "$RAW/$f" -vf "fps=30,setpts=N/30/TB" -c:v libx264 -crf 12 -preset fast -g 30 -bf 0 \
+    -pix_fmt yuv420p -video_track_timescale 30000 -an "$WORK/public/$f"
 done
 python "$VIDEO/src/x-posts/sound.py" "$WORK"
 

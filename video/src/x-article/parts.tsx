@@ -18,8 +18,9 @@ export const HOME_HERO: Src = { file: "home-hero.png", w: 2400, h: 1350 };
 export const LAUNCH_NVDAX: Src = { file: "launch-nvdax.png", w: 2400, h: 1350 };
 export const COIN_LOCK: Src = { file: "coin-lock.png", w: 2400, h: 1350 };
 export const COIN_FULL: Src = { file: "coin-full.png", w: 2400, h: 3189 };
-export const EXPLORER_PROGRAM: Src = { file: "explorer-program.png", w: 2000, h: 1250 };
-export const EXPLORER_CONFIG: Src = { file: "explorer-config.png", w: 2000, h: 1250 };
+/** Solana Explorer, captured after the Raydium upgrade. */
+export const EXPLORER_PROGRAM: Src = { file: "explorer-program-raydium.png", w: 1960, h: 1225 };
+export const EXPLORER_PLATFORM: Src = { file: "explorer-platform-raydium.png", w: 1960, h: 1225 };
 export const GITHUB: Src = { file: "github.png", w: 2000, h: 1250 };
 
 /** Ink page with the brand grid and glow. */

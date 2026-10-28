@@ -7,11 +7,13 @@ script below is idempotent: re-running it after an interruption is safe.
 
 | Piece | Where | State |
 |---|---|---|
-| Program | `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa` (programdata `7VAbM9wR7wNxEBEkhzNqh6PyQPechAiZCSZjURw3Pd5e`) | mainnet-beta, deployed with `--max-len 738688`. Upgrade authority `E1MQZaMhRELUihUffFCUbuARpTy53fJv8hpB98MoYhZc` (`.mainnet/admin.json`, gitignored) |
-| Config | `FjjucCXttbwBzNdBkxHS6wtQYqaUpwxtAjNLy2RZorHa` | Initialised before the move to the IMAGINE platform (`trade_fee_bps` 100, old platform). Updated by the upgrade below to the IMAGINE PlatformConfig and `trade_fee_bps` 150 |
+| Program | `imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa` (programdata `7VAbM9wR7wNxEBEkhzNqh6PyQPechAiZCSZjURw3Pd5e`) | mainnet-beta, `--max-len 738688`, upgraded to the verified build: executable hash `437bce42ac54deb37d6e0c9a2a18641e8855340ef2bf5daff9ed79129746a7fe`, upgrade tx `vZTYsJAH5rE1hAo1LnQmxz5ozdd3etdfsTkxQEwwEmthd5nTK3TMQw9EHc32FgQNAhAR3D3AVcoF2zdZfHEroxg`, verify-PDA upload tx `ZH2iVxuaG9nm2Q93Aj5iiBEFLtVvkGw38m4C1rg9W9TWSetYzUVDWTvWzMUdz4mLV33tbxJQ9m4MkzshRySSeZV`. Upgrade authority `E1MQZaMhRELUihUffFCUbuARpTy53fJv8hpB98MoYhZc` (`.mainnet/admin.json`, gitignored) |
+| Config | `FjjucCXttbwBzNdBkxHS6wtQYqaUpwxtAjNLy2RZorHa` | `launchlab_platform` = IMAGINE PlatformConfig `DYtCiTPJoqCyDApm45b9C7D3xotkSDecJaAtQHaQNULk`, `trade_fee_bps` 150, admin `E1MQ…YhZc`, not paused (read from chain with `config-show.sh`) |
 | Treasury | `DNGM32EBgSwaG2Cj6NhYubzFHC8FTFopqgvPqp7ESY59` | Config treasury; also the IMAGINE platform's fee wallet and Fee-Key NFT wallet |
 | Keeper | `6mgSanvKanCvzMnbyYa5dyWQGZ5wx36rSwybP1WTNh4M` | `KEEPER_KEYPAIR` on `imagine-indexer` |
-| Lookup table | `AsBDK8oA88A5AzbRwJFh1dXB4npd2M1veeTFbKc8ve57` | Full (255 of 256) and built for the old platform; replaced by the upgrade below |
+| Lookup table | `Gq6SNCjCjbyntcXTVwtxaUsoDZ23UrAjE3e1z4CRQNZs` (`LAUNCH_ALT` on `imagine-api`) | 255 addresses: core accounts plus, per quote from the SDK registry, its mint, LaunchLab GlobalConfig and IMAGINE platform fee vault. The old table `AsBDK8oA88A5AzbRwJFh1dXB4npd2M1veeTFbKc8ve57` was deactivated and closed, rent recovered (tx `3ex9kTwq4QhspncXnPpG22g2KVyghMcDYNtKHejarb4MhDygidyv5qFxXDk2pmdgCrEZ3ZoJR6kYwjRESDLVDBab`) |
+| Verification | OtterSec | Verified: job `eaae0361-08fa-4fc3-9ea1-bad02e98d955`, commit `d64c7ea`, executable hash `437bce42…a7fe` |
+| RPC | Helius | Production uses a dedicated "imagine" key, kept in `RPC_URL` / `RPC_WS_URL` on the API services and in the gitignored `apps/api/.mainnet-rpc.tmp`; never in the repo or the web bundle |
 | Railway | project `imagine`: `imagine-api` (`ROLE=index`), `imagine-indexer` (`ROLE=indexer`, keeper), `imagine-web`, Postgres | GitHub-linked to `realdoomsman/imagine` `main`, auto-deploy on push |
 | DNS | Porkbun | `imagine.fun` ALIAS and `www` CNAME → `imagine-web`; `api.imagine.fun` CNAME → `imagine-api`; certificates valid |
 
@@ -22,6 +24,8 @@ and `.mainnet/`.
 
 ## Moving to the IMAGINE platform (mainnet upgrade)
 
+Done on mainnet 2026-10-28 (see the table above). The steps stay here as the
+procedure: step 1 runs once per admin key; steps 2–4 repeat for every upgrade.
 Rehearse every step on the mainnet fork first (`scripts/mainnet-fork.sh`, then
 the same commands with `localnet` / `RPC_URL=http://127.0.0.1:8999`).
 
@@ -116,8 +120,11 @@ Check: `(cd apps/api && cp .env.example .env.mainnet)` with `RPC_URL` and
 solana-verify verify-from-repo -u "$RPC_URL" \
   --program-id imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa \
   --commit-hash "$(git rev-parse HEAD)" --library-name imagine \
-  -k .mainnet/admin.json --remote -y \
+  -k .mainnet/admin.json -y \
   https://github.com/realdoomsman/imagine
+solana-verify remote submit-job \
+  --program-id imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa \
+  --uploader E1MQZaMhRELUihUffFCUbuARpTy53fJv8hpB98MoYhZc
 solana-verify remote get-status --program-id imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa
 ```
 
@@ -125,8 +132,9 @@ solana-verify remote get-status --program-id imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA
 from the deployed program, then writes the build parameters (repo, commit,
 `--library-name imagine`) to the otter-verify PDA signed by `-k`. Explorers
 only trust the PDA written by the program's upgrade authority, so `-k` must be
-it (`.mainnet/admin.json` today). `--remote` then queues OtterSec's independent
-rebuild; when it finishes `get-status` (or
+it (`.mainnet/admin.json` today). `remote submit-job --uploader <authority>`
+then queues OtterSec's independent rebuild of that PDA (solana-verify ≥ 0.5
+replaced the old `--remote` flag with this subcommand); when it finishes `get-status` (or
 `https://verify.osec.io/status/imaguT3XXBk1MuKQA6XCk1KJsGM2YgfM1tA4pQQ3spa`)
 reports `is_verified: true` and Solana Explorer / Solscan show Verified, with
 the embedded security.txt (`solana_security_txt::security_txt!` in `lib.rs`).
@@ -223,8 +231,8 @@ address you cannot hold for years.
 
 | Service | Dockerfile | `ROLE` | Runs | Health |
 |---|---|---|---|---|
-| `imagine-api` | `apps/api/Dockerfile` | `index` (default) | HTTP and the RPC proxy; safe to scale out | `GET /health` |
-| `imagine-indexer` | `apps/api/Dockerfile` | `indexer` | Read model, reconciler, **keeper**. Exactly one replica | logs advancing; `keeper_runs` growing with volume |
+| `imagine-api` | `apps/api/Dockerfile` | `index` (default) | HTTP and the RPC proxy; safe to scale out | `GET /health` (deploy check), `GET /ready` (alerts) |
+| `imagine-indexer` | `apps/api/Dockerfile` | `indexer` | Read model, reconciler, **keeper**. One replica (a second stands by: keeper lease) | reported through the API's `/health` |
 | `imagine-web` | `apps/web/Dockerfile` | — | `next start` | `GET /` |
 | Postgres | Railway plugin | — | Read model | — |
 
@@ -237,6 +245,47 @@ one means a rebuild. For a local image build, `scripts/push-api.sh` and
 `GOOGLE_CLIENT_ID`; optional `API_URL`, `CLUSTER`, `IMAGE`, `OFFICIAL_MINT`,
 `X_URL`, `WEB_RPC_URL` / `WEB_WS_URL`, and refuses an RPC URL containing
 `api-key`).
+
+**Health.** `GET /health` answers 200 whenever the API and its database
+are up (503 only when the database is down), so it is safe as Railway's deploy
+check. Its body reports the background role, which writes its status to
+`service_status` every 30s:
+
+- `indexer`: `lagSeconds` since the last catch-up pass that reached the chain
+  head (passes run every 30s), `websocket` (`live` / `silent` / …), `cursorSlot`,
+  `lastEventAt`;
+- `keeper`: `wallet`, `balanceSol`, `low` (< 0.03 SOL), `belowFloor` (< 0.02
+  SOL: it stops sending), `lastRunAt`, `lastRunOk`, `lastError`, `lastSentAt`;
+- `status: "ok" | "degraded"` and the `warnings` behind it: the indexer more
+  than 180s behind or silent for 5 minutes, the keeper low, below its floor,
+  disabled, failing or not run for 3 intervals.
+
+`GET /ready` returns the same body with a 503 whenever `status` is `degraded`.
+Point an uptime monitor at it, not at `/health`.
+
+**Keeper lease.** Only the process holding the `keeper` row in `leases` (5
+minutes, renewed before every send) sends cranks, so the old and new indexer
+overlapping during a deploy never both crank; the other logs `keeper lease
+held elsewhere; standing by`. A graceful stop releases it. An indexer killed
+outright keeps it until it expires, so cranks pause for up to 5 minutes;
+`DELETE FROM leases WHERE name = 'keeper'` releases it by hand once that process
+is certainly gone.
+
+**Shutdown.** The image `exec`s node, so Railway's SIGTERM reaches it: the API
+finishes in-flight requests (15s cap); the indexer lets a running crank finish
+(20s cap), releases the lease and exits. Queued indexer work is replayed by the
+next process, because the cursor only moves past transactions fully applied.
+
+**Migration.** The boot-time migration is additive. It created
+`service_status`, `leases`, `pools_updated_at_idx` and
+`positions_live_lock_end_idx`. On its first start after a gap the indexer also
+records pools' synced inflow it has no transaction for as `fee_events` kind 5
+(charted, never counted in 24h/7d rates) and logs `reconstructed reward
+history`.
+
+Logs from `imagine-indexer` are one JSON object per line (`level`,
+`component` = `indexer` / `keeper`, `msg`, fields); every keeper send logs its
+`action`, `mint` and `signature`.
 
 ### Environment
 
@@ -338,9 +387,11 @@ The indexer runs permissionless cranks every `KEEPER_INTERVAL_MS`, paid by
 - **Treasury.** `claim_treasury` moves each pool's treasury share to the
   treasury wallet.
 
-Sends per tick are bounded and the keeper stops below a minimum balance, so it
-cannot drain itself. An empty keeper is safe — fees wait in Raydium's vaults,
-matured positions wait for their owners — but lockers are paid less promptly.
+Sends per tick are bounded and the keeper stops below 0.02 SOL, so it cannot
+drain itself; below 0.03 SOL it logs `keeper wallet low; top it up` every 15
+minutes and `/health` warns. Top it up with `bash scripts/keeper.sh <SOL>`. An
+empty keeper is safe — fees wait in Raydium's vaults, matured positions wait for
+their owners — but lockers are paid less promptly.
 Anyone can call `collect_creator_fee` or `sync`. "Pending" figures in the UI
 are projected with the program's stream arithmetic (`projectSync` in the SDK).
 
@@ -356,8 +407,11 @@ films to `video/out/` and publishes `apps/web/public/film/imagine-promo.mp4`,
 
 ## Incident playbook
 
-**The indexer is behind.** Read models go stale; every number a user acts on is
-read from chain. Restart `imagine-indexer`.
+**The indexer is behind.** `/health` shows `indexer.lagSeconds` climbing or
+`websocket` not `live`. Read models go stale; every number a user acts on is
+read from chain. The indexer replaces a silent websocket on its own and
+replays anything missed every 30s; if the lag keeps growing, restart
+`imagine-indexer`.
 
 **RPC is failing.** Transaction building fails with a 500 and the site's proxy
 errors. Swap `RPC_URL`, restart. No on-chain state is affected.

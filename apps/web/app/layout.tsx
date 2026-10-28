@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { WalletProvider } from "@/components/wallet-provider";
 import { AccountProvider } from "@/components/account-provider";
 import { SmoothScroll } from "@/components/motion";
+import { SITE_CARD_DESCRIPTION, SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL, siteJsonLd } from "@/lib/seo";
 
 const sora = Sora({
   subsets: ["latin"],
@@ -21,32 +22,29 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
-const TITLE = "IMAGINE — Imagine everyone locks";
-const DESCRIPTION =
-  "Launch a coin on Raydium, paired with anything. Every trade pays the holders who lock it — in whatever it's paired with. Lock longer, earn a bigger cut.";
-
 export const metadata: Metadata = {
-  metadataBase: new URL("https://imagine.fun"),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: TITLE,
-    template: "%s · IMAGINE",
+    default: SITE_TITLE,
+    template: `%s · ${SITE_NAME}`,
   },
-  description: DESCRIPTION,
-  applicationName: "IMAGINE",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
   openGraph: {
-    title: TITLE,
-    description: "Lock the meme. Earn its pair. Lock-to-earn vaults for coins launched on Raydium LaunchLab.",
-    url: "https://imagine.fun",
-    siteName: "IMAGINE",
+    title: SITE_TITLE,
+    description: SITE_CARD_DESCRIPTION,
+    siteName: SITE_NAME,
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: TITLE,
-    description: "Lock the meme. Earn its pair. Lock-to-earn vaults for coins launched on Raydium LaunchLab.",
+    title: SITE_TITLE,
+    description: SITE_CARD_DESCRIPTION,
     ...(X_HANDLE ? { site: X_HANDLE, creator: X_HANDLE } : {}),
   },
 };
+
+const JSON_LD = JSON.stringify(siteJsonLd(SITE_DESCRIPTION)).replace(/</g, "\\u003c");
 
 export const viewport: Viewport = {
   themeColor: "#071013",
@@ -59,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${sora.variable} ${geistMono.variable}`}>
       <body>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON_LD }} />
         <a href="#content" className="skip-link">
           Skip to content
         </a>

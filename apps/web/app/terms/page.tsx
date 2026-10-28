@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { DocPage, DocSection } from "@/components/doc-page";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Terms",
   description: "The terms on which imagine.fun is offered.",
-};
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (

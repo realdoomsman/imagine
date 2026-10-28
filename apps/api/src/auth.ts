@@ -104,6 +104,7 @@ export async function completeGoogleLogin(params: {
   const response = await fetch(GOOGLE_TOKEN, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(10_000),
     body: new URLSearchParams({
       code: params.code,
       client_id: env.googleClientId,

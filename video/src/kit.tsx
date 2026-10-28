@@ -128,7 +128,7 @@ export function Eyebrow({ children, size = 22, color = COLORS.steelHi }: { child
   );
 }
 
-/** StonkFun-style pair pill: "Paired with ● NVDAx". */
+/** Pair pill: "Paired with ● NVDAx". */
 export function PairPill({ ticker, size = 24, label = "Paired with" }: { ticker: string; size?: number; label?: string | null }) {
   return (
     <div
@@ -339,9 +339,9 @@ type Node = { id: string; x: number; y: number; w: number; title: string; sub: s
 
 const NODES: Node[] = [
   { id: "trade", x: 0, y: 200, w: 300, title: "A trade", sub: "buy or sell, any IMAGINE coin", tone: "steel" },
-  { id: "app", x: 430, y: 70, w: 330, title: "1% app fee", sub: "on trades routed via imagine.fun", tone: "steel" },
-  { id: "share", x: 430, y: 330, w: 330, title: "Creator share", sub: "forwarded by StonkFun", tone: "steel" },
-  { id: "vault", x: 900, y: 200, w: 300, title: "Pool vault", sub: "this coin's own vault", tone: "dream" },
+  { id: "app", x: 430, y: 70, w: 330, title: "0.5% on-chain", sub: "every trade, anywhere", tone: "steel" },
+  { id: "share", x: 430, y: 330, w: 330, title: "+1.5% app fee", sub: "on trades via imagine.fun", tone: "steel" },
+  { id: "vault", x: 900, y: 200, w: 300, title: "Coin's pool", sub: "its own vault", tone: "dream" },
   { id: "lockers", x: 1340, y: 70, w: 340, title: "90% lockers", sub: "by weight, in the pair asset", tone: "mint" },
   { id: "treasury", x: 1340, y: 330, w: 340, title: "10% treasury", sub: "frozen per pool", tone: "muted" },
 ];

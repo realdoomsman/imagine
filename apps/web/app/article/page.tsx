@@ -1,17 +1,14 @@
 import Link from "next/link";
 import { IMAGINE_PROGRAM_ID } from "@imagine/sdk";
 import { DocPage, DocSection } from "@/components/doc-page";
+import { pageMetadata } from "@/lib/seo";
 import { RAYDIUM_LAUNCHPAD_URL } from "@/components/site-header-links";
 
 const TITLE = "Imagine everyone locks.";
 const DESCRIPTION =
   "Why every memecoin pays the people who leave, and what happens when a coin launched on Raydium pays the people who stay — in whatever it's paired with.";
 
-export const metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  openGraph: { title: TITLE, description: DESCRIPTION, type: "article" },
-};
+export const metadata = pageMetadata({ title: TITLE, description: DESCRIPTION, path: "/article", type: "article" });
 
 /**
  * The launch essay: the argument for the product in full. Every number in it

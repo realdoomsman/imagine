@@ -44,7 +44,7 @@ import { describePositions } from "./portfolio.ts";
 import { launchRequest, LaunchSchema } from "./tx.ts";
 
 /** The mint keypair for an account launch: a function of the account's key and a nonce. */
-function launchMintKeypair(wallet: Keypair, nonce: string): Keypair {
+export function launchMintKeypair(wallet: Keypair, nonce: string): Keypair {
   return Keypair.fromSeed(createHmac("sha256", wallet.secretKey).update(`imagine-launch-mint:${nonce}`).digest());
 }
 
@@ -80,6 +80,9 @@ async function signAndSend(
   return signature;
 }
 
+/** The widest slippage the API will sign for an account wallet (the site offers 1–5%). */
+const CUSTODIAL_MAX_SLIPPAGE_BPS = 500;
+
 /**
  * SOL a wallet must keep: rent for the system account plus one transaction
  * fee with headroom, so a "send everything" never strands the account or
@@ -92,7 +95,7 @@ async function solReserve(): Promise<bigint> {
 
 /**
  * The signed-in account, or a 401 already sent. `recent` is for the routes
- * that move custody out (withdraw, export): they also want the sign-in itself
+ * that can move value out (withdraw, export, swap, launch): they also want the sign-in itself
  * to be fresh, so a stolen week-old cookie cannot drain the wallet. A user
  * who just signed in always passes.
  */
@@ -170,7 +173,7 @@ export async function accountRoutes(app: FastifyInstance) {
   });
 
   /** Token exchange for clients that obtained a Google ID token themselves. */
-  app.post("/auth/google", async (request, reply) => {
+  app.post("/auth/google", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const { credential } = z.object({ credential: z.string().min(20) }).parse(request.body);
     let identity;
     try {
@@ -330,11 +333,20 @@ export async function accountRoutes(app: FastifyInstance) {
     };
   });
 
-  /** Any protocol action, signed with the account's wallet. */
-  app.post("/me/action", async (request, reply) => {
-    const account = await requireAccount(request, reply);
-    if (!account) return;
+  /**
+   * Any protocol action, signed with the account's wallet. A swap moves the
+   * wallet's value into whatever coin it names at whatever price it is given,
+   * so — like withdraw — it needs a fresh sign-in and a slippage no wider than
+   * `CUSTODIAL_MAX_SLIPPAGE_BPS`: a stolen week-old cookie must not be able to
+   * buy an attacker's coin with the whole balance and let them sell into it.
+   */
+  app.post("/me/action", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
     const action = ActionSchema.parse(request.body);
+    const account = await requireAccount(request, reply, { recent: action.kind === "swap" });
+    if (!account) return;
+    if (action.kind === "swap" && action.slippageBps > CUSTODIAL_MAX_SLIPPAGE_BPS) {
+      return reply.code(400).send({ error: `slippage is capped at ${CUSTODIAL_MAX_SLIPPAGE_BPS / 100}% for account wallets` });
+    }
     const keypair = await loadKeypair(account);
     try {
       const built = await buildAction(keypair.publicKey, action);
@@ -356,7 +368,7 @@ export async function accountRoutes(app: FastifyInstance) {
    * The keypair is derived from the account's key and a random nonce, so
    * nothing is stored; `/me/launch` re-derives it from the nonce.
    */
-  app.post("/me/launch/mint", async (request, reply) => {
+  app.post("/me/launch/mint", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
     const nonce = randomBytes(16).toString("hex");
@@ -367,10 +379,12 @@ export async function accountRoutes(app: FastifyInstance) {
   /**
    * Launch a coin from the account wallet. The mint keypair comes from
    * `/me/launch/mint` and co-signs the step that creates the mint; a
-   * LaunchLab mint has no authority left to exercise afterwards.
+   * LaunchLab mint has no authority left to exercise afterwards. The dev buy
+   * spends the wallet, so this takes the same fresh sign-in and slippage cap
+   * as a swap.
    */
-  app.post("/me/launch", async (request, reply) => {
-    const account = await requireAccount(request, reply);
+  app.post("/me/launch", { config: { rateLimit: { max: 6, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const account = await requireAccount(request, reply, { recent: true });
     if (!account) return;
     // `resume` names a mint this account already created whose launch stopped
     // partway; the builder returns only what the chain shows is left.
@@ -379,6 +393,9 @@ export async function accountRoutes(app: FastifyInstance) {
       .parse(request.body);
     if (!body.resume && !body.mintNonce) {
       return reply.code(400).send({ error: "choose the mint first (POST /me/launch/mint)" });
+    }
+    if (body.slippageBps > CUSTODIAL_MAX_SLIPPAGE_BPS) {
+      return reply.code(400).send({ error: `slippage is capped at ${CUSTODIAL_MAX_SLIPPAGE_BPS / 100}% for account wallets` });
     }
     if (body.resume) {
       // Only a coin this account's own launch created: finishing signs a
@@ -421,7 +438,7 @@ export async function accountRoutes(app: FastifyInstance) {
    * no balance the API will refuse to move except the rent floor SOL needs to
    * keep the account open.
    */
-  app.post("/me/withdraw", async (request, reply) => {
+  app.post("/me/withdraw", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const account = await requireAccount(request, reply, { recent: true });
     if (!account) return;
     const body = z
@@ -479,7 +496,7 @@ export async function accountRoutes(app: FastifyInstance) {
    * account owns this wallet; IMAGINE holding a copy is a convenience, not a
    * claim. Logged, so the account can see when it was exported.
    */
-  app.post("/me/export-key", async (request, reply) => {
+  app.post("/me/export-key", { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
     const account = await requireAccount(request, reply, { recent: true });
     if (!account) return;
     const keypair = await loadKeypair(account);

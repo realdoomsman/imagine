@@ -1,8 +1,10 @@
 # IMAGINE — brand system
 
 The one source for name, voice, colour, type, mark and motion. Values here are
-the shipped ones: `apps/web/app/globals.css` (web) and `video/src/theme.ts`
-(films and cards) carry the same tokens hex for hex. Change them together.
+the shipped ones: `apps/web/app/globals.css` (web), `video/src/theme.ts`
+(films and cards) and the per-coin share card
+(`apps/web/app/coins/[mint]/opengraph-image.tsx`) carry the same tokens hex for
+hex. Change them together.
 
 ## Name
 
@@ -153,5 +155,6 @@ Rendered by Remotion from `video/` (see `docs/RUNBOOK.md` → Media):
 | X launch film, 1920×1080 ~80 s with voice-over, plus a 1080² feed cut with burned-in captions | `video/out/x/film/imagine-launch.mp4`, `imagine-launch-square.mp4`, `imagine-launch.srt` (from `video/src/x-film`, `video/audio/vo.py` + `launch.py`; `scripts/render-launch-film.sh`) |
 | X cards, 1600×900 | `video/out/cards/01-imagine.png` … `07-rules.png` (from `video/src/cards.ts`) |
 | Avatar 400², banner 1500×500, OG card 1200×630 | `video/out/profile/avatar.png`, `banner.png`, `card.png`; OG copy at `apps/web/app/opengraph-image.png` |
+| Per-coin share card, 1200×630 (og:image and twitter:image of every coin page) | `apps/web/app/coins/[mint]/opengraph-image.tsx`, drawn on request from the API (5-minute cache) with Sora + Geist Mono TTFs from `apps/web/assets/fonts/`; unknown coin or API down → a generic IMAGINE card |
 | X launch package (article images, posts, pinned post, profile) | `video/out/x/article/`, `video/out/x/posts/`, `video/out/x/profile/` (see `docs/LAUNCH-X.md`) |
 | Platform logo, 512² (written into the IMAGINE LaunchLab PlatformConfig) | `apps/web/public/brand/imagine-512.png` → https://imagine.fun/brand/imagine-512.png |

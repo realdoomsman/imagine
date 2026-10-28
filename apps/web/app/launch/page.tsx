@@ -1,10 +1,12 @@
 import { LaunchForm } from "@/components/launch-form";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: "/launch",
   title: "Launch a coin",
   description:
     "Launch a coin on Raydium LaunchLab, paired with SOL, USDC, a tokenized stock like NVDAx or any pair asset LaunchLab supports. Every trade pays the holders who lock it — in the asset it's paired with.",
-};
+});
 
 export default function LaunchPage() {
   return (

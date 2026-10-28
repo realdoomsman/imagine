@@ -49,7 +49,7 @@ export async function txRoutes(app: FastifyInstance) {
    * A launch as unsigned transactions, in order. The launch step is signed by
    * the mint keypair as well as the creator (`mintSigns`).
    */
-  app.post("/tx/launch", async (request, reply) => {
+  app.post("/tx/launch", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = LaunchSchema.extend({ creator: pubkey }).parse(request.body);
     const creator = new PublicKey(body.creator);
     try {
@@ -79,7 +79,7 @@ export async function txRoutes(app: FastifyInstance) {
    * names the wallet that will sign; the response is that wallet's unsigned
    * transaction plus whatever figures the action produced.
    */
-  app.post("/tx/action", async (request, reply) => {
+  app.post("/tx/action", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = z.object({ owner: pubkey }).and(ActionSchema).parse(request.body);
     const owner = new PublicKey(body.owner);
     try {

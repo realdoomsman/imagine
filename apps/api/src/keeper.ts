@@ -1,3 +1,6 @@
+import { randomBytes } from "node:crypto";
+import { hostname } from "node:os";
+import { setTimeout as sleep } from "node:timers/promises";
 import { getAssociatedTokenAddressSync, NATIVE_MINT } from "@solana/spl-token";
 import { Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import {
@@ -11,10 +14,12 @@ import {
 } from "@imagine/sdk";
 import bs58 from "bs58";
 import { sql } from "./db.ts";
+import { logger } from "./log.ts";
 import { env } from "./env.ts";
 import { rawToUsd, usdPrice } from "./quotes.ts";
 import { connection, imagine } from "./solana.ts";
 import { collectFeesInstructions, readMarket, uncollectedFees, unsyncedRewards } from "./raydium.ts";
+import { KEEPER_LOW_BALANCE, KEEPER_MIN_BALANCE, writeStatus } from "./status.ts";
 import { budgetInstructions } from "./transactions.ts";
 
 /**
@@ -48,8 +53,10 @@ import { budgetInstructions } from "./transactions.ts";
  * is withdrawable there without anyone doing anything.
  */
 
-/** Below this the keeper logs and stops sending rather than draining itself. */
-const MIN_KEEPER_BALANCE = 20_000_000n;
+const log = logger("keeper");
+
+/** While the wallet is low (but above the floor) the warning repeats this often, not every tick. */
+const LOW_BALANCE_WARN_EVERY_MS = 15 * 60_000;
 
 /** A pool is synced at most once per this long, however busy it is. */
 const SYNC_SPACING_MS = 10 * 60_000;
@@ -83,15 +90,84 @@ export function loadKeeper(): Keypair | null {
   return Keypair.fromSecretKey(bytes);
 }
 
+/** What the last balance read saw; published to /health with each run. */
+let lastBalance: bigint | null = null;
+let lowWarnedAt = 0;
+
+/**
+ * The wallet's balance, checked before each phase: below 0.03 SOL it warns
+ * (every `LOW_BALANCE_WARN_EVERY_MS`), below the 0.02 SOL floor it stops
+ * sending rather than drain itself.
+ */
 async function aboveFloor(keeper: Keypair): Promise<boolean> {
   const balance = BigInt(await connection.getBalance(keeper.publicKey));
-  if (balance >= MIN_KEEPER_BALANCE) return true;
-  console.warn(`keeper ${keeper.publicKey.toBase58()} holds ${balance} lamports; below floor, not sending`);
-  return false;
+  lastBalance = balance;
+  const fields = { wallet: keeper.publicKey, balanceLamports: balance, balanceSol: Number(balance) / 1e9 };
+  if (balance < KEEPER_MIN_BALANCE) {
+    if (Date.now() - lowWarnedAt >= LOW_BALANCE_WARN_EVERY_MS) {
+      lowWarnedAt = Date.now();
+      log.error("keeper wallet below floor; not sending", { ...fields, floorSol: Number(KEEPER_MIN_BALANCE) / 1e9 });
+    }
+    return false;
+  }
+  if (balance < KEEPER_LOW_BALANCE) {
+    if (Date.now() - lowWarnedAt >= LOW_BALANCE_WARN_EVERY_MS) {
+      lowWarnedAt = Date.now();
+      log.warn("keeper wallet low; top it up", { ...fields, lowSol: Number(KEEPER_LOW_BALANCE) / 1e9 });
+    }
+  } else if (lowWarnedAt !== 0) {
+    lowWarnedAt = 0;
+    log.info("keeper wallet topped up", fields);
+  }
+  return true;
 }
 
+/**
+ * The keeper must be a singleton — two would race to send the same cranks —
+ * but a deploy briefly overlaps the old indexer process with the new one. So
+ * every send first takes (or renews) a lease row; whoever holds an unexpired
+ * lease is the only sender, and a process that died lets it lapse.
+ */
+const LEASE_TTL_SECS = 300;
+const leaseHolder = `${hostname()}:${process.pid}:${randomBytes(4).toString("hex")}`;
+/** Null until the first attempt, so a process that starts on standby says so. */
+let holdingLease: boolean | null = null;
+
+class LeaseLost extends Error {
+  constructor() {
+    super("another keeper holds the lease");
+  }
+}
+
+async function takeLease(): Promise<boolean> {
+  const rows = await sql`
+    INSERT INTO leases (name, holder, expires_at)
+    VALUES ('keeper', ${leaseHolder}, NOW() + make_interval(secs => ${LEASE_TTL_SECS}))
+    ON CONFLICT (name) DO UPDATE SET holder = EXCLUDED.holder, expires_at = EXCLUDED.expires_at
+    WHERE leases.holder = EXCLUDED.holder OR leases.expires_at < NOW()
+    RETURNING holder
+  `;
+  const held = rows.length > 0;
+  if (held !== holdingLease) {
+    holdingLease = held;
+    if (held) log.info("keeper lease acquired", { holder: leaseHolder });
+    else log.warn("keeper lease held elsewhere; standing by", { holder: leaseHolder });
+  }
+  return held;
+}
+
+async function releaseLease(): Promise<void> {
+  await sql`DELETE FROM leases WHERE name = 'keeper' AND holder = ${leaseHolder}`;
+  holdingLease = false;
+}
+
+let lastSentAt: Date | null = null;
+
 async function send(keeper: Keypair, tx: Transaction): Promise<string> {
-  return sendAndConfirmTransaction(connection, tx, [keeper], { commitment: "confirmed", maxRetries: 3 });
+  if (!(await takeLease())) throw new LeaseLost();
+  const signature = await sendAndConfirmTransaction(connection, tx, [keeper], { commitment: "confirmed", maxRetries: 3 });
+  lastSentAt = new Date();
+  return signature;
 }
 
 interface Backoff {
@@ -157,13 +233,19 @@ async function collectPools(keeper: Keypair): Promise<{ synced: number; skipped:
         INSERT INTO keeper_runs (mint, amount, signature)
         VALUES (${key}, ${pending.toString()}::NUMERIC, ${signature})
       `;
-      console.log(
-        `${uncollected > 0n ? "collected" : "synced"} ${uncollected} uncollected + ${unsynced} unsynced quote units for ${key} in ${signature}; inflow +${gained}` +
-          (gained > 0n ? "" : `, backing off (strike ${syncBackoff.get(key)?.strikes})`),
-      );
+      log.info(uncollected > 0n ? "collected and synced pool fees" : "synced pool", {
+        action: uncollected > 0n ? "collect" : "sync",
+        mint: key,
+        signature,
+        uncollected,
+        unsynced,
+        inflowGained: gained,
+        ...(gained > 0n ? {} : { backoffStrike: syncBackoff.get(key)?.strikes }),
+      });
     } catch (error) {
+      if (error instanceof LeaseLost) throw error;
       settle(syncBackoff, key, false, Date.now());
-      console.error("fee collection failed", key, error);
+      log.error("fee collection failed", { action: "collect", mint: key, err: error });
     }
   }
   return { synced, skipped };
@@ -192,6 +274,10 @@ async function maturedCandidates(): Promise<typeof matured> {
     })
     .sort((a, b) => a.lockEnd - b.lockEnd);
   maturedScannedAt = Date.now();
+  // Positions closed by their owners never come back through `forget`; drop
+  // their backoff entries here so the map only ever holds live candidates.
+  const live = new Set(matured.map((candidate) => candidate.address.toBase58()));
+  for (const key of unlockBackoff.keys()) if (!live.has(key)) unlockBackoff.delete(key);
   return matured;
 }
 
@@ -270,13 +356,18 @@ async function unlockMatured(keeper: Keypair): Promise<number> {
       for (let i = 0; i < missing; i += 1) ataCreations.push(Date.now());
       unlocked += 1;
       forget(address);
-      console.log(
-        `unlocked matured position ${key} (owner ${position.owner.toBase58()}, mint ${pool.mint.toBase58()}) in ${signature}` +
-          (missing > 0 ? `; created ${missing} owner token account(s)` : ""),
-      );
+      log.info("unlocked matured position", {
+        action: "unlock",
+        position: key,
+        owner: position.owner,
+        mint: pool.mint,
+        signature,
+        ownerAccountsCreated: missing,
+      });
     } catch (error) {
+      if (error instanceof LeaseLost) throw error;
       settle(unlockBackoff, key, false, Date.now());
-      console.error("matured unlock failed", key, error);
+      log.error("matured unlock failed", { action: "unlock", position: key, err: error });
     }
   }
   return unlocked;
@@ -313,12 +404,17 @@ async function retireCapped(keeper: Keypair): Promise<number> {
         });
         const signature = await send(keeper, new Transaction().add(...budgetInstructions(10_000, 150_000), ...ixs));
         harvested += 1;
-        console.log(
-          `retired capped lock ${position.address.toBase58()} (owner ${position.owner.toBase58()}, mint ${mint.toBase58()}) in ${signature}`,
-        );
+        log.info("retired capped lock", {
+          action: "harvest",
+          position: position.address,
+          owner: position.owner,
+          mint,
+          signature,
+        });
       }
     } catch (error) {
-      console.error("capped-lock scan failed", mint.toBase58(), error);
+      if (error instanceof LeaseLost) throw error;
+      log.error("capped-lock scan failed", { action: "harvest", mint, err: error });
     }
   }
   return harvested;
@@ -347,50 +443,113 @@ async function claimTreasuries(keeper: Keypair): Promise<number> {
       const signature = await send(keeper, new Transaction().add(...budgetInstructions(10_000, 150_000), ...ixs));
       treasuryClaimedAt.set(key, Date.now());
       claimed += 1;
-      console.log(`claimed ${pool.treasuryClaimable} quote units to treasury for ${key} in ${signature}`);
+      log.info("claimed treasury share", { action: "claim_treasury", mint: key, amount: pool.treasuryClaimable, signature });
     } catch (error) {
+      if (error instanceof LeaseLost) throw error;
       treasuryClaimedAt.set(key, Date.now());
-      console.error("treasury claim failed", key, error);
+      log.error("treasury claim failed", { action: "claim_treasury", mint: key, err: error });
     }
   }
   return claimed;
 }
 
-export async function runOnce(
-  keeper: Keypair,
-): Promise<{ synced: number; skipped: number; unlocked: number; harvested: number; treasuries: number }> {
-  const idle = { synced: 0, skipped: 0, unlocked: 0, harvested: 0, treasuries: 0 };
-  if (!(await aboveFloor(keeper))) return idle;
-  const { synced, skipped } = await collectPools(keeper);
-  // Re-checked before each crank: the ones before spent from the same balance.
-  const unlocked = (await aboveFloor(keeper)) ? await unlockMatured(keeper) : 0;
-  const harvested = (await aboveFloor(keeper)) ? await retireCapped(keeper) : 0;
-  const treasuries = (await aboveFloor(keeper)) ? await claimTreasuries(keeper) : 0;
-  return { synced, skipped, unlocked, harvested, treasuries };
+export interface RunResult {
+  synced: number;
+  skipped: number;
+  unlocked: number;
+  harvested: number;
+  treasuries: number;
+  /** Another process holds the keeper lease; this one sent nothing. */
+  standby: boolean;
 }
 
-/** Start the loop if a keeper key is configured. Returns whether it started. */
-export function startKeeper(): boolean {
+export async function runOnce(keeper: Keypair): Promise<RunResult> {
+  const idle = { synced: 0, skipped: 0, unlocked: 0, harvested: 0, treasuries: 0, standby: false };
+  if (!(await takeLease())) return { ...idle, standby: true };
+  try {
+    if (!(await aboveFloor(keeper))) return idle;
+    const { synced, skipped } = await collectPools(keeper);
+    // Re-checked before each crank: the ones before spent from the same balance.
+    const unlocked = (await aboveFloor(keeper)) ? await unlockMatured(keeper) : 0;
+    const harvested = (await aboveFloor(keeper)) ? await retireCapped(keeper) : 0;
+    const treasuries = (await aboveFloor(keeper)) ? await claimTreasuries(keeper) : 0;
+    return { synced, skipped, unlocked, harvested, treasuries, standby: false };
+  } catch (error) {
+    if (error instanceof LeaseLost) return { ...idle, standby: true };
+    throw error;
+  }
+}
+
+export interface KeeperHandle {
+  /** Stop scheduling, let a run in progress finish (up to `graceMs`), release the lease. */
+  stop(graceMs: number): Promise<void>;
+}
+
+/** Start the loop if a keeper key is configured; null when it is not. */
+export function startKeeper(): KeeperHandle | null {
   const keeper = loadKeeper();
   if (!keeper) {
-    console.log("keeper disabled: KEEPER_KEYPAIR not set");
-    return false;
+    log.warn("keeper disabled: KEEPER_KEYPAIR not set");
+    void writeStatus("keeper", { enabled: false }).catch((err: unknown) =>
+      log.error("keeper status write failed", { err }),
+    );
+    return null;
   }
-  console.log(`keeper ${keeper.publicKey.toBase58()} every ${env.keeperIntervalMs}ms`);
+  log.info("keeper started", { wallet: keeper.publicKey, intervalMs: env.keeperIntervalMs });
 
-  let running = false;
-  const tick = async () => {
-    if (running) return; // a slow RPC must not stack runs
-    running = true;
-    try {
-      await runOnce(keeper);
-    } catch (error) {
-      console.error("keeper run failed", error);
-    } finally {
-      running = false;
-    }
+  let running: Promise<void> | null = null;
+  let stopped = false;
+  const tick = () => {
+    if (running || stopped) return; // a slow RPC must not stack runs
+    running = (async () => {
+      const startedAt = new Date();
+      let result: RunResult | null = null;
+      let failure: unknown = null;
+      try {
+        result = await runOnce(keeper);
+      } catch (error) {
+        failure = error;
+        log.error("keeper run failed", { err: error });
+      }
+      const tookMs = Date.now() - startedAt.getTime();
+      // Only the lease holder speaks for the keeper on /health.
+      if (result?.standby) return;
+      // Each send is logged where it happens; the summary only when there were any.
+      if (result && result.synced + result.unlocked + result.harvested + result.treasuries > 0) {
+        log.info("keeper run", { ...result, tookMs, balanceLamports: lastBalance });
+      }
+      await writeStatus("keeper", {
+        enabled: true,
+        wallet: keeper.publicKey.toBase58(),
+        intervalMs: env.keeperIntervalMs,
+        balanceLamports: lastBalance?.toString() ?? null,
+        lastRunAt: startedAt.toISOString(),
+        lastRunMs: tookMs,
+        lastRunOk: failure === null,
+        lastError: failure === null ? null : failure instanceof Error ? failure.message.slice(0, 300) : String(failure),
+        lastResult: result,
+        lastSentAt: lastSentAt?.toISOString() ?? null,
+      }).catch((err: unknown) => log.error("keeper status write failed", { err }));
+    })().finally(() => {
+      running = null;
+    });
   };
-  void tick();
-  setInterval(() => void tick(), env.keeperIntervalMs);
-  return true;
+  tick();
+  const timer = setInterval(tick, env.keeperIntervalMs);
+
+  return {
+    async stop(graceMs: number) {
+      stopped = true;
+      clearInterval(timer);
+      if (running) {
+        await Promise.race([running, sleep(graceMs, undefined, { ref: false })]);
+      }
+      // A run cut off mid-send keeps the lease until it expires: the next
+      // process waits rather than risk sending the same crank twice.
+      if (!running && holdingLease === true) {
+        await releaseLease().catch((err: unknown) => log.error("keeper lease release failed", { err }));
+      }
+      log.info("keeper stopped", { finishedRun: !running });
+    },
+  };
 }
