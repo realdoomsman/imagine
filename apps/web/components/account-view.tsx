@@ -11,6 +11,7 @@ import { useAccount } from "./account-provider";
 import { ImagineMark } from "./imagine-mark";
 import { CopyButton } from "./copy-button";
 import { PortfolioView } from "./portfolio-view";
+import { CLAIM_ALL, ClaimAll } from "./claim-all";
 import { PositionCard } from "./position-card";
 import { Shimmer } from "./skeleton";
 import { SignInPrompt } from "./sign-in-prompt";
@@ -235,6 +236,16 @@ export function AccountView() {
           </p>
         ) : (
           <div className="mt-3 space-y-3">
+            <ClaimAll
+              positions={view.positions}
+              busy={busy}
+              onClaimAll={(onSent) =>
+                void run(CLAIM_ALL, async () => {
+                  const { signatures } = await api.claimAll();
+                  signatures.forEach(onSent);
+                })
+              }
+            />
             {view.positions.map((position) => {
               const key = `${position.mint}-${position.index}`;
               const base = { mint: position.mint, index: position.index };
@@ -328,6 +339,10 @@ function describeAction(kind: string, detail: Record<string, unknown>): string {
       return `Locked ${coin}${term ? ` for ${term}` : ""}`;
     case "claim":
       return `Claimed rewards on ${coin}`;
+    case "claimAll": {
+      const claimed = Array.isArray(detail.claims) ? detail.claims.length : 0;
+      return claimed > 0 ? `Claimed rewards on ${claimed} lock${claimed === 1 ? "" : "s"}` : "Claimed rewards on every lock";
+    }
     case "renounce":
       return `Gave up earnings on ${coin}`;
     case "lockForever":

@@ -185,6 +185,16 @@ export type Expectation =
       kind: "burn";
       mint: PublicKey;
       amount: bigint;
+    }
+  | {
+      /**
+       * Claim the signer's own positions, by position address (base58), and
+       * nothing else. Consumed: each address is removed once claimed, so the
+       * same set held across a batch of transactions lets each position be
+       * claimed at most once in all of them.
+       */
+      kind: "claims";
+      positions: Set<string>;
     };
 
 /**
@@ -239,6 +249,9 @@ function isOwnAta(account: PublicKey | undefined, mint: PublicKey | undefined, s
  * - IMAGINE `compound`: only paid and signed by the signer for the signer's
  *   own position named by a `compound` expectation, exactly once, with a
  *   minimum output held to the page's estimate;
+ * - IMAGINE `claim` under a `claims` expectation: signed by and paid to the
+ *   signer, only for positions in the set, each at most once, at least one,
+ *   and no other IMAGINE instruction alongside;
  * - Token-2022 `BurnChecked`: only with a `burn` expectation, from the
  *   signer's own account for that mint, signed by the signer, for exactly
  *   the amount typed, exactly once;
@@ -276,6 +289,7 @@ export function assertTransactionAllowed(
   let burns = 0;
   let autoCompoundSets = 0;
   let compounds = 0;
+  let claims = 0;
   let unitLimit: number | null = null;
   let unitPrice: bigint | null = null;
   let dataLimit: number | null = null;
@@ -370,6 +384,20 @@ export function assertTransactionAllowed(
     if (program.equals(IMAGINE_PROGRAM_ID)) {
       const name = IMAGINE_USER_INSTRUCTIONS.get(hex(data));
       if (!name) refuse("the transaction calls an IMAGINE instruction the site never sends");
+      if (expect?.kind === "claims") {
+        // [owner, pool, reward_vault, reward_token_account, quote_mint,
+        //  quote_token_program, owner_quote_account (none for SOL), position, system_program].
+        if (name !== "claim") refuse(`the transaction does more than claim (${name})`);
+        if (!accounts[0]?.equals(signer)) refuse("the claim is signed by another account");
+        if (!accounts[6]?.equals(IMAGINE_PROGRAM_ID) && !isOwnAta(accounts[6], accounts[4], signer)) {
+          refuse("the claim pays into an account that is not yours");
+        }
+        if (!expect.positions.delete(accounts[7]?.toBase58() ?? "")) {
+          refuse("the transaction claims a lock you did not choose, or one it already claims");
+        }
+        claims += 1;
+        continue;
+      }
       if (name === "deposit_reward") {
         // [payer, pool, …]; args amount u64, kind u8 (0 buy, 1 sell).
         if (expect?.kind !== "trade") refuse("the transaction pays an app fee outside a trade");
@@ -527,6 +555,10 @@ export function assertTransactionAllowed(
     refuse("the transaction's priority fee is more than 0.01 SOL");
   }
 
+  if (expect?.kind === "claims") {
+    if (claims === 0) refuse("the transaction claims nothing");
+    return;
+  }
   if (expect?.kind === "lockForever") {
     if (lockForevers !== 1) refuse("the transaction does not lock exactly the one position asked for");
     return;
@@ -669,6 +701,57 @@ export async function signAndSend(
 
   const signed = await wallet.signTransaction(tx);
   if (cosigners.length > 0) signed.sign(cosigners);
+  return sendSigned(connection, signed, fresh);
+}
+
+/**
+ * Sign several independent transactions the API assembled with ONE wallet
+ * prompt (`signAllTransactions`; one prompt each where a wallet lacks it),
+ * then send them one after another, each confirmed before the next.
+ *
+ * Every transaction is checked with `assertTransactionAllowed` against the
+ * same `expect` before the wallet sees any of them, so a consumed set (a
+ * `claims` expectation) holds across the whole batch. All are re-stamped
+ * with one fresh blockhash. `onSent` reports each landed signature in order;
+ * a failure throws after the ones before it have landed.
+ */
+export async function signAndSendAll(
+  connection: Connection,
+  wallet: WalletContextState,
+  built: BuiltTransaction[],
+  expect: Expectation,
+  onSent: (signature: string, index: number) => void,
+): Promise<string[]> {
+  const { publicKey: signer, signTransaction, signAllTransactions } = wallet;
+  if (!signer || !signTransaction) throw new Error("wallet cannot sign transactions");
+  const txs = built.map((item) => VersionedTransaction.deserialize(Buffer.from(item.transaction, "base64")));
+  for (const tx of txs) {
+    assertTransactionAllowed(tx.message, await fetchLookupTables(connection, tx.message), signer, expect);
+  }
+  const fresh = await connection.getLatestBlockhash("confirmed");
+  for (const tx of txs) tx.message.recentBlockhash = fresh.blockhash;
+  let signed: VersionedTransaction[];
+  if (signAllTransactions) {
+    signed = await signAllTransactions(txs);
+  } else {
+    signed = [];
+    for (const tx of txs) signed.push(await signTransaction(tx));
+  }
+  const signatures: string[] = [];
+  for (const [index, tx] of signed.entries()) {
+    const signature = await sendSigned(connection, tx, fresh);
+    signatures.push(signature);
+    onSent(signature, index);
+  }
+  return signatures;
+}
+
+/** Send signed bytes through our RPC and wait for them, against the blockhash they were signed with. */
+async function sendSigned(
+  connection: Connection,
+  signed: VersionedTransaction,
+  fresh: { blockhash: string; lastValidBlockHeight: number },
+): Promise<string> {
   const raw = signed.serialize();
   // An RPC node a slot or two behind answers "Blockhash not found" for a
   // hash the network already has; the signed bytes stay valid, so resend.

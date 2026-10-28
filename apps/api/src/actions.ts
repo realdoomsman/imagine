@@ -4,6 +4,7 @@ import {
   claimableFor,
   DAY,
   HOUR,
+  decodePool,
   decodePosition,
   formatDuration,
   MIN_COMPOUND_QUOTE,
@@ -26,7 +27,7 @@ import {
   unsyncedRewards,
   valuationAccounts,
 } from "./raydium.ts";
-import { budgetInstructions, launchLookupTable, tablesFor } from "./transactions.ts";
+import { budgetInstructions, fits, launchLookupTable, tablesFor } from "./transactions.ts";
 
 export { ActionError };
 
@@ -389,4 +390,100 @@ export async function buildAction(owner: PublicKey, action: Action): Promise<Bui
       };
     }
   }
+}
+
+/** Claim every lock the signer holds that has something to pay: no fields, the owner is the signer. */
+export const ClaimAllSchema = z.object({ kind: z.literal("claimAll") });
+
+/** One claim inside a claim-all transaction. */
+export interface ClaimRef {
+  mint: string;
+  index: number;
+  /** Quote base units the claim pays, projected to now. */
+  pending: string;
+}
+
+/** One transaction of a claim-all: as many claims as fit, and which. */
+export interface ClaimBatch extends BuiltAction {
+  claims: ClaimRef[];
+}
+
+/**
+ * The most claims packed into one transaction: each is a few tens of
+ * thousands of compute units, so packet size is the real limit and this only
+ * keeps a transaction comfortably inside the compute ceiling.
+ */
+const MAX_CLAIMS_PER_TRANSACTION = 8;
+/** The most transactions one claim-all builds; a wallet holding more locks claims the rest with another press. */
+const MAX_CLAIM_ALL_TRANSACTIONS = 10;
+
+/**
+ * Every claim `owner` can make right now, packed into as few transactions as
+ * fit: each starts with one compute budget, then `claim` (and the idempotent
+ * quote-ATA create it needs, once per quote) for one lock after another until
+ * the next would overrun the packet. Locks of the same coin sit together so
+ * they share accounts. Pending is the pool projected to now, the program's
+ * own arithmetic, so a lock listed here pays when it lands.
+ */
+export async function buildClaimAll(owner: PublicKey): Promise<ClaimBatch[]> {
+  const positions = await imagine.fetchPositionsByOwner(owner);
+  const poolKeys = [...new Set(positions.map((position) => position.pool.toBase58()))].map((key) => new PublicKey(key));
+  const poolInfos = poolKeys.length > 0 ? await connection.getMultipleAccountsInfo(poolKeys) : [];
+  const projected = new Map(
+    await Promise.all(
+      poolInfos.flatMap((info, i) => {
+        if (!info) return [];
+        const mint = decodePool(info.data).mint;
+        return [imagine.fetchProjectedPool(mint).then((pool) => [poolKeys[i].toBase58(), pool] as const)];
+      }),
+    ),
+  );
+  const claimable = positions
+    .flatMap((position) => {
+      const pool = projected.get(position.pool.toBase58());
+      const pending = pool ? claimableFor(position, pool) : 0n;
+      return pool && pending > 0n ? [{ position, pool, pending }] : [];
+    })
+    .sort((a, b) => a.pool.mint.toBase58().localeCompare(b.pool.mint.toBase58()) || a.position.index - b.position.index);
+  if (claimable.length === 0) throw new ActionError(409, "none of your locks has anything to claim yet");
+
+  const launchTable = await launchLookupTable();
+  const candidates = launchTable ? [launchTable] : [];
+
+  const batches: ClaimBatch[] = [];
+  let instructions = budgetInstructions(100_000);
+  let claims: ClaimRef[] = [];
+  const close = () => {
+    batches.push({ instructions, lookupTables: tablesFor(instructions, owner, candidates), meta: {}, claims });
+    instructions = budgetInstructions(100_000);
+    claims = [];
+  };
+  for (const { position, pool, pending } of claimable) {
+    const ixs = await imagine.claim({ owner, mint: pool.mint, quote: quoteOf(pool), index: position.index });
+    // Locks paid in the same quote need its idempotent ATA create only once.
+    const added = ixs.filter(
+      (ix) =>
+        !instructions.some(
+          (existing) =>
+            existing.programId.equals(ix.programId) &&
+            Buffer.compare(existing.data, ix.data) === 0 &&
+            existing.keys.length === ix.keys.length &&
+            existing.keys.every((key, i) => key.pubkey.equals(ix.keys[i].pubkey)),
+        ),
+    );
+    const next = [...instructions, ...added];
+    const full =
+      claims.length >= MAX_CLAIMS_PER_TRANSACTION ||
+      !(fits(next, owner) || (candidates.length > 0 && fits(next, owner, candidates)));
+    if (claims.length > 0 && full) {
+      close();
+      if (batches.length === MAX_CLAIM_ALL_TRANSACTIONS) break;
+      instructions.push(...ixs);
+    } else {
+      instructions = next;
+    }
+    claims.push({ mint: pool.mint.toBase58(), index: position.index, pending: pending.toString() });
+  }
+  if (claims.length > 0 && batches.length < MAX_CLAIM_ALL_TRANSACTIONS) close();
+  return batches;
 }

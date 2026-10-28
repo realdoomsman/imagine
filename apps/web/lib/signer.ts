@@ -1,10 +1,11 @@
 "use client";
 
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { positionPda } from "@imagine/sdk";
 import { PublicKey } from "@solana/web3.js";
 import { useCallback, useMemo } from "react";
 import { api, post } from "./api.ts";
-import { signAndSend, type BuiltTransaction, type Expectation } from "./send.ts";
+import { signAndSend, signAndSendAll, type BuiltTransaction, type Expectation } from "./send.ts";
 import { useAccount } from "@/components/account-provider";
 
 /**
@@ -27,6 +28,12 @@ export interface Actor {
    * holds a wallet-signed trade to what the page showed (`assertTransactionAllowed`).
    */
   act: (action: Record<string, unknown>, expect?: Expectation) => Promise<string>;
+  /**
+   * Claim every lock with something to pay. `positions` are the locks the
+   * page shows; a wallet signs only claims on those, each at most once.
+   * `onSent` reports each transaction as it lands; resolves to all of them.
+   */
+  claimAll: (positions: Array<{ mint: string; index: number }>, onSent: (signature: string) => void) => Promise<string[]>;
 }
 
 /** Fired on `window` after any action lands, so panels re-read the chain. */
@@ -63,5 +70,29 @@ export function useActor(): Actor {
     [account, wallet, connection],
   );
 
-  return { ready, publicKey, via, act };
+  const claimAll = useCallback(
+    async (positions: Array<{ mint: string; index: number }>, onSent: (signature: string) => void) => {
+      let signatures: string[];
+      if (account) {
+        ({ signatures } = await api.claimAll());
+        signatures.forEach(onSent);
+      } else {
+        const owner = wallet.publicKey;
+        if (!owner) throw new Error("connect a wallet or sign in first");
+        const { transactions } = await post<{ transactions: BuiltTransaction[] }>("/api/tx/claim-all", {
+          owner: owner.toBase58(),
+        });
+        const expect: Expectation = {
+          kind: "claims",
+          positions: new Set(positions.map((p) => positionPda(new PublicKey(p.mint), owner, p.index).toBase58())),
+        };
+        signatures = await signAndSendAll(connection, wallet, transactions, expect, onSent);
+      }
+      window.dispatchEvent(new Event(CHAIN_CHANGED));
+      return signatures;
+    },
+    [account, wallet, connection],
+  );
+
+  return { ready, publicKey, via, act, claimAll };
 }

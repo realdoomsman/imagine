@@ -349,7 +349,12 @@ estimate). Swaps and fee deposits are refused in any transaction that is not a
 trade or a launch. `set_auto_compound` and `compound` pass only for the
 signer's own position (compound paid and owned by the signer, with a nonzero
 minimum output within 30% of the page's estimate), each exactly once and only
-when the page asked for it.
+when the page asked for it. "Claim all" (`POST /tx/claim-all`, or `claimAll`
+through `/me/action` for Google accounts) packs one `claim` per lock with
+something to pay into as few transactions as fit (at most 8 claims each);
+the wallet signs them in one prompt and the check passes only `claim`s signed
+by and paid to the signer, for locks the page showed, each at most once
+across the whole batch.
 
 Coin links: `https://raydium.io/launchpad/token/?mint=<mint>`; after graduation
 also `https://raydium.io/swap/?inputMint=<quote>&outputMint=<mint>`.

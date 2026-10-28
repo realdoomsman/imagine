@@ -439,6 +439,9 @@ export const api = {
   logout: () => post<{ ok: true }>("/api/auth/logout", {}),
   act: (action: Record<string, unknown>) =>
     post<{ signature: string } & Record<string, unknown>>("/api/me/action", action),
+  /** Claim every lock with something to pay, signed by the Imagine wallet: one signature per transaction. */
+  claimAll: () =>
+    post<{ signature: string; signatures: string[]; claimed: number }>("/api/me/action", { kind: "claimAll" }),
   withdraw: (body: { to: string; amount: string; mint?: string }) =>
     post<{ signature: string }>("/api/me/withdraw", body),
   exportKey: () => post<{ wallet: string; secretKey: string }>("/api/me/export-key", {}),

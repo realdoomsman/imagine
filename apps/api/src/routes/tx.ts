@@ -1,7 +1,7 @@
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { ActionError, ActionSchema, baseUnits, buildAction, lockDuration, pubkey } from "../actions.ts";
+import { ActionError, ActionSchema, baseUnits, buildAction, buildClaimAll, lockDuration, pubkey } from "../actions.ts";
 import { quoteInfo } from "../quotes.ts";
 import { buildLaunch } from "../raydium.ts";
 import { prepare, serialize } from "../transactions.ts";
@@ -87,6 +87,29 @@ export async function txRoutes(app: FastifyInstance) {
     try {
       const built = await buildAction(owner, body);
       return { ...(await serialize(built.instructions, owner, built.lookupTables)), ...built.meta };
+    } catch (error) {
+      if (error instanceof ActionError) return reply.code(error.status).send({ error: error.message });
+      throw error;
+    }
+  });
+
+  /**
+   * Claim every lock the owner holds that has something to pay, as unsigned
+   * transactions with as many claims each as fit. They are independent of
+   * one another, so each is simulated and sized now, and `claims` says which
+   * locks each one pays so the wallet can be shown and held to exactly that.
+   */
+  app.post("/tx/claim-all", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const owner = new PublicKey(z.object({ owner: pubkey }).parse(request.body).owner);
+    try {
+      const batches = await buildClaimAll(owner);
+      const transactions = await Promise.all(
+        batches.map(async (batch) => ({
+          ...(await serialize(batch.instructions, owner, batch.lookupTables)),
+          claims: batch.claims,
+        })),
+      );
+      return { transactions };
     } catch (error) {
       if (error instanceof ActionError) return reply.code(error.status).send({ error: error.message });
       throw error;

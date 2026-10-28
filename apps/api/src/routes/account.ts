@@ -17,7 +17,7 @@ import { earlyExitPenalty, formatSol, quoteByMint } from "@imagine/sdk";
 import bs58 from "bs58";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { ActionError, ActionSchema, baseUnits, buildAction, pubkey } from "../actions.ts";
+import { ActionError, ActionSchema, baseUnits, buildAction, buildClaimAll, ClaimAllSchema, pubkey } from "../actions.ts";
 import {
   beginGoogleLogin,
   clearSession,
@@ -351,10 +351,35 @@ export async function accountRoutes(app: FastifyInstance) {
    * Burning coins and locking a position forever destroy value for good, so
    * they take the same fresh sign-in. Compounding spends earnings on a buy at
    * market price, and auto-compound lets the keeper do that from then on, so
-   * both take it too.
+   * both take it too. `claimAll` claims every lock with something to pay,
+   * one transaction after another; claims only ever pay this wallet, so like
+   * a single claim it needs no fresh sign-in.
    */
   app.post("/me/action", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
-    const action = ActionSchema.parse(request.body);
+    const action = ActionSchema.or(ClaimAllSchema).parse(request.body);
+    if (action.kind === "claimAll") {
+      const account = await requireAccount(request, reply);
+      if (!account) return;
+      const keypair = await loadKeypair(account);
+      const signatures: string[] = [];
+      let claimed = 0;
+      try {
+        for (const batch of await buildClaimAll(keypair.publicKey)) {
+          const signature = await signAndSend(keypair, batch.instructions, [], batch.lookupTables);
+          signatures.push(signature);
+          claimed += batch.claims.length;
+          await recordAction(account, "claimAll", { claims: batch.claims }, signature);
+        }
+        return { signature: signatures[signatures.length - 1], signatures, claimed };
+      } catch (error) {
+        if (error instanceof ActionError) {
+          const message = claimed > 0 ? `claimed ${claimed} locks, then stopped: ${error.message}` : error.message;
+          await recordAction(account, "claimAll", { error: message }, null);
+          return reply.code(error.status).send({ error: message, signatures, claimed });
+        }
+        throw error;
+      }
+    }
     const recent =
       action.kind === "swap" ||
       action.kind === "burn" ||
