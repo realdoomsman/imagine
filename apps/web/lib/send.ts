@@ -491,20 +491,43 @@ export async function signAndSend(
   const required = message.staticAccountKeys.slice(0, message.header.numRequiredSignatures);
   const cosigners = extraSigners.filter((signer) => required.some((key) => key.equals(signer.publicKey)));
 
+  // The API's blockhash is already some seconds old and the wallet's approval
+  // screen can take a minute more; re-stamp it from this connection right
+  // before signing (nothing has signed yet, and the checks above don't depend
+  // on it) so the transaction lands well inside its validity window.
+  const fresh = await connection.getLatestBlockhash("confirmed");
+  if (tx instanceof Transaction) {
+    tx.recentBlockhash = fresh.blockhash;
+    tx.lastValidBlockHeight = fresh.lastValidBlockHeight;
+  } else {
+    tx.message.recentBlockhash = fresh.blockhash;
+  }
+
   let signature: string;
   if (cosigners.length === 0) {
-    signature = await wallet.sendTransaction(tx, connection, { maxRetries: 3 });
+    signature = await wallet.sendTransaction(tx, connection, { maxRetries: 3, preflightCommitment: "confirmed" });
   } else {
     const signed = await wallet.signTransaction(tx);
     if (signed instanceof Transaction) signed.partialSign(...cosigners);
     else signed.sign(cosigners);
-    signature = await connection.sendRawTransaction(signed.serialize(), { maxRetries: 3 });
+    const raw = signed.serialize();
+    // An RPC node a slot or two behind answers "Blockhash not found" for a
+    // hash the network already has; the signed bytes stay valid, so resend.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        signature = await connection.sendRawTransaction(raw, { maxRetries: 3, preflightCommitment: "confirmed" });
+        break;
+      } catch (error) {
+        if (attempt >= 5 || !/blockhash not found/i.test(String((error as Error)?.message ?? error))) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
+    }
   }
   const result = await connection.confirmTransaction(
     {
       signature,
-      blockhash: built.blockhash,
-      lastValidBlockHeight: built.lastValidBlockHeight,
+      blockhash: fresh.blockhash,
+      lastValidBlockHeight: fresh.lastValidBlockHeight,
     },
     "confirmed",
   );
