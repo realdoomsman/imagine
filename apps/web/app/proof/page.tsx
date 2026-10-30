@@ -214,7 +214,12 @@ export default async function ProofPageRoute({ searchParams }: { searchParams: S
                 </Link>
               ))}
             </nav>
-            <ProofFeed key={`${mint ?? "all"}-${type}`} initial={feed} mint={mint} type={type} />
+            <ProofFeed
+              key={`${mint ?? "all"}-${type}`}
+              initial={{ ...feed, payouts: feed.payouts.filter((row) => !isPlatformTicker(row.symbol)) }}
+              mint={mint}
+              type={type}
+            />
           </section>
         </>
       )}
