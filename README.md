@@ -187,7 +187,7 @@ GHCR when a local build is needed.
 | Service | Dockerfile | Needs |
 |---|---|---|
 | `imagine-api` (`ROLE=index`, HTTP) and `imagine-indexer` (`ROLE=indexer`, keeper) | `apps/api/Dockerfile` | `DATABASE_URL`, `RPC_URL`, `RPC_WS_URL`, `RPC_PROXY_LIMIT_PER_MIN`, `CLUSTER`, `CORS_ORIGINS`, `SITE_ORIGIN`, `API_PUBLIC_ORIGIN`, `COOKIE_SECURE`, `LAUNCH_ALT`, `IMAGINE_INTERNAL_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `WALLET_MASTER_KEY`, `SESSION_SECRET`; indexer: `KEEPER_KEYPAIR`, `KEEPER_INTERVAL_MS`, `SYNC_MIN_USD` |
-| `imagine-web` | `apps/web/Dockerfile` | Build args `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_RPC_URL` (`https://api.imagine.fun/rpc`), `NEXT_PUBLIC_WS_URL` (`wss://api.imagine.fun/rpc-ws`), `NEXT_PUBLIC_CLUSTER`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_OFFICIAL_MINT`, `NEXT_PUBLIC_X_URL`; runtime `IMAGINE_INTERNAL_KEY` |
+| `imagine-web` | `apps/web/Dockerfile` | Build args `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_RPC_URL` (`https://api.imagine.fun/rpc`), `NEXT_PUBLIC_WS_URL` (`wss://api.imagine.fun/rpc-ws`), `NEXT_PUBLIC_CLUSTER`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_X_URL`; runtime `IMAGINE_INTERNAL_KEY` |
 
 See `docs/RUNBOOK.md` for the platform setup, the program upgrade, DNS, OAuth
 and the mainnet checklist; `docs/SPEC.md` for the mechanism; `docs/AUDIT.md`

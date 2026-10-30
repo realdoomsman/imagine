@@ -1,6 +1,8 @@
 /**
- * The official $IMAGINE coin, once it exists. Unset until a mint is
- * configured, and every "official coin" surface stays hidden while it is.
- * Anything else named IMAGINE is not ours.
+ * The platform does not promote a coin of its own: no contract address, no
+ * ticker, no buy link. Coins trading under the platform's name ($IMAGINE)
+ * are kept off every list on the site. Matched by symbol so client
+ * components can filter without shipping any mint address.
  */
-export const IMAGINE_MINT: string | null = process.env.NEXT_PUBLIC_OFFICIAL_MINT?.trim() || null;
+export const isPlatformTicker = (symbol: string | null | undefined): boolean =>
+  symbol?.trim().toUpperCase() === "IMAGINE";

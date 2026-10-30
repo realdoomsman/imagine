@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { api } from "@/lib/api";
+import { isPlatformTicker } from "@/lib/official";
 
 export const revalidate = 600;
 
@@ -23,7 +24,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let coins: MetadataRoute.Sitemap = [];
   try {
     const { pools } = await api.pools({ sort: "new", limit: 100 });
-    coins = pools.map((pool) => ({ url: `${base}/coins/${pool.mint}`, changeFrequency: "hourly" as const, priority: 0.6 }));
+    coins = pools
+      .filter((pool) => !isPlatformTicker(pool.symbol))
+      .map((pool) => ({ url: `${base}/coins/${pool.mint}`, changeFrequency: "hourly" as const, priority: 0.6 }));
   } catch {
     // The index being down should not take the sitemap with it.
   }

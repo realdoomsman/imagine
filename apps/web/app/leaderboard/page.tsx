@@ -2,6 +2,7 @@ import { formatDuration, formatMultiplier, formatTokenAmount, shortAddress } fro
 import Link from "next/link";
 import { api, type Leaderboard } from "@/lib/api";
 import { formatQuote, formatUsd } from "@/lib/format";
+import { isPlatformTicker } from "@/lib/official";
 import { ImagineMark } from "@/components/imagine-mark";
 import { PairPill } from "@/components/pair-pill";
 import { pageMetadata } from "@/lib/seo";
@@ -32,7 +33,8 @@ export default async function LeaderboardPage({ searchParams }: { searchParams: 
   try {
     // Tag the rows with the board that was asked for, whatever the response echoes.
     const { rows } = await api.leaderboard<BoardKey>(active.key);
-    data = { board: active.key, rows } as Leaderboard;
+    const shown = rows.filter((row) => !("symbol" in row) || !isPlatformTicker(row.symbol));
+    data = { board: active.key, rows: shown } as Leaderboard;
   } catch (cause) {
     // The reason stays in the server log; visitors get a plain sentence.
     console.error("leaderboard: load failed", cause);

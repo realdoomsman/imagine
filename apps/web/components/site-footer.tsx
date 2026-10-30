@@ -1,7 +1,5 @@
 import Link from "next/link";
 import { IMAGINE_PROGRAM_ID } from "@imagine/sdk";
-import { IMAGINE_MINT } from "@/lib/official";
-import { OfficialCa } from "./official-coin";
 import { ImagineLogo } from "./imagine-mark";
 import { NAV, RAYDIUM_LAUNCHPAD_URL, X_URL } from "./site-header-links";
 
@@ -33,12 +31,6 @@ export function SiteFooter() {
               ↗
             </span>
           </a>
-          {IMAGINE_MINT ? (
-            <div className="mt-6">
-              <p className="eyebrow">Official $IMAGINE contract</p>
-              <OfficialCa className="mt-2" />
-            </div>
-          ) : null}
         </div>
 
         <FooterColumn title="Product" links={NAV.slice(0, 4)} />

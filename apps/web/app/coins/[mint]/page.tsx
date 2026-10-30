@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { api, ApiError, type PoolDetail, type RewardHistory } from "@/lib/api";
 import { loadFees } from "@/lib/fees";
 import { explorerAccount, FOREVER_TOOLTIP, formatBps, formatPrice, formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
-import { IMAGINE_MINT } from "@/lib/official";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 import { X_HANDLE } from "@/components/site-header-links";
 import { CopyButton } from "@/components/copy-button";
@@ -140,7 +139,6 @@ export default async function CoinPage({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <h1 className="t-h2 break-words">{name}</h1>
-              {mint === IMAGINE_MINT ? <span className="pill pill-steel">Official</span> : null}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="num text-[15px] text-fg-soft">${symbol}</span>

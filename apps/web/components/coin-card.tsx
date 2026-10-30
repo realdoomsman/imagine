@@ -2,7 +2,6 @@ import { formatPercent, formatTokenAmount, shortAddress } from "@imagine/sdk";
 import Link from "next/link";
 import type { PoolSummary } from "@/lib/api";
 import { formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
-import { IMAGINE_MINT } from "@/lib/official";
 import { PairPill } from "./pair-pill";
 
 /**
@@ -42,7 +41,6 @@ export function CoinCard({ pool }: { pool: PoolSummary }) {
             <h3 className="truncate text-[16px] font-bold tracking-[-0.02em] text-fg">
               {pool.name ?? shortAddress(pool.mint)}
             </h3>
-            {pool.mint === IMAGINE_MINT ? <span className="pill pill-steel h-[20px] px-2 text-[10.5px]">Official</span> : null}
           </div>
           <p className="num mt-0.5 truncate text-[12.5px] text-muted">${pool.symbol ?? shortAddress(pool.mint)}</p>
           <PairPill quote={pool.quote} className="mt-2" />

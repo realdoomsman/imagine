@@ -201,8 +201,7 @@ Do not skip an item because the previous one passed.
 6. Upgrade with that artifact and publish the verification (steps 2–3 above);
    confirm with `config-show.sh` and `solana-verify remote get-status`.
 7. Services green; the throwaway-coin round trip of step 4.
-8. Set `NEXT_PUBLIC_OFFICIAL_MINT` only when $IMAGINE exists.
-9. Only then announce.
+8. Only then announce.
 
 ### Keys and authority
 
@@ -242,7 +241,7 @@ not optional: without it `pools` never fills and nothing cranks.
 `NEXT_PUBLIC_*` values are baked into the web bundle at build time, so changing
 one means a rebuild. For a local image build, `scripts/push-api.sh` and
 `scripts/push-web.sh` push the same images to GHCR (`push-web.sh` requires
-`GOOGLE_CLIENT_ID`; optional `API_URL`, `CLUSTER`, `IMAGE`, `OFFICIAL_MINT`,
+`GOOGLE_CLIENT_ID`; optional `API_URL`, `CLUSTER`, `IMAGE`,
 `X_URL`, `WEB_RPC_URL` / `WEB_WS_URL`, and refuses an RPC URL containing
 `api-key`).
 
@@ -332,7 +331,6 @@ platform are not environment: the API reads them from the on-chain config.
 | `NEXT_PUBLIC_WS_URL` | `wss://api.imagine.fun/rpc-ws` |
 | `NEXT_PUBLIC_CLUSTER` | `mainnet-beta` |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Same client as the API |
-| `NEXT_PUBLIC_OFFICIAL_MINT` | Empty until $IMAGINE exists; every official-coin surface stays hidden |
 | `NEXT_PUBLIC_X_URL` | `https://x.com/LockImagine`; the link is hidden while empty |
 
 ## DNS and TLS

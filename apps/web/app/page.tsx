@@ -8,7 +8,7 @@ import { StatMarquee } from "@/components/stat-marquee";
 import { FlowDiagram } from "@/components/flow-diagram";
 import { Film } from "@/components/film";
 import { Faq } from "@/components/faq";
-import { OfficialCoinBanner } from "@/components/official-coin";
+import { isPlatformTicker } from "@/lib/official";
 import { CoinCard } from "@/components/coin-card";
 import { CoinCardSkeleton } from "@/components/skeleton";
 import { FirstLaunch } from "@/components/first-launch";
@@ -26,7 +26,6 @@ export default function HomePage() {
   return (
     <>
       <Hero />
-      <OfficialCoinBanner />
       <div className="mt-10">
         <StatMarquee />
       </div>
@@ -82,8 +81,8 @@ function LiveCoinsHeader() {
 
 async function LiveCoins() {
   const [result, fees] = await Promise.all([
-    api.pools({ sort: "rewards", limit: 6 }).then(
-      (value) => ({ pools: value.pools, failed: false }),
+    api.pools({ sort: "rewards", limit: 8 }).then(
+      (value) => ({ pools: value.pools.filter((pool) => !isPlatformTicker(pool.symbol)).slice(0, 6), failed: false }),
       () => ({ pools: [], failed: true }),
     ),
     loadFees(),

@@ -2,7 +2,7 @@ import { QUOTE_CATEGORIES } from "@imagine/sdk";
 import Link from "next/link";
 import { api, type PoolSummary } from "@/lib/api";
 import { categoryLabel } from "@/lib/quotes";
-import { IMAGINE_MINT } from "@/lib/official";
+import { isPlatformTicker } from "@/lib/official";
 import { CoinCard } from "@/components/coin-card";
 import { ImagineMark } from "@/components/imagine-mark";
 import { FirstLaunch } from "@/components/first-launch";
@@ -56,14 +56,9 @@ export default async function CoinsPage({ searchParams }: { searchParams: Promis
     loadFees(),
   ]);
   if (poolsResult.ok) {
-    pools = category
-      ? poolsResult.value.pools.filter((pool) => pool.quote.category.toLowerCase() === category)
-      : poolsResult.value.pools;
-    // The official coin leads the unfiltered list, once there is one.
-    if (IMAGINE_MINT && !search && !category) {
-      const official = pools.find((pool) => pool.mint === IMAGINE_MINT);
-      if (official) pools = [official, ...pools.filter((pool) => pool.mint !== IMAGINE_MINT)];
-    }
+    pools = poolsResult.value.pools.filter(
+      (pool) => !isPlatformTicker(pool.symbol) && (!category || pool.quote.category.toLowerCase() === category),
+    );
   } else {
     // The reason stays in the server log; visitors get a plain sentence.
     console.error("coins: pool list failed", poolsResult.reason);

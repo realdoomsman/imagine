@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IMAGINE_MINT } from "@/lib/official";
 import { ImagineLogo } from "./imagine-mark";
 import { ConnectButton } from "./connect-button";
 import { NAV, X_URL } from "./site-header-links";
@@ -39,14 +38,6 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          {IMAGINE_MINT ? (
-            <Link
-              href={`/coins/${IMAGINE_MINT}`}
-              className="pill pill-steel num hidden h-9 px-3 text-[12.5px] sm:inline-flex"
-            >
-              $IMAGINE
-            </Link>
-          ) : null}
           {X_URL ? (
             <SocialIcon href={X_URL} label="IMAGINE on X">
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />

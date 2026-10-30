@@ -11,8 +11,8 @@ hex. Change them together.
 - **IMAGINE** in logos, the wordmark and headings. Wordmark: Sora 800, tracking
   −0.02em.
 - **Imagine** in running prose ("Imagine pays lockers in the pair asset").
-- **$IMAGINE** for the coin only. It is not launched; every official-coin surface
-  stays hidden until `NEXT_PUBLIC_OFFICIAL_MINT` is set. Never imply a date.
+- **$IMAGINE**: the site promotes no coin of its own. No contract address,
+  ticker or buy link; coins under that ticker are kept off every list.
 - Domain **imagine.fun**, API **api.imagine.fun**. Venue: coins are
   "Launched on Raydium" — Raydium LaunchLab, under the IMAGINE platform.
 - X: **@LockImagine** (https://x.com/LockImagine). The site's link comes from

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { api, type ProofFeedType, type ProofPage, type ProofSummary } from "@/lib/api";
 import { explorerAccount, formatQuote, formatUsd } from "@/lib/format";
+import { isPlatformTicker } from "@/lib/official";
 import { pageMetadata } from "@/lib/seo";
 import { ImagineMark } from "@/components/imagine-mark";
 import { PairPill } from "@/components/pair-pill";
@@ -15,8 +16,6 @@ const MINT_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const PROGRAM = IMAGINE_PROGRAM_ID.toBase58();
 const GITHUB_URL = "https://github.com/realdoomsman/imagine";
 const OTTERSEC_URL = `https://verify.osec.io/status/${PROGRAM}`;
-/** The $IMAGINE dev's own locks, made permanent with `lock_forever`. */
-const DEV_FOREVER_POSITIONS = ["7egxYLL66KnwX4LyW7KXK3n51UiFj4B18xnHynbhRuLC", "HECdYY1XuLmJhQzz9gnuH321vSGjooWvmYhXztEhAsp8"];
 
 const TYPES: Array<{ key: ProofFeedType; label: string }> = [
   { key: "payouts", label: "All payouts" },
@@ -198,7 +197,7 @@ export default async function ProofPageRoute({ searchParams }: { searchParams: S
                 <h2 className="t-h3">Every payout</h2>
                 <p className="mt-1 text-[12.5px] text-muted">Newest first, live. Burns are the coin early exits destroyed.</p>
               </div>
-              <ProofCoinFilter coins={summary.coins} selected={mint} type={type} />
+              <ProofCoinFilter coins={summary.coins.filter((entry) => !isPlatformTicker(entry.symbol))} selected={mint} type={type} />
             </div>
             <nav className="mt-4 flex flex-wrap gap-1.5" aria-label="Type">
               {TYPES.map((option) => (
@@ -243,20 +242,6 @@ export default async function ProofPageRoute({ searchParams }: { searchParams: S
             <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="text-steel-hi hover:text-fg">
               github.com/realdoomsman/imagine ↗
             </a>
-          </Fact>
-          <Fact label="$IMAGINE dev locks, locked forever">
-            {DEV_FOREVER_POSITIONS.map((address) => (
-              <a
-                key={address}
-                href={explorerAccount(address)}
-                target="_blank"
-                rel="noreferrer"
-                className="num block break-all text-steel-hi hover:text-fg"
-              >
-                {address} ↗
-              </a>
-            ))}
-            <span className="mt-1 block text-[12px] text-muted">Each position account&apos;s `forever` flag is set on-chain.</span>
           </Fact>
         </dl>
       </section>

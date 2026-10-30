@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, type ProofFeedType, type ProofPage, type ProofPayout } from "@/lib/api";
 import { explorerAccount, explorerTx, formatQuote, usdSuffix } from "@/lib/format";
+import { isPlatformTicker } from "@/lib/official";
 
 /** How often the newest page is re-read, so payouts appear without a reload. */
 const REFRESH_MS = 30_000;
@@ -68,7 +69,9 @@ export function ProofFeed({ initial, mint, type }: { initial: ProofPage; mint: s
     return () => window.clearInterval(id);
   }, [mint, type]);
 
-  if (rows.length === 0) {
+  const shown = rows.filter((row) => !isPlatformTicker(row.symbol));
+
+  if (shown.length === 0) {
     return (
       <p className="card mt-4 px-6 py-10 text-center text-[13.5px] text-muted">
         {type === "burns"
@@ -93,7 +96,7 @@ export function ProofFeed({ initial, mint, type }: { initial: ProofPage; mint: s
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {shown.map((row) => (
               <tr key={row.id} className="border-t border-line transition-colors duration-200 hover:bg-ink-3/60">
                 <td className="num whitespace-nowrap px-5 py-2.5 text-muted" title={new Date(row.at).toISOString()}>
                   {/* UTC on both server and browser, so the first render and hydration agree. */}
