@@ -2,7 +2,7 @@ import { formatDuration, formatMultiplier, formatPercent, formatTokenAmount, sho
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { api, ApiError, type PoolDetail, type RewardHistory } from "@/lib/api";
+import { api, type PoolDetail, type RewardHistory } from "@/lib/api";
 import { loadFees } from "@/lib/fees";
 import { explorerAccount, FOREVER_TOOLTIP, formatBps, formatPrice, formatQuote, formatUsd, quoteToUsd } from "@/lib/format";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
@@ -18,6 +18,8 @@ import { SwapPanel } from "@/components/swap-panel";
 
 export const dynamic = "force-dynamic";
 
+const MINT_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
 function lockedFraction(detail: PoolDetail): number {
   const supply = detail.tokenSupply ? BigInt(detail.tokenSupply) : 0n;
   return supply > 0n ? Number(BigInt(detail.pool.totalLocked)) / Number(supply) : 0;
@@ -26,11 +28,12 @@ function lockedFraction(detail: PoolDetail): number {
 /** Coin pages get shared; the card should carry the coin, not the site. */
 export async function generateMetadata({ params }: { params: Promise<{ mint: string }> }): Promise<Metadata> {
   const { mint } = await params;
+  if (!MINT_RE.test(mint)) return { title: "Not found" };
   let detail: PoolDetail;
   try {
     detail = await api.pool(mint);
   } catch {
-    return { title: "Coin" };
+    return { title: "Pool data unavailable", robots: { index: false } };
   }
   const symbol = detail.metadata?.symbol ?? shortAddress(mint);
   const name = detail.metadata?.name ?? symbol;
@@ -60,14 +63,17 @@ export default async function CoinPage({
   searchParams: Promise<{ launched?: string; pct?: string; term?: string }>;
 }) {
   const { mint } = await params;
+  // Only a string that can't be a mint is a missing page.
+  if (!MINT_RE.test(mint)) notFound();
   const launched = await searchParams;
 
   let detail: PoolDetail;
   try {
     detail = await api.pool(mint);
   } catch (cause) {
-    if (cause instanceof ApiError && (cause.status === 404 || cause.status === 400)) notFound();
-    return <Unavailable mint={mint} reason={cause instanceof Error ? cause.message : "unknown error"} />;
+    // Any failure, "pool not found" included, is the paused state: the reason stays in the server log.
+    console.error(`coin ${mint}: pool load failed`, cause);
+    return <PoolUnavailable />;
   }
 
   const emptyHistory: RewardHistory = {
@@ -389,24 +395,23 @@ function CurveCard({ detail }: { detail: PoolDetail }) {
   );
 }
 
-function Unavailable({ mint, reason }: { mint: string; reason: string }) {
+/** Pool pages are paused: say so plainly, with no figures that could be stale. */
+function PoolUnavailable() {
   return (
     <div className="container-x py-16 lg:py-24">
       <div className="card mx-auto flex max-w-[640px] flex-col items-center gap-4 px-8 py-16 text-center">
         <ImagineMark size={44} className="opacity-40" />
-        <h1 className="t-h3">This coin can&apos;t be loaded right now</h1>
+        <p className="eyebrow">Maintenance</p>
+        <h1 className="t-h3">Pool data is temporarily unavailable</h1>
         <p className="max-w-[48ch] text-[14px] leading-relaxed text-muted">
-          The Imagine indexer isn&apos;t answering, so there&apos;s nothing reliable to show. Your locks are on chain
-          and unaffected.
+          Pool pages are paused while the protocol is under maintenance.
         </p>
-        <code className="num max-w-full break-all text-[11.5px] text-muted">{mint}</code>
-        <p className="max-w-full break-words text-[11.5px] text-muted">{reason}</p>
         <div className="mt-2 flex flex-wrap justify-center gap-2">
-          <Link href={`/coins/${mint}`} className="btn btn-primary btn-sm">
-            Try again
+          <Link href="/how-it-works" className="btn btn-primary btn-sm">
+            How it works
           </Link>
           <Link href="/coins" className="btn btn-ghost btn-sm">
-            All coins
+            Back to coins
           </Link>
         </div>
       </div>

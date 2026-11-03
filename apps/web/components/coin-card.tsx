@@ -75,9 +75,10 @@ export function CoinCard({ pool }: { pool: PoolSummary }) {
           <dd className="num mt-1 text-[13px] text-fg">{pool.open_positions}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="truncate text-muted">{pool.apr !== null ? "Yield" : "Locked"}</dt>
+          {/* A 0% yield means nothing was paid in the window (e.g. the index is behind), not a rate: show the lock. */}
+          <dt className="truncate text-muted">{pool.apr ? "Yield" : "Locked"}</dt>
           <dd className="num mt-1 truncate text-[13px] text-fg">
-            {pool.apr !== null
+            {pool.apr
               ? formatPercent(pool.apr, 0)
               : formatTokenAmount(BigInt(pool.total_locked), pool.token_decimals)}
           </dd>
